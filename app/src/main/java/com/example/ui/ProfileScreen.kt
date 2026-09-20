@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Stars
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -148,6 +149,7 @@ fun ProfileScreen(
     onNavigateToHome: () -> Unit = {},
     onNavigateToSubjects: () -> Unit = {},
     onNavigateToDownloads: () -> Unit = {},
+    onNavigateToTeacher: () -> Unit = {},
     onUpdateProfile: (name: String, school: String, studentClass: String) -> Unit = { _, _, _ -> }
 ) {
     var currentName by remember { mutableStateOf(studentName) }
@@ -756,7 +758,17 @@ fun ProfileScreen(
                         onClick = { showHelpDialog = true }
                     )
 
-                    // Row 3: Log out (label in #E76F51 red, no chevron)
+                    // Row 3: Switch to Teacher View
+                    AccountRow(
+                        icon = Icons.Outlined.SwapHoriz,
+                        label = "Switch to Teacher View",
+                        isDestructive = false,
+                        showChevron = true,
+                        testTag = "account_row_switch_teacher",
+                        onClick = onNavigateToTeacher
+                    )
+
+                    // Row 4: Log out (label in #E76F51 red, no chevron)
                     AccountRow(
                         icon = Icons.AutoMirrored.Outlined.Logout,
                         label = "Log out",

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Architecture
 import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Eco
@@ -241,6 +242,25 @@ enum class NavItem(val label: String, val icon: ImageVector) {
     DOWNLOADS("Downloads", Icons.Outlined.Download),
     PROFILE("Profile", Icons.Outlined.Person)
 }
+
+data class BottomNavItem(
+    val label: String,
+    val icon: ImageVector
+)
+
+val StudentNavItems: List<BottomNavItem> = listOf(
+    BottomNavItem("Home", Icons.Outlined.Home),
+    BottomNavItem("Subjects", Icons.Outlined.MenuBook),
+    BottomNavItem("Downloads", Icons.Outlined.Download),
+    BottomNavItem("Profile", Icons.Outlined.Person)
+)
+
+val TeacherNavItems: List<BottomNavItem> = listOf(
+    BottomNavItem("Home", Icons.Outlined.Home),
+    BottomNavItem("My Subjects", Icons.Outlined.MenuBook),
+    BottomNavItem("Uploads", Icons.Outlined.CloudUpload),
+    BottomNavItem("Profile", Icons.Outlined.Person)
+)
 
 /**
  * Main Home screen for the "Catch Up" secondary school notes-sharing app.
@@ -1029,7 +1049,8 @@ fun RecentTopicCard(
 fun BottomNavigationBar(
     selectedIndex: Int,
     onItemSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    items: List<BottomNavItem> = StudentNavItems
 ) {
     Surface(
         modifier = modifier
@@ -1059,8 +1080,9 @@ fun BottomNavigationBar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            NavItem.values().forEachIndexed { index, item ->
+            items.forEachIndexed { index, item ->
                 val isSelected = selectedIndex == index
+                val itemTestTag = "nav_item_${item.label.lowercase().replace(" ", "_")}"
 
                 if (isSelected) {
                     // Active Item: Pill shape with white background & indigo theme accent
@@ -1070,7 +1092,7 @@ fun BottomNavigationBar(
                             .background(Color.White)
                             .clickable { onItemSelected(index) }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
-                            .testTag("nav_item_${item.label.lowercase()}"),
+                            .testTag(itemTestTag),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
@@ -1095,7 +1117,7 @@ fun BottomNavigationBar(
                             .clip(RoundedCornerShape(12.dp))
                             .clickable { onItemSelected(index) }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
-                            .testTag("nav_item_${item.label.lowercase()}"),
+                            .testTag(itemTestTag),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {

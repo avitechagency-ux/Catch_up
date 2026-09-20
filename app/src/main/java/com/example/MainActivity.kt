@@ -21,6 +21,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.example.ui.CachedNote
+import com.example.ui.DefaultGeographyUploads
+import com.example.ui.DefaultMathUploads
+import com.example.ui.DefaultTeacherSubjects
 import com.example.ui.DownloadsScreen
 import com.example.ui.HomeScreen
 import com.example.ui.PdfViewerScreen
@@ -29,6 +32,11 @@ import com.example.ui.RecentNoteData
 import com.example.ui.StreakData
 import com.example.ui.SubjectNotesScreen
 import com.example.ui.SubjectsScreen
+import com.example.ui.TeacherHomeScreen
+import com.example.ui.TeacherPlaceholderScreen
+import com.example.ui.TeacherSubjectConfigScreen
+import com.example.ui.TeacherSubjectItem
+import com.example.ui.TeacherSubjectsScreen
 import com.example.ui.evaluateDayRollover
 import com.example.ui.pruneExpiredDownloads
 import com.example.ui.recordSessionTime
@@ -44,7 +52,12 @@ enum class AppScreen {
     SUBJECT_NOTES,
     PDF_VIEWER,
     DOWNLOADS,
-    PROFILE
+    PROFILE,
+    TEACHER_HOME,
+    TEACHER_MY_SUBJECTS,
+    TEACHER_SUBJECT_CONFIG,
+    TEACHER_UPLOADS,
+    TEACHER_PROFILE
 }
 
 class MainActivity : ComponentActivity() {
@@ -218,6 +231,10 @@ class MainActivity : ComponentActivity() {
                     recentNotesList = updated.take(3)
                 }
 
+                var selectedTeacherSubjectItem by remember {
+                    mutableStateOf(DefaultTeacherSubjects.first())
+                }
+
                 BackHandler(enabled = currentScreen != AppScreen.HOME) {
                     currentScreen = when (currentScreen) {
                         AppScreen.PDF_VIEWER -> previousScreen
@@ -225,6 +242,11 @@ class MainActivity : ComponentActivity() {
                         AppScreen.DOWNLOADS -> AppScreen.HOME
                         AppScreen.SUBJECTS -> AppScreen.HOME
                         AppScreen.PROFILE -> AppScreen.HOME
+                        AppScreen.TEACHER_SUBJECT_CONFIG -> AppScreen.TEACHER_MY_SUBJECTS
+                        AppScreen.TEACHER_MY_SUBJECTS -> AppScreen.TEACHER_HOME
+                        AppScreen.TEACHER_UPLOADS -> AppScreen.TEACHER_HOME
+                        AppScreen.TEACHER_PROFILE -> AppScreen.TEACHER_HOME
+                        AppScreen.TEACHER_HOME -> AppScreen.PROFILE
                         else -> AppScreen.HOME
                     }
                 }
@@ -376,7 +398,93 @@ class MainActivity : ComponentActivity() {
                             onNavigateToDownloads = {
                                 currentScreen = AppScreen.DOWNLOADS
                             },
+                            onNavigateToTeacher = {
+                                currentScreen = AppScreen.TEACHER_HOME
+                            },
                             onUpdateProfile = onSaveProfile
+                        )
+                        AppScreen.TEACHER_HOME -> TeacherHomeScreen(
+                            teacherName = "Mr. Okello",
+                            subjectsTaught = "Geography • S.4, S.5",
+                            notesUploadedCount = 5,
+                            classesCount = 3,
+                            notesSharedThisTermCount = 18,
+                            mostActiveClass = "S.5 Geography",
+                            notesOpenedThisWeekCount = 12,
+                            onNavigateToMySubjects = {
+                                currentScreen = AppScreen.TEACHER_MY_SUBJECTS
+                            },
+                            onNavigateToUploads = {
+                                currentScreen = AppScreen.TEACHER_UPLOADS
+                            },
+                            onNavigateToTeacherProfile = {
+                                currentScreen = AppScreen.TEACHER_PROFILE
+                            },
+                            onUploadNotesClick = {
+                                // Navigate to Teacher Uploads screen
+                                currentScreen = AppScreen.TEACHER_UPLOADS
+                            },
+                            onRecentNoteClick = { recentNote ->
+                                selectedPdfTitle = recentNote.title
+                                selectedPdfSubject = recentNote.subject
+                                recordRecentTopic(recentNote.title, recentNote.subject, null)
+                                previousScreen = AppScreen.TEACHER_HOME
+                                currentScreen = AppScreen.PDF_VIEWER
+                            },
+                            onSeeAllRecentClick = {
+                                currentScreen = AppScreen.TEACHER_UPLOADS
+                            },
+                            onSwitchToStudentView = {
+                                currentScreen = AppScreen.PROFILE
+                            }
+                        )
+                        AppScreen.TEACHER_MY_SUBJECTS -> TeacherSubjectsScreen(
+                            teacherName = "Mr. Okello",
+                            subjects = DefaultTeacherSubjects,
+                            onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
+                            onNavigateToMySubjects = { /* Already on My Subjects */ },
+                            onNavigateToUploads = { currentScreen = AppScreen.TEACHER_UPLOADS },
+                            onNavigateToTeacherProfile = { currentScreen = AppScreen.TEACHER_PROFILE },
+                            onSubjectClick = { subjectItem ->
+                                selectedTeacherSubjectItem = subjectItem
+                                currentScreen = AppScreen.TEACHER_SUBJECT_CONFIG
+                            }
+                        )
+                        AppScreen.TEACHER_SUBJECT_CONFIG -> TeacherSubjectConfigScreen(
+                            subject = selectedTeacherSubjectItem,
+                            initialUploads = if (selectedTeacherSubjectItem.name.equals("Math", ignoreCase = true)) {
+                                DefaultMathUploads
+                            } else {
+                                DefaultGeographyUploads
+                            },
+                            onNavigateBack = {
+                                currentScreen = AppScreen.TEACHER_MY_SUBJECTS
+                            },
+                            onOpenNote = { title, subject ->
+                                selectedPdfTitle = title
+                                selectedPdfSubject = subject
+                                recordRecentTopic(title, subject, null)
+                                previousScreen = AppScreen.TEACHER_SUBJECT_CONFIG
+                                currentScreen = AppScreen.PDF_VIEWER
+                            }
+                        )
+                        AppScreen.TEACHER_UPLOADS -> TeacherPlaceholderScreen(
+                            title = "Uploads",
+                            subtitle = "Upload new notes and view past uploads coming soon.",
+                            selectedIndex = 2,
+                            onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
+                            onNavigateToMySubjects = { currentScreen = AppScreen.TEACHER_MY_SUBJECTS },
+                            onNavigateToUploads = { /* Already on Uploads */ },
+                            onNavigateToTeacherProfile = { currentScreen = AppScreen.TEACHER_PROFILE }
+                        )
+                        AppScreen.TEACHER_PROFILE -> TeacherPlaceholderScreen(
+                            title = "Teacher Profile",
+                            subtitle = "Teacher settings and account details coming soon.",
+                            selectedIndex = 3,
+                            onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
+                            onNavigateToMySubjects = { currentScreen = AppScreen.TEACHER_MY_SUBJECTS },
+                            onNavigateToUploads = { currentScreen = AppScreen.TEACHER_UPLOADS },
+                            onNavigateToTeacherProfile = { /* Already on Profile */ }
                         )
                     }
                 }

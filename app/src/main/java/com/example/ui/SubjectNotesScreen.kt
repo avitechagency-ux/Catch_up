@@ -68,32 +68,32 @@ import kotlinx.coroutines.launch
  * Helper to get the designated brand color for each Ugandan curriculum subject card.
  */
 fun getSubjectThemeColor(subjectName: String): Color {
-    return when (subjectName.trim()) {
-        "Math" -> TealTile
-        "English" -> Color(0xFFD81B60)
-        "Physics" -> PurpleTile
-        "Chemistry" -> AmberTile
-        "Biology" -> NavyTile
-        "Geography" -> CoralTile
-        "History" -> BlueTile
-        "Agriculture" -> Color(0xFF2E7D32)
-        "ICT" -> Color(0xFF00838F)
-        "Entrepreneurship" -> Color(0xFFF39C12)
-        "Commerce" -> Color(0xFF3F51B5)
-        "Economics" -> Color(0xFF1B5E20)
-        "Technology & Design" -> Color(0xFF5D4037)
-        "Nutrition & Food Tech" -> Color(0xFFE65100)
-        "C.R.E" -> Color(0xFF8E24AA)
-        "I.R.E" -> Color(0xFF00796B)
-        "Literature" -> Color(0xFFC2185B)
-        "Fine Art" -> Color(0xFFFF5722)
-        "Performing Arts" -> Color(0xFF9C27B0)
-        "Physical Education" -> Color(0xFFC0392B)
-        "Kiswahili" -> Color(0xFFD35400)
-        "Luganda" -> Color(0xFF16A085)
-        "French" -> Color(0xFF455A64)
-        "German" -> Color(0xFF37474F)
-        "Arabic" -> Color(0xFF00695C)
+    return when (subjectName.trim().lowercase()) {
+        "math", "mathematics" -> TealTile
+        "english" -> Color(0xFFD81B60)
+        "physics" -> PurpleTile
+        "chemistry" -> AmberTile
+        "biology" -> NavyTile
+        "geography" -> CoralTile
+        "history" -> BlueTile
+        "agriculture" -> Color(0xFF2E7D32)
+        "ict" -> Color(0xFF00838F)
+        "entrepreneurship" -> Color(0xFFF39C12)
+        "commerce" -> Color(0xFF3F51B5)
+        "economics" -> Color(0xFF1B5E20)
+        "technology & design", "technology and design" -> Color(0xFF5D4037)
+        "nutrition & food tech", "nutrition and food tech" -> Color(0xFFE65100)
+        "c.r.e", "cre" -> Color(0xFF8E24AA)
+        "i.r.e", "ire" -> Color(0xFF00796B)
+        "literature" -> Color(0xFFC2185B)
+        "fine art" -> Color(0xFFFF5722)
+        "performing arts" -> Color(0xFF9C27B0)
+        "physical education", "pe" -> Color(0xFFC0392B)
+        "kiswahili", "swahili" -> Color(0xFFD35400)
+        "luganda" -> Color(0xFF16A085)
+        "french" -> Color(0xFF455A64)
+        "german" -> Color(0xFF37474F)
+        "arabic" -> Color(0xFF00695C)
         else -> IndigoPurple
     }
 }

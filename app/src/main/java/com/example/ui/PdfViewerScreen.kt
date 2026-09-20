@@ -8,20 +8,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.FileDownloadDone
-import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material3.Icon
@@ -89,19 +92,7 @@ fun PdfViewerScreen(
     }
 
     val themeColor = remember(subjectName) {
-        when (subjectName.trim().lowercase()) {
-            "geography" -> Color(0xFFE76F51)
-            "biology" -> Color(0xFF2A3B5C)
-            "math", "mathematics" -> Color(0xFF2A9D8F)
-            "history" -> Color(0xFF3A86FF)
-            "chemistry" -> Color(0xFFD97706)
-            "physics" -> Color(0xFFF4A261)
-            "english" -> Color(0xFF6A4C93)
-            "agriculture" -> Color(0xFF43A047)
-            "economics" -> Color(0xFF0077B6)
-            "commerce" -> Color(0xFFD97706)
-            else -> IndigoPurple
-        }
+        getSubjectThemeColor(subjectName)
     }
 
     Scaffold(
@@ -109,98 +100,109 @@ fun PdfViewerScreen(
             .fillMaxSize()
             .testTag("pdf_viewer_screen"),
         containerColor = Color(0xFFF8F9FA),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(bottom = innerPadding.calculateBottomPadding())
         ) {
-            // TOP BAR: 56dp height, white background, 1dp bottom border (#F0F0F0)
+            // TOP BAR: Subject color background, 56dp height, zero bottom border
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .height(56.dp)
-                    .border(
-                        width = 1.dp,
-                        color = Color(0xFFF0F0F0)
-                    )
                     .testTag("pdf_top_bar"),
-                color = Color.White,
+                color = themeColor,
                 tonalElevation = 0.dp
             ) {
-                Row(
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .fillMaxWidth()
+                        .statusBarsPadding()
                 ) {
-                    // Left: Back button
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier.testTag("pdf_back_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color(0xFF1A1A1A),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(4.dp))
-
-                    // Center: Topic/note title text (single line with ellipsis)
-                    Text(
-                        text = noteTitle,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF1A1A1A),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .testTag("pdf_title_text")
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Right: Cache/Save Icon (toggles internal app offline cache, zero OS file writes)
-                    IconButton(
-                        onClick = {
-                            val newCachedState = !isCachedLocally
-                            isCachedLocally = newCachedState
-                            onToggleSave(newCachedState)
-
-                            // Perform in-app internal cache persistence
-                            cacheNoteLocally(context, noteTitle, subjectName, newCachedState)
-
-                            coroutineScope.launch {
-                                val message = if (newCachedState) {
-                                    "Cached \"$noteTitle\" for offline reading in app"
-                                } else {
-                                    "Removed \"$noteTitle\" from offline cache"
-                                }
-                                snackbarHostState.showSnackbar(message)
-                            }
-                        },
-                        modifier = Modifier.testTag("pdf_download_button")
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .padding(horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isCachedLocally) {
+                        // Left: Back button
+                        IconButton(
+                            onClick = onNavigateBack,
+                            modifier = Modifier.testTag("pdf_back_button")
+                        ) {
                             Icon(
-                                imageVector = Icons.Filled.FileDownloadDone,
-                                contentDescription = "Cached offline in app",
-                                tint = IndigoPurple,
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
                                 modifier = Modifier.size(24.dp)
                             )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Outlined.FileDownload,
-                                contentDescription = "Cache for offline reading",
-                                tint = Color(0xFF9C9C9C),
-                                modifier = Modifier.size(24.dp)
-                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        // Center: Topic/note title text (single line with ellipsis)
+                        Text(
+                            text = noteTitle,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("pdf_title_text")
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Right: Bookmark/Save Icon (toggles internal app offline cache, zero OS file writes)
+                        IconButton(
+                            onClick = {
+                                val newCachedState = !isCachedLocally
+                                isCachedLocally = newCachedState
+                                onToggleSave(newCachedState)
+
+                                // Perform in-app internal cache persistence
+                                cacheNoteLocally(context, noteTitle, subjectName, newCachedState)
+
+                                coroutineScope.launch {
+                                    val message = if (newCachedState) {
+                                        "Saved \"$noteTitle\" for offline reading in app"
+                                    } else {
+                                        "Removed \"$noteTitle\" from offline cache"
+                                    }
+                                    snackbarHostState.showSnackbar(message)
+                                }
+                            },
+                            modifier = Modifier.testTag("pdf_download_button")
+                        ) {
+                            if (isCachedLocally) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Bookmark,
+                                        contentDescription = "Saved offline in app",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(5.dp)
+                                            .offset(y = (-2).dp)
+                                            .clip(CircleShape)
+                                            .background(themeColor)
+                                    )
+                                }
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Outlined.BookmarkBorder,
+                                    contentDescription = "Save for offline reading",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
                 }
