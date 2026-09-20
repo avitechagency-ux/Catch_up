@@ -35,19 +35,11 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # Step 5: Restore debug keystore from base64 if debug.keystore is git-ignored
-      - name: Prepare debug keystore
-        run: |
-          if [ ! -f debug.keystore ] && [ -f debug.keystore.base64 ]; then
-            echo "Decoding debug.keystore from debug.keystore.base64..."
-            base64 -d debug.keystore.base64 > debug.keystore
-          fi
-
-      # Step 6: Build the Android Debug APK using Gradle with stacktrace logging for clear diagnostics
+      # Step 5: Build the Android Debug APK using Gradle with stacktrace logging for clear diagnostics
       - name: Build Debug APK with Gradle
         run: ./gradlew assembleDebug --stacktrace
 
-      # Step 7: Verify that the output APK was generated at the expected path
+      # Step 6: Verify that the output APK was generated at the expected path
       - name: Verify APK output
         run: |
           if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
@@ -58,7 +50,7 @@ jobs:
             exit 1
           fi
 
-      # Step 8: Upload the compiled debug APK as a downloadable GitHub Actions artifact
+      # Step 7: Upload the compiled debug APK as a downloadable GitHub Actions artifact
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
