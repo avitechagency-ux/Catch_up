@@ -1,0 +1,7 @@
+{
+  "name": "Catch Up",
+  "description": "School notes-sharing app for secondary school students",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
