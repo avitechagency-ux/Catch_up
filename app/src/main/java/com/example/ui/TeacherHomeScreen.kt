@@ -138,7 +138,6 @@ fun TeacherHomeScreen(
 ) {
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var showMenuDropdown by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier
@@ -207,123 +206,37 @@ fun TeacherHomeScreen(
                 // Generous vertical spacing to lower the welcome text
                 Spacer(modifier = Modifier.height(36.dp))
 
-                // Lower Section: Welcome text (greetings below) and clickable profile avatar
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Lower Section: Welcome text (greetings below)
+                Column(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Good morning 👋",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = LightLavender,
-                            modifier = Modifier.testTag("teacher_greeting_text")
-                        )
+                    Text(
+                        text = "Good morning 👋",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = LightLavender,
+                        modifier = Modifier.testTag("teacher_greeting_text")
+                    )
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                        Text(
-                            text = teacherName,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.testTag("teacher_name_text")
-                        )
+                    Text(
+                        text = teacherName,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.testTag("teacher_name_text")
+                    )
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                        Text(
-                            text = subjectsTaught,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Normal,
-                            color = LightLavender,
-                            modifier = Modifier.testTag("teacher_subjects_text")
-                        )
-                    }
-
-                    // Clickable Profile Avatar with DropdownMenu to Switch to Student View
-                    Box {
-                        val initialLetter = teacherName
-                            .removePrefix("Mr. ")
-                            .removePrefix("Mrs. ")
-                            .removePrefix("Ms. ")
-                            .removePrefix("Dr. ")
-                            .trim()
-                            .firstOrNull()?.uppercase() ?: "O"
-
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color.White)
-                                .border(2.dp, LightLavender, CircleShape)
-                                .clickable { showMenuDropdown = true }
-                                .testTag("teacher_header_avatar"),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = initialLetter,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = IndigoPurple
-                            )
-                        }
-
-                        DropdownMenu(
-                            expanded = showMenuDropdown,
-                            onDismissRequest = { showMenuDropdown = false },
-                            modifier = Modifier
-                                .background(Color.White)
-                                .testTag("teacher_menu_dropdown")
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = "Teacher Profile",
-                                        fontSize = 14.sp,
-                                        color = TextDark
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Person,
-                                        contentDescription = null,
-                                        tint = TextDark,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                },
-                                onClick = {
-                                    showMenuDropdown = false
-                                    onNavigateToTeacherProfile()
-                                },
-                                modifier = Modifier.testTag("menu_teacher_profile")
-                            )
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = "Switch to Student View",
-                                        fontSize = 14.sp,
-                                        color = TextDark
-                                    )
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.SwapHoriz,
-                                        contentDescription = null,
-                                        tint = TextDark,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                },
-                                onClick = {
-                                    showMenuDropdown = false
-                                    onSwitchToStudentView()
-                                },
-                                modifier = Modifier.testTag("menu_switch_to_student")
-                            )
-                        }
-                    }
+                    Text(
+                        text = subjectsTaught,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = LightLavender,
+                        modifier = Modifier.testTag("teacher_subjects_text")
+                    )
                 }
             }
 

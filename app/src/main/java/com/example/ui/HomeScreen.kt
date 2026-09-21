@@ -454,89 +454,25 @@ fun AppHeader(
         // Generous vertical spacing to lower the welcome text
         Spacer(modifier = Modifier.height(36.dp))
 
-        // Lower Section: Welcome text and clickable student profile avatar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Lower Section: Welcome text (greeting + student name)
+        Column(
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = greeting,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = LightLavender,
-                    modifier = Modifier.testTag("greeting_text")
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = studentName,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier.testTag("student_name_text")
-                )
-            }
-
-            // Clickable Profile Avatar Pill with Dropdown
-            Box {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(2.dp, LightLavender, CircleShape)
-                        .clickable { showAvatarMenu = true }
-                        .testTag("header_profile_avatar"),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val initials = studentName.split(" ")
-                        .take(2)
-                        .mapNotNull { it.firstOrNull()?.uppercase() }
-                        .joinToString("")
-                    Text(
-                        text = if (initials.isNotEmpty()) initials else "S",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = IndigoPurple
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = showAvatarMenu,
-                    onDismissRequest = { showAvatarMenu = false },
-                    modifier = Modifier.background(Color.White)
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("My Profile", fontSize = 14.sp) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        onClick = {
-                            showAvatarMenu = false
-                            onProfileClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Switch to Teacher View", fontSize = 14.sp) },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.SwapHoriz,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        onClick = {
-                            showAvatarMenu = false
-                            onNavigateToTeacher()
-                        }
-                    )
-                }
-            }
+            Text(
+                text = greeting,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                color = LightLavender,
+                modifier = Modifier.testTag("greeting_text")
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = studentName,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.testTag("student_name_text")
+            )
         }
     }
 }
