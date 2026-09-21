@@ -37,6 +37,9 @@ import com.example.ui.TeacherPlaceholderScreen
 import com.example.ui.TeacherSubjectConfigScreen
 import com.example.ui.TeacherSubjectItem
 import com.example.ui.TeacherSubjectsScreen
+import com.example.ui.TeacherUploadNotesScreen
+import com.example.ui.TeacherUploadsScreen
+import com.example.ui.SubjectUploadItem
 import com.example.ui.evaluateDayRollover
 import com.example.ui.pruneExpiredDownloads
 import com.example.ui.recordSessionTime
@@ -56,6 +59,7 @@ enum class AppScreen {
     TEACHER_HOME,
     TEACHER_MY_SUBJECTS,
     TEACHER_SUBJECT_CONFIG,
+    TEACHER_UPLOAD_NOTES,
     TEACHER_UPLOADS,
     TEACHER_PROFILE
 }
@@ -149,8 +153,20 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                var currentScreen by remember { mutableStateOf(AppScreen.HOME) }
-                var previousScreen by remember { mutableStateOf(AppScreen.HOME) }
+                val initialScreen = remember {
+                    val saved = prefs.getString("last_active_screen", AppScreen.TEACHER_HOME.name)
+                    try {
+                        AppScreen.valueOf(saved ?: AppScreen.TEACHER_HOME.name)
+                    } catch (e: Exception) {
+                        AppScreen.TEACHER_HOME
+                    }
+                }
+                var currentScreen by remember { mutableStateOf(initialScreen) }
+                var previousScreen by remember { mutableStateOf(AppScreen.TEACHER_HOME) }
+
+                LaunchedEffect(currentScreen) {
+                    prefs.edit().putString("last_active_screen", currentScreen.name).apply()
+                }
                 var selectedSubjectName by remember { mutableStateOf("Math") }
                 var selectedPdfTitle by remember { mutableStateOf("Algebra") }
                 var selectedPdfSubject by remember { mutableStateOf("Math") }
@@ -234,6 +250,9 @@ class MainActivity : ComponentActivity() {
                 var selectedTeacherSubjectItem by remember {
                     mutableStateOf(DefaultTeacherSubjects.first())
                 }
+                var teacherNoteToEdit by remember {
+                    mutableStateOf<SubjectUploadItem?>(null)
+                }
 
                 BackHandler(enabled = currentScreen != AppScreen.HOME) {
                     currentScreen = when (currentScreen) {
@@ -242,6 +261,7 @@ class MainActivity : ComponentActivity() {
                         AppScreen.DOWNLOADS -> AppScreen.HOME
                         AppScreen.SUBJECTS -> AppScreen.HOME
                         AppScreen.PROFILE -> AppScreen.HOME
+                        AppScreen.TEACHER_UPLOAD_NOTES -> previousScreen
                         AppScreen.TEACHER_SUBJECT_CONFIG -> AppScreen.TEACHER_MY_SUBJECTS
                         AppScreen.TEACHER_MY_SUBJECTS -> AppScreen.TEACHER_HOME
                         AppScreen.TEACHER_UPLOADS -> AppScreen.TEACHER_HOME
@@ -276,6 +296,9 @@ class MainActivity : ComponentActivity() {
                                 recordRecentTopic(title, subject, null)
                                 previousScreen = AppScreen.HOME
                                 currentScreen = AppScreen.PDF_VIEWER
+                            },
+                            onNavigateToTeacher = {
+                                currentScreen = AppScreen.TEACHER_HOME
                             }
                         )
                         AppScreen.SUBJECTS -> SubjectsScreen(
@@ -421,8 +444,9 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.TEACHER_PROFILE
                             },
                             onUploadNotesClick = {
-                                // Navigate to Teacher Uploads screen
-                                currentScreen = AppScreen.TEACHER_UPLOADS
+                                teacherNoteToEdit = null
+                                previousScreen = AppScreen.TEACHER_HOME
+                                currentScreen = AppScreen.TEACHER_UPLOAD_NOTES
                             },
                             onRecentNoteClick = { recentNote ->
                                 selectedPdfTitle = recentNote.title
@@ -460,6 +484,16 @@ class MainActivity : ComponentActivity() {
                             onNavigateBack = {
                                 currentScreen = AppScreen.TEACHER_MY_SUBJECTS
                             },
+                            onUploadNotesClick = {
+                                teacherNoteToEdit = null
+                                previousScreen = AppScreen.TEACHER_SUBJECT_CONFIG
+                                currentScreen = AppScreen.TEACHER_UPLOAD_NOTES
+                            },
+                            onEditNote = { note ->
+                                teacherNoteToEdit = note
+                                previousScreen = AppScreen.TEACHER_SUBJECT_CONFIG
+                                currentScreen = AppScreen.TEACHER_UPLOAD_NOTES
+                            },
                             onOpenNote = { title, subject ->
                                 selectedPdfTitle = title
                                 selectedPdfSubject = subject
@@ -468,14 +502,38 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.PDF_VIEWER
                             }
                         )
-                        AppScreen.TEACHER_UPLOADS -> TeacherPlaceholderScreen(
-                            title = "Uploads",
-                            subtitle = "Upload new notes and view past uploads coming soon.",
-                            selectedIndex = 2,
+                        AppScreen.TEACHER_UPLOAD_NOTES -> {
+                            val assignedClasses = if (selectedTeacherSubjectItem.name.equals("Math", ignoreCase = true)) {
+                                listOf("S.3 Blue", "S.3 Green", "S.4 Green", "S.4 Blue")
+                            } else {
+                                listOf("S.4 Green", "S.4 Blue", "S.5 Blue", "S.5 Arts")
+                            }
+                            TeacherUploadNotesScreen(
+                                subjectName = selectedTeacherSubjectItem.name,
+                                subjectIcon = selectedTeacherSubjectItem.icon,
+                                assignedClasses = assignedClasses,
+                                existingNote = teacherNoteToEdit,
+                                onNavigateBack = {
+                                    currentScreen = previousScreen
+                                },
+                                onSaveSuccess = { _ ->
+                                    currentScreen = previousScreen
+                                }
+                            )
+                        }
+                        AppScreen.TEACHER_UPLOADS -> TeacherUploadsScreen(
+                            teacherName = "Mr. Okello",
                             onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
                             onNavigateToMySubjects = { currentScreen = AppScreen.TEACHER_MY_SUBJECTS },
                             onNavigateToUploads = { /* Already on Uploads */ },
-                            onNavigateToTeacherProfile = { currentScreen = AppScreen.TEACHER_PROFILE }
+                            onNavigateToTeacherProfile = { currentScreen = AppScreen.TEACHER_PROFILE },
+                            onOpenUpload = { title, subject ->
+                                selectedPdfTitle = title
+                                selectedPdfSubject = subject
+                                recordRecentTopic(title, subject, null)
+                                previousScreen = AppScreen.TEACHER_UPLOADS
+                                currentScreen = AppScreen.PDF_VIEWER
+                            }
                         )
                         AppScreen.TEACHER_PROFILE -> TeacherPlaceholderScreen(
                             title = "Teacher Profile",

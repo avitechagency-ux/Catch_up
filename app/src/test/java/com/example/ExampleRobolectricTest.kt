@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.test.core.app.ApplicationProvider
 import com.example.ui.DefaultGeographyUploads
 import com.example.ui.DefaultMathUploads
+import com.example.ui.DefaultTeacherAllUploads
 import com.example.ui.DefaultTeacherRecentUploads
 import com.example.ui.DefaultTeacherSubjects
 import com.example.ui.StudentNavItems
@@ -79,5 +80,22 @@ class ExampleRobolectricTest {
     assertTrue(DefaultMathUploads.isNotEmpty())
     assertTrue(DefaultGeographyUploads.any { it.type == "Notes" })
     assertTrue(DefaultGeographyUploads.any { it.type == "Assignment" })
+  }
+
+  @Test
+  fun `verify teacher all uploads collection across every term`() {
+    assertTrue(DefaultTeacherAllUploads.isNotEmpty())
+    val terms = DefaultTeacherAllUploads.map { it.term }.distinct()
+    assertTrue(terms.contains("Term 3"))
+    assertTrue(terms.contains("Term 2"))
+    assertTrue(terms.contains("Term 1"))
+
+    val types = DefaultTeacherAllUploads.map { it.type }.distinct()
+    assertTrue(types.contains("Notes"))
+    assertTrue(types.contains("Assignment"))
+
+    val subjects = DefaultTeacherAllUploads.map { it.subject }.distinct()
+    assertTrue(subjects.contains("Geography"))
+    assertTrue(subjects.contains("Math"))
   }
 }

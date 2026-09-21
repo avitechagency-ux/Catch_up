@@ -167,203 +167,137 @@ fun TeacherHomeScreen(
                 .verticalScroll(scrollState)
         ) {
             // ==========================================
-            // 1. BANNER HEADER (Gradient with card fully inside)
+            // 1. APP HEADER (Like Student Portal Header)
             // ==========================================
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(
-                        RoundedCornerShape(
+                    .background(
+                        color = IndigoPurple,
+                        shape = RoundedCornerShape(
                             topStart = 0.dp,
                             topEnd = 0.dp,
                             bottomStart = 28.dp,
                             bottomEnd = 28.dp
                         )
                     )
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(Color(0xFF4B3F8F), Color(0xFF5F4FA8))
-                        )
-                    )
-                    .testTag("teacher_banner_header")
+                    .statusBarsPadding()
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 28.dp)
+                    .testTag("teacher_app_header")
             ) {
-                // Decorative subtle soft geometric circles in lighter purple (#6B5CA5 at 30% opacity)
-                Canvas(modifier = Modifier.matchParentSize()) {
-                    drawCircle(
-                        color = Color(0xFF6B5CA5).copy(alpha = 0.30f),
-                        radius = 120.dp.toPx(),
-                        center = Offset(size.width + 25.dp.toPx(), 20.dp.toPx())
-                    )
-                    drawCircle(
-                        color = Color(0xFF6B5CA5).copy(alpha = 0.30f),
-                        radius = 70.dp.toPx(),
-                        center = Offset(-10.dp.toPx(), size.height - 15.dp.toPx())
+                // Upper Section: Platform Name centered, size h1 (32sp) & bold
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Catch Up",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        letterSpacing = 0.5.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("platform_name_header")
                     )
                 }
 
-                // Content inside Banner
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp)
+                // Generous vertical spacing to lower the welcome text
+                Spacer(modifier = Modifier.height(36.dp))
+
+                // Lower Section: Welcome text (greetings below) and clickable profile avatar
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            // "Good morning," small light text, color #D6D0F0, font 14sp
-                            Text(
-                                text = "Good morning,",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = LightLavender,
-                                modifier = Modifier.testTag("teacher_greeting_text")
-                            )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Good morning 👋",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = LightLavender,
+                            modifier = Modifier.testTag("teacher_greeting_text")
+                        )
 
-                            Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
-                            // Teacher name below, bold white, 22sp, e.g. "Mr. Okello"
-                            Text(
-                                text = teacherName,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                modifier = Modifier.testTag("teacher_name_text")
-                            )
+                        Text(
+                            text = teacherName,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.testTag("teacher_name_text")
+                        )
 
-                            // Subjects taught below (6dp gap), color #D6D0F0, font 13sp
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = subjectsTaught,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = LightLavender,
-                                modifier = Modifier.testTag("teacher_subjects_text")
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(4.dp))
 
-                        // Top row: menu icon (white, 24dp) top-right
-                        Box {
-                            IconButton(
-                                onClick = { showMenuDropdown = true },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .testTag("teacher_menu_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Menu,
-                                    contentDescription = "Menu",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-
-                            DropdownMenu(
-                                expanded = showMenuDropdown,
-                                onDismissRequest = { showMenuDropdown = false },
-                                modifier = Modifier
-                                    .background(Color.White)
-                                    .testTag("teacher_menu_dropdown")
-                            ) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = "Switch to Student View",
-                                            fontSize = 14.sp,
-                                            color = TextDark
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Outlined.SwapHoriz,
-                                            contentDescription = null,
-                                            tint = TextDark,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    },
-                                    onClick = {
-                                        showMenuDropdown = false
-                                        onSwitchToStudentView()
-                                    },
-                                    modifier = Modifier.testTag("menu_switch_to_student")
-                                )
-                            }
-                        }
+                        Text(
+                            text = subjectsTaught,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = LightLavender,
+                            modifier = Modifier.testTag("teacher_subjects_text")
+                        )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // Clickable Profile Avatar with DropdownMenu to Switch to Student View
+                    Box {
+                        val initialLetter = teacherName
+                            .removePrefix("Mr. ")
+                            .removePrefix("Mrs. ")
+                            .removePrefix("Ms. ")
+                            .removePrefix("Dr. ")
+                            .trim()
+                            .firstOrNull()?.uppercase() ?: "O"
 
-                    // White card containing "18 notes shared this term" — FULLY INSIDE the header card
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .shadow(
-                                elevation = 4.dp,
-                                shape = RoundedCornerShape(14.dp),
-                                ambientColor = Color(0x20000000),
-                                spotColor = Color(0x30000000)
-                            )
-                            .border(1.dp, BorderGrey, RoundedCornerShape(14.dp))
-                            .testTag("teacher_term_card"),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.White
-                    ) {
-                        Row(
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .border(2.dp, LightLavender, CircleShape)
+                                .clickable { showMenuDropdown = true }
+                                .testTag("teacher_header_avatar"),
+                            contentAlignment = Alignment.Center
                         ) {
-                            // Circular avatar (36dp, background #E0DCF2, initial letter in #4B3F8F)
-                            val initialLetter = teacherName
-                                .removePrefix("Mr. ")
-                                .removePrefix("Mrs. ")
-                                .removePrefix("Ms. ")
-                                .removePrefix("Dr. ")
-                                .trim()
-                                .firstOrNull()?.uppercase() ?: "O"
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFE0DCF2))
-                                    .testTag("teacher_avatar"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = initialLetter,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = IndigoPurple
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            // "X notes shared this term" text (13sp, weight Medium, color #1A1A1A)
                             Text(
-                                text = "$notesSharedThisTermCount notes shared this term",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextDark,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("teacher_term_notes_text")
+                                text = initialLetter,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = IndigoPurple
                             )
+                        }
 
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            // Small trending-up icon (16dp, color #2A9D8F) at far right
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.TrendingUp,
-                                contentDescription = "Trending",
-                                tint = Color(0xFF2A9D8F),
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .testTag("teacher_trending_icon")
+                        DropdownMenu(
+                            expanded = showMenuDropdown,
+                            onDismissRequest = { showMenuDropdown = false },
+                            modifier = Modifier
+                                .background(Color.White)
+                                .testTag("teacher_menu_dropdown")
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Switch to Student View",
+                                        fontSize = 14.sp,
+                                        color = TextDark
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.SwapHoriz,
+                                        contentDescription = null,
+                                        tint = TextDark,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    onSwitchToStudentView()
+                                },
+                                modifier = Modifier.testTag("menu_switch_to_student")
                             )
                         }
                     }

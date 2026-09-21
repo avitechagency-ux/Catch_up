@@ -46,6 +46,9 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -293,7 +296,8 @@ fun HomeScreen(
     onNavigateToProfile: () -> Unit = {},
     onNavigateToTab: (Int) -> Unit = {},
     onNavigateToSubjectDetail: (String) -> Unit = {},
-    onOpenNote: (title: String, subject: String) -> Unit = { _, _ -> }
+    onOpenNote: (title: String, subject: String) -> Unit = { _, _ -> },
+    onNavigateToTeacher: () -> Unit = {}
 ) {
     var selectedNavIndex by remember { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -369,7 +373,8 @@ fun HomeScreen(
                 platformName = "Catch Up",
                 greeting = greeting,
                 studentName = studentName,
-                onProfileClick = onNavigateToProfile
+                onProfileClick = onNavigateToProfile,
+                onNavigateToTeacher = onNavigateToTeacher
             )
 
             // White Body Content
@@ -408,8 +413,11 @@ fun AppHeader(
     greeting: String,
     studentName: String,
     onProfileClick: () -> Unit = {},
+    onNavigateToTeacher: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showAvatarMenu by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -470,27 +478,64 @@ fun AppHeader(
                 )
             }
 
-            // Clickable Profile Avatar Pill
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .border(2.dp, LightLavender, CircleShape)
-                    .clickable { onProfileClick() }
-                    .testTag("header_profile_avatar"),
-                contentAlignment = Alignment.Center
-            ) {
-                val initials = studentName.split(" ")
-                    .take(2)
-                    .mapNotNull { it.firstOrNull()?.uppercase() }
-                    .joinToString("")
-                Text(
-                    text = if (initials.isNotEmpty()) initials else "S",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = IndigoPurple
-                )
+            // Clickable Profile Avatar Pill with Dropdown
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .border(2.dp, LightLavender, CircleShape)
+                        .clickable { showAvatarMenu = true }
+                        .testTag("header_profile_avatar"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val initials = studentName.split(" ")
+                        .take(2)
+                        .mapNotNull { it.firstOrNull()?.uppercase() }
+                        .joinToString("")
+                    Text(
+                        text = if (initials.isNotEmpty()) initials else "S",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IndigoPurple
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = showAvatarMenu,
+                    onDismissRequest = { showAvatarMenu = false },
+                    modifier = Modifier.background(Color.White)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("My Profile", fontSize = 14.sp) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        onClick = {
+                            showAvatarMenu = false
+                            onProfileClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Switch to Teacher View", fontSize = 14.sp) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.SwapHoriz,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        onClick = {
+                            showAvatarMenu = false
+                            onNavigateToTeacher()
+                        }
+                    )
+                }
             }
         }
     }

@@ -1,9 +1,11 @@
 package com.example.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,13 +34,19 @@ import androidx.compose.material.icons.outlined.Architecture
 import androidx.compose.material.icons.outlined.Assignment
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -106,7 +114,10 @@ data class SubjectUploadItem(
     val targetClass: String,
     val type: String, // "Notes" or "Assignment"
     val dateUploaded: String,
-    val dueDate: String? = null
+    val dueDate: String? = null,
+    val isOwnUpload: Boolean = true,
+    val uploaderName: String = "Mr. Okello",
+    val fileName: String = "document.pdf"
 )
 
 /**
@@ -325,26 +336,6 @@ fun TeacherSubjectsScreen(
                     .fillMaxSize()
                     .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
-                Text(
-                    text = "Your Teaching Curriculum",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextDark,
-                    modifier = Modifier.testTag("teacher_subjects_section_heading")
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = "Tap a subject card to upload notes, manage assignments, and view class activity.",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = TextMuted,
-                    modifier = Modifier.testTag("teacher_subjects_section_subheading")
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier
@@ -471,6 +462,8 @@ fun TeacherSubjectConfigScreen(
     initialUploads: List<SubjectUploadItem>,
     modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit = {},
+    onUploadNotesClick: () -> Unit = {},
+    onEditNote: (SubjectUploadItem) -> Unit = {},
     onOpenNote: (String, String) -> Unit = { _, _ -> }
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -480,6 +473,7 @@ fun TeacherSubjectConfigScreen(
     var showUploadNotesDialog by remember { mutableStateOf(false) }
     var showUploadAssignmentDialog by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("All") } // "All", "Notes", "Assignment"
+    var noteToDelete by remember { mutableStateOf<SubjectUploadItem?>(null) }
 
     val filteredUploads = remember(uploadsList, selectedFilter) {
         if (selectedFilter == "All") {
@@ -645,7 +639,7 @@ fun TeacherSubjectConfigScreen(
                                     .weight(1f)
                                     .height(100.dp)
                                     .clip(RoundedCornerShape(16.dp))
-                                    .clickable { showUploadNotesDialog = true }
+                                    .clickable { onUploadNotesClick() }
                                     .testTag("action_upload_notes_card"),
                                 shape = RoundedCornerShape(16.dp),
                                 color = IndigoPurple
@@ -796,12 +790,60 @@ fun TeacherSubjectConfigScreen(
                             subjectColor = subject.color,
                             onClick = {
                                 onOpenNote(item.title, item.subject)
+                            },
+                            onEdit = {
+                                onEditNote(item)
+                            },
+                            onDelete = {
+                                noteToDelete = item
                             }
                         )
                     }
                 }
             }
         }
+    }
+
+    // Deletion confirmation dialog for teacher's notes
+    if (noteToDelete != null) {
+        val item = noteToDelete!!
+        AlertDialog(
+            onDismissRequest = { noteToDelete = null },
+            title = {
+                Text(
+                    text = "Delete Note",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
+                )
+            },
+            text = {
+                Text(
+                    text = "Remove this note? Students will no longer be able to access it.",
+                    fontSize = 14.sp,
+                    color = TextDark
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        uploadsList = uploadsList.filterNot { it.id == item.id }
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Removed \"${item.title}\"")
+                        }
+                        noteToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
+                ) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { noteToDelete = null }) {
+                    Text("Cancel", color = TextMuted)
+                }
+            }
+        )
     }
 
     // ==========================================
@@ -1081,8 +1123,12 @@ fun ConfigUploadTopicCard(
     uploadItem: SubjectUploadItem,
     subjectColor: Color,
     onClick: () -> Unit,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -1109,7 +1155,7 @@ fun ConfigUploadTopicCard(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = 10.dp)
+                    .padding(end = 6.dp)
             ) {
                 Text(
                     text = uploadItem.title,
@@ -1135,12 +1181,73 @@ fun ConfigUploadTopicCard(
                 )
             }
 
-            Text(
-                text = uploadItem.dateUploaded,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.White.copy(alpha = 0.90f)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = uploadItem.dateUploaded,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.90f)
+                )
+
+                if (uploadItem.isOwnUpload) {
+                    Box {
+                        IconButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .testTag("btn_more_${uploadItem.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.MoreVert,
+                                contentDescription = "Options",
+                                tint = Color.White.copy(alpha = 0.9f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Edit Note", fontSize = 13.sp, color = TextDark) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Edit,
+                                        contentDescription = "Edit",
+                                        tint = IndigoPurple,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onEdit()
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text("Delete Note", fontSize = 13.sp, color = Color(0xFFE53935)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.DeleteOutline,
+                                        contentDescription = "Delete",
+                                        tint = Color(0xFFE53935),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onDelete()
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
