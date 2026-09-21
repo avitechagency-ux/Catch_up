@@ -20,20 +20,26 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.example.ui.AccountScreen
+import com.example.ui.AboutScreen
 import com.example.ui.CachedNote
 import com.example.ui.DefaultGeographyUploads
 import com.example.ui.DefaultMathUploads
 import com.example.ui.DefaultTeacherSubjects
 import com.example.ui.DownloadsScreen
+import com.example.ui.HelpAndSupportScreen
 import com.example.ui.HomeScreen
 import com.example.ui.PdfViewerScreen
+import com.example.ui.PlanTier
 import com.example.ui.ProfileScreen
 import com.example.ui.RecentNoteData
+import com.example.ui.SettingsScreen
 import com.example.ui.StreakData
 import com.example.ui.SubjectNotesScreen
 import com.example.ui.SubjectsScreen
 import com.example.ui.TeacherHomeScreen
 import com.example.ui.TeacherPlaceholderScreen
+import com.example.ui.TeacherProfileScreen
 import com.example.ui.TeacherSubjectConfigScreen
 import com.example.ui.TeacherSubjectItem
 import com.example.ui.TeacherSubjectsScreen
@@ -56,6 +62,10 @@ enum class AppScreen {
     PDF_VIEWER,
     DOWNLOADS,
     PROFILE,
+    ACCOUNT,
+    SETTINGS,
+    HELP_AND_SUPPORT,
+    ABOUT,
     TEACHER_HOME,
     TEACHER_MY_SUBJECTS,
     TEACHER_SUBJECT_CONFIG,
@@ -154,11 +164,11 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val initialScreen = remember {
-                    val saved = prefs.getString("last_active_screen", AppScreen.TEACHER_HOME.name)
+                    val saved = prefs.getString("last_active_screen", AppScreen.PROFILE.name)
                     try {
-                        AppScreen.valueOf(saved ?: AppScreen.TEACHER_HOME.name)
+                        AppScreen.valueOf(saved ?: AppScreen.PROFILE.name)
                     } catch (e: Exception) {
-                        AppScreen.TEACHER_HOME
+                        AppScreen.PROFILE
                     }
                 }
                 var currentScreen by remember { mutableStateOf(initialScreen) }
@@ -179,6 +189,12 @@ class MainActivity : ComponentActivity() {
                 }
                 var academicClass by remember {
                     mutableStateOf(prefs.getString("student_class", "S.5 Blue") ?: "S.5 Blue")
+                }
+                var activePlanDuration by remember {
+                    mutableStateOf(prefs.getString("student_plan_duration", "1 Year") ?: "1 Year")
+                }
+                var activePlanExpiry by remember {
+                    mutableStateOf(prefs.getString("student_plan_expiry", "Valid until Term 2, 2026") ?: "Valid until Term 2, 2026")
                 }
 
                 val onSaveProfile: (String, String, String) -> Unit = { newName, newSchool, newClass ->
@@ -254,6 +270,18 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf<SubjectUploadItem?>(null)
                 }
 
+                var settingsPreviousScreen by remember {
+                    mutableStateOf(AppScreen.PROFILE)
+                }
+
+                var helpPreviousScreen by remember {
+                    mutableStateOf(AppScreen.PROFILE)
+                }
+
+                var aboutPreviousScreen by remember {
+                    mutableStateOf(AppScreen.PROFILE)
+                }
+
                 BackHandler(enabled = currentScreen != AppScreen.HOME) {
                     currentScreen = when (currentScreen) {
                         AppScreen.PDF_VIEWER -> previousScreen
@@ -261,6 +289,10 @@ class MainActivity : ComponentActivity() {
                         AppScreen.DOWNLOADS -> AppScreen.HOME
                         AppScreen.SUBJECTS -> AppScreen.HOME
                         AppScreen.PROFILE -> AppScreen.HOME
+                        AppScreen.ACCOUNT -> AppScreen.PROFILE
+                        AppScreen.SETTINGS -> settingsPreviousScreen
+                        AppScreen.HELP_AND_SUPPORT -> helpPreviousScreen
+                        AppScreen.ABOUT -> aboutPreviousScreen
                         AppScreen.TEACHER_UPLOAD_NOTES -> previousScreen
                         AppScreen.TEACHER_SUBJECT_CONFIG -> AppScreen.TEACHER_MY_SUBJECTS
                         AppScreen.TEACHER_MY_SUBJECTS -> AppScreen.TEACHER_HOME
@@ -412,6 +444,7 @@ class MainActivity : ComponentActivity() {
                             schoolName = schoolName,
                             academicClass = academicClass,
                             streakDays = streakData.streakDays,
+                            validUntilText = activePlanExpiry,
                             onNavigateToHome = {
                                 currentScreen = AppScreen.HOME
                             },
@@ -424,7 +457,60 @@ class MainActivity : ComponentActivity() {
                             onNavigateToTeacher = {
                                 currentScreen = AppScreen.TEACHER_HOME
                             },
+                            onNavigateToAccount = {
+                                currentScreen = AppScreen.ACCOUNT
+                            },
+                            onNavigateToSettings = {
+                                settingsPreviousScreen = AppScreen.PROFILE
+                                currentScreen = AppScreen.SETTINGS
+                            },
+                            onNavigateToHelpAndSupport = {
+                                helpPreviousScreen = AppScreen.PROFILE
+                                currentScreen = AppScreen.HELP_AND_SUPPORT
+                            },
+                            onNavigateToAbout = {
+                                aboutPreviousScreen = AppScreen.PROFILE
+                                currentScreen = AppScreen.ABOUT
+                            },
                             onUpdateProfile = onSaveProfile
+                        )
+                        AppScreen.SETTINGS -> SettingsScreen(
+                            onNavigateBack = {
+                                currentScreen = settingsPreviousScreen
+                            },
+                            onClearCachedNotes = {
+                                downloadsList = emptyList()
+                            }
+                        )
+                        AppScreen.HELP_AND_SUPPORT -> HelpAndSupportScreen(
+                            onNavigateBack = {
+                                currentScreen = helpPreviousScreen
+                            }
+                        )
+                        AppScreen.ABOUT -> AboutScreen(
+                            onNavigateBack = {
+                                currentScreen = aboutPreviousScreen
+                            }
+                        )
+                        AppScreen.ACCOUNT -> AccountScreen(
+                            activePlanDuration = activePlanDuration,
+                            activePlanExpiry = activePlanExpiry,
+                            onNavigateBack = {
+                                currentScreen = AppScreen.PROFILE
+                            },
+                            onPlanUpdated = { newPlan ->
+                                activePlanDuration = newPlan.duration
+                                activePlanExpiry = when (newPlan.id) {
+                                    "1_month" -> "Valid for 30 days"
+                                    "1_term" -> "Valid until end of Term 3, 2026"
+                                    "1_year" -> "Valid until Term 2, 2027"
+                                    else -> "Valid until Term 2, 2026"
+                                }
+                                prefs.edit()
+                                    .putString("student_plan_duration", activePlanDuration)
+                                    .putString("student_plan_expiry", activePlanExpiry)
+                                    .apply()
+                            }
                         )
                         AppScreen.TEACHER_HOME -> TeacherHomeScreen(
                             teacherName = "Mr. Okello",
@@ -535,14 +621,30 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.PDF_VIEWER
                             }
                         )
-                        AppScreen.TEACHER_PROFILE -> TeacherPlaceholderScreen(
-                            title = "Teacher Profile",
-                            subtitle = "Teacher settings and account details coming soon.",
-                            selectedIndex = 3,
+                        AppScreen.TEACHER_PROFILE -> TeacherProfileScreen(
+                            teacherName = "Mr. Okello",
+                            subjectsTaught = "Geography • S.4, S.5",
+                            schoolName = "Jjungo Senior Secondary School",
                             onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
                             onNavigateToMySubjects = { currentScreen = AppScreen.TEACHER_MY_SUBJECTS },
                             onNavigateToUploads = { currentScreen = AppScreen.TEACHER_UPLOADS },
-                            onNavigateToTeacherProfile = { /* Already on Profile */ }
+                            onNavigateToTeacherProfile = { /* Already on Profile */ },
+                            onNavigateToAccount = {
+                                currentScreen = AppScreen.ACCOUNT
+                            },
+                            onNavigateToSettings = {
+                                settingsPreviousScreen = AppScreen.TEACHER_PROFILE
+                                currentScreen = AppScreen.SETTINGS
+                            },
+                            onNavigateToHelpAndSupport = {
+                                helpPreviousScreen = AppScreen.TEACHER_PROFILE
+                                currentScreen = AppScreen.HELP_AND_SUPPORT
+                            },
+                            onNavigateToAbout = {
+                                aboutPreviousScreen = AppScreen.TEACHER_PROFILE
+                                currentScreen = AppScreen.ABOUT
+                            },
+                            onSwitchToStudentView = { currentScreen = AppScreen.PROFILE }
                         )
                     }
                 }

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -277,6 +278,28 @@ fun TeacherHomeScreen(
                                 .background(Color.White)
                                 .testTag("teacher_menu_dropdown")
                         ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Teacher Profile",
+                                        fontSize = 14.sp,
+                                        color = TextDark
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Person,
+                                        contentDescription = null,
+                                        tint = TextDark,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMenuDropdown = false
+                                    onNavigateToTeacherProfile()
+                                },
+                                modifier = Modifier.testTag("menu_teacher_profile")
+                            )
                             DropdownMenuItem(
                                 text = {
                                     Text(
