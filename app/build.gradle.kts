@@ -17,8 +17,8 @@ android {
     applicationId = "com.aistudio.catchup.schoolnotes"
     minSdk = 24
     targetSdk = 36
-    versionCode = 3
-    versionName = "1.2"
+    versionCode = 13
+    versionName = "2.2"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -96,6 +96,7 @@ dependencies {
   // implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
+  implementation(libs.firebase.messaging)
   // Uncomment to use Firestore:
   // implementation(libs.firebase.firestore)
 

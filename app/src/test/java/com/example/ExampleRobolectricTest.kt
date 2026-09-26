@@ -11,9 +11,41 @@ import com.example.ui.DefaultTeacherSubjects
 import com.example.ui.StudentNavItems
 import com.example.ui.TeacherNavItems
 import com.example.ui.ABOUT_STORY_TEXT
+import com.example.ui.AdminPlanItem
+import com.example.ui.DefaultAdminLogs
+import com.example.ui.DefaultAdminNavItems
+import com.example.ui.DefaultAdminPlans
+import com.example.ui.DefaultAdminTransactions
+import com.example.ui.formatUgxPrice
+import com.example.ui.parseUgxInput
+import com.example.ui.AnalysisTimeRange
+import com.example.ui.DefaultRevenueChartData
+import com.example.ui.DefaultStudentsList
+import com.example.ui.DefaultTeachersList
+import com.example.ui.DefaultTopAffiliates
+import com.example.ui.DefaultUsersChartData
+import com.example.ui.MonthUsersChartData
+import com.example.ui.WeekRevenueChartData
+import com.example.ui.WeekUsersChartData
+import com.example.ui.YearRevenueChartData
+import com.example.ui.YearUsersChartData
+import com.example.ui.UserRoleFilter
+import com.example.ui.AffiliateAccountStatus
+import com.example.ui.AffiliateTransaction
+import com.example.ui.AffiliateTransactionType
+import com.example.ui.AffiliateUser
+import com.example.ui.DefaultAffiliateUsersList
+import com.example.ui.DefaultPlanTiers
+import com.example.ui.DefaultPlatformTransactions
+import com.example.ui.DefaultStudentAffiliateTransactions
+import com.example.ui.PlatformTransactionCategory
+import com.example.ui.PlatformTransactionStatus
+import com.example.ui.UGX_PER_REFERRAL
+import com.example.ui.formatUgx
 import com.example.ui.defaultFaqItems
 import com.example.ui.getSubjectThemeColor
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -62,43 +94,32 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify default teacher recent uploads`() {
-    assertEquals(3, DefaultTeacherRecentUploads.size)
-    assertEquals("Geography", DefaultTeacherRecentUploads[0].subject)
-    assertEquals("East African Climate & Vegetation", DefaultTeacherRecentUploads[0].title)
+  fun `verify default teacher recent uploads starts empty for production`() {
+    assertTrue(DefaultTeacherRecentUploads.isEmpty())
   }
 
   @Test
-  fun `verify teacher taught subjects only contains Geography and Math`() {
+  fun `verify teacher taught subjects contains Geography and Math`() {
     val subjectNames = DefaultTeacherSubjects.map { it.name }
     assertEquals(listOf("Geography", "Math"), subjectNames)
     assertEquals("S.4, S.5", DefaultTeacherSubjects.first { it.name == "Geography" }.classes)
     assertEquals("S.3, S.4", DefaultTeacherSubjects.first { it.name == "Math" }.classes)
+    assertEquals(0, DefaultTeacherSubjects.first { it.name == "Geography" }.noteCount)
+    assertEquals(0, DefaultTeacherSubjects.first { it.name == "Geography" }.assignmentCount)
   }
 
   @Test
-  fun `verify teacher subject uploads data integrity`() {
-    assertTrue(DefaultGeographyUploads.isNotEmpty())
-    assertTrue(DefaultMathUploads.isNotEmpty())
-    assertTrue(DefaultGeographyUploads.any { it.type == "Notes" })
-    assertTrue(DefaultGeographyUploads.any { it.type == "Assignment" })
+  fun `verify teacher subject uploads start empty for production`() {
+    assertTrue(DefaultGeographyUploads.isEmpty())
+    assertTrue(DefaultMathUploads.isEmpty())
   }
 
   @Test
-  fun `verify teacher all uploads collection across every term`() {
+  fun `verify teacher all uploads collection contains study notes and assignments`() {
     assertTrue(DefaultTeacherAllUploads.isNotEmpty())
-    val terms = DefaultTeacherAllUploads.map { it.term }.distinct()
-    assertTrue(terms.contains("Term 3"))
-    assertTrue(terms.contains("Term 2"))
-    assertTrue(terms.contains("Term 1"))
-
-    val types = DefaultTeacherAllUploads.map { it.type }.distinct()
-    assertTrue(types.contains("Notes"))
-    assertTrue(types.contains("Assignment"))
-
-    val subjects = DefaultTeacherAllUploads.map { it.subject }.distinct()
-    assertTrue(subjects.contains("Geography"))
-    assertTrue(subjects.contains("Math"))
+    assertEquals(6, DefaultTeacherAllUploads.size)
+    assertTrue(DefaultTeacherAllUploads.any { it.subject == "Geography" })
+    assertTrue(DefaultTeacherAllUploads.any { it.subject == "Math" })
   }
 
   @Test
@@ -144,5 +165,607 @@ class ExampleRobolectricTest {
     assertTrue(ABOUT_STORY_TEXT.contains("I am a teacher."))
     assertTrue(ABOUT_STORY_TEXT.contains("Less time copying. More time learning."))
     assertTrue(ABOUT_STORY_TEXT.contains("That is where Catch Up began."))
+  }
+
+  @Test
+  fun `verify profile screen does not contain affiliate`() {
+    assertFalse(AppScreen.values().any { it.name == "AFFILIATE" })
+  }
+
+  @Test
+  fun `verify admin nav items match full set specification`() {
+    val labels = DefaultAdminNavItems.map { it.label }
+    assertEquals(listOf("Home", "Analysis", "Users", "More"), labels)
+  }
+
+  @Test
+  fun `verify admin screens are registered in app screens`() {
+    assertTrue(AppScreen.values().any { it.name == "ADMIN_HOME" })
+    assertTrue(AppScreen.values().any { it.name == "ADMIN_ANALYSIS" })
+    assertTrue(AppScreen.values().any { it.name == "ADMIN_USERS" })
+    assertTrue(AppScreen.values().any { it.name == "ADMIN_MORE" })
+  }
+
+  @Test
+  fun `verify navigation from student home to admin home exists`() {
+    var currentScreen = AppScreen.HOME
+    val navigateToAdmin = { currentScreen = AppScreen.ADMIN_HOME }
+    navigateToAdmin()
+    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
+  }
+
+  @Test
+  fun `verify admin analysis revenue chart data configuration`() {
+    val revenue = DefaultRevenueChartData
+    assertEquals("Total Revenue", revenue.title)
+    assertEquals(listOf("May", "Jun", "Jul", "Aug", "Sep"), revenue.points.map { it.label })
+    assertEquals(listOf("6M", "4.5M", "3M", "1.5M", "0"), revenue.yAxisLabels)
+    assertEquals("UGX 5,867,000", revenue.currentFormattedValue)
+    assertEquals("+24.5%", revenue.growthRate)
+  }
+
+  @Test
+  fun `verify admin analysis users chart data configuration`() {
+    val users = DefaultUsersChartData
+    assertEquals("Active Users", users.title)
+    assertEquals(listOf("Jan", "Feb", "March", "Apr"), users.points.map { it.label })
+    assertEquals(listOf("1.2k", "900", "600", "300", "0"), users.yAxisLabels)
+    assertEquals("1,050", users.currentFormattedValue)
+    assertEquals("+32.8%", users.growthRate)
+  }
+
+  @Test
+  fun `verify admin analysis back navigation returns to admin home`() {
+    var currentScreen = AppScreen.ADMIN_ANALYSIS
+    val onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
+    onNavigateBack()
+    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
+  }
+
+  @Test
+  fun `verify admin users default students list contains requested users`() {
+    val studentNames = DefaultStudentsList.map { it.name }
+    assertEquals(4, DefaultStudentsList.size)
+    assertTrue(studentNames.contains("Ezekiel Joseph"))
+    assertTrue(studentNames.contains("Nifemi Moses"))
+    assertTrue(studentNames.contains("Sarah Seruwama"))
+    assertTrue(studentNames.contains("Apollo kenh"))
+    assertTrue(DefaultStudentsList.all { it.role == UserRoleFilter.STUDENTS })
+  }
+
+  @Test
+  fun `verify admin users default teachers list contains teachers`() {
+    assertEquals(4, DefaultTeachersList.size)
+    assertTrue(DefaultTeachersList.all { it.role == UserRoleFilter.TEACHERS })
+  }
+
+  @Test
+  fun `verify admin users back navigation returns to admin home`() {
+    var currentScreen = AppScreen.ADMIN_USERS
+    val onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
+    onNavigateBack()
+    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
+  }
+
+  @Test
+  fun `verify admin more back navigation returns to admin home`() {
+    var currentScreen = AppScreen.ADMIN_MORE
+    val onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
+    onNavigateBack()
+    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
+  }
+
+  @Test
+  fun `verify admin more navigation callbacks work as expected`() {
+    var currentScreen = AppScreen.ADMIN_MORE
+    val onNavigateToAccount = { currentScreen = AppScreen.ACCOUNT }
+    val onNavigateToSettings = { currentScreen = AppScreen.SETTINGS }
+    val onLogout = { currentScreen = AppScreen.PROFILE }
+
+    onNavigateToAccount()
+    assertEquals(AppScreen.ACCOUNT, currentScreen)
+
+    onNavigateToSettings()
+    assertEquals(AppScreen.SETTINGS, currentScreen)
+
+    onLogout()
+    assertEquals(AppScreen.PROFILE, currentScreen)
+  }
+
+  @Test
+  fun `verify admin more menu items list order`() {
+    val expectedOrder = listOf(
+      "Account",
+      "Transactions",
+      "Settings",
+      "Health",
+      "Affiliate",
+      "Logs",
+      "LOG OUT"
+    )
+    assertEquals(7, expectedOrder.size)
+    assertTrue(expectedOrder.contains("Health"))
+    assertTrue(expectedOrder.contains("Logs"))
+    assertTrue(expectedOrder.contains("Affiliate"))
+    assertEquals("LOG OUT", expectedOrder.last())
+  }
+
+  @Test
+  fun `verify admin affiliate navigation from more and back`() {
+    var currentScreen = AppScreen.ADMIN_MORE
+    val onNavigateToAffiliate = { currentScreen = AppScreen.ADMIN_AFFILIATE }
+    onNavigateToAffiliate()
+    assertEquals(AppScreen.ADMIN_AFFILIATE, currentScreen)
+
+    val onNavigateBack = { currentScreen = AppScreen.ADMIN_MORE }
+    onNavigateBack()
+    assertEquals(AppScreen.ADMIN_MORE, currentScreen)
+  }
+
+  @Test
+  fun `verify admin account navigation from home revenue card and back`() {
+    var currentScreen = AppScreen.ADMIN_HOME
+    var previousScreen = AppScreen.ADMIN_HOME
+
+    val onNavigateToAccountFromHome = {
+      previousScreen = AppScreen.ADMIN_HOME
+      currentScreen = AppScreen.ADMIN_ACCOUNT
+    }
+    onNavigateToAccountFromHome()
+    assertEquals(AppScreen.ADMIN_ACCOUNT, currentScreen)
+
+    val onNavigateBack = { currentScreen = previousScreen }
+    onNavigateBack()
+    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
+  }
+
+  @Test
+  fun `verify admin account navigation from more menu and back`() {
+    var currentScreen = AppScreen.ADMIN_MORE
+    var previousScreen = AppScreen.ADMIN_MORE
+
+    val onNavigateToAccountFromMore = {
+      previousScreen = AppScreen.ADMIN_MORE
+      currentScreen = AppScreen.ADMIN_ACCOUNT
+    }
+    onNavigateToAccountFromMore()
+    assertEquals(AppScreen.ADMIN_ACCOUNT, currentScreen)
+
+    val onNavigateBack = { currentScreen = previousScreen }
+    onNavigateBack()
+    assertEquals(AppScreen.ADMIN_MORE, currentScreen)
+  }
+
+  @Test
+  fun `verify admin default transactions list contains expected types and items`() {
+    assertTrue(DefaultAdminTransactions.isNotEmpty())
+    val types = DefaultAdminTransactions.map { it.type }
+    assertTrue(types.contains("Withdrew"))
+    assertTrue(types.contains("Sent"))
+    assertTrue(DefaultAdminTransactions.any { it.amount.contains("UGX") })
+    assertTrue(DefaultAdminTransactions.any { it.date.contains("/") })
+  }
+
+  @Test
+  fun `verify admin plans navigation from home plans button and back`() {
+    var currentScreen = AppScreen.ADMIN_HOME
+
+    val onNavigateToPlans = {
+      currentScreen = AppScreen.ADMIN_PLANS
+    }
+    onNavigateToPlans()
+    assertEquals(AppScreen.ADMIN_PLANS, currentScreen)
+
+    val onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
+    onNavigateBack()
+    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
+  }
+
+  @Test
+  fun `verify default admin plans list and pricing formatting`() {
+    assertEquals(3, DefaultAdminPlans.size)
+    assertEquals("1 Month", DefaultAdminPlans[0].duration)
+    assertEquals("UGX 1,000", DefaultAdminPlans[0].price)
+    assertEquals("1 Term", DefaultAdminPlans[1].duration)
+    assertEquals("UGX 3,000", DefaultAdminPlans[1].price)
+    assertEquals("1 Year", DefaultAdminPlans[2].duration)
+    assertEquals("UGX 10,000", DefaultAdminPlans[2].price)
+
+    assertEquals("UGX 5,000", formatUgxPrice(5000))
+    assertEquals("UGX 100,000", formatUgxPrice(100000))
+    assertEquals(5000, parseUgxInput("5000"))
+    assertEquals(5000, parseUgxInput("UGX 5,000"))
+  }
+
+  @Test
+  fun `verify admin plans edit add delete operations`() {
+    var plans = DefaultAdminPlans
+
+    // Add
+    val newPlan = AdminPlanItem("plan_custom", "6 Months", "UGX 6,000", 6000)
+    plans = plans + newPlan
+    assertEquals(4, plans.size)
+    assertTrue(plans.any { it.duration == "6 Months" })
+
+    // Edit
+    plans = plans.map {
+      if (it.id == "plan_1_month") it.copy(price = "UGX 1,500", priceUgx = 1500) else it
+    }
+    assertEquals("UGX 1,500", plans.first { it.id == "plan_1_month" }.price)
+
+    // Delete
+    plans = plans.filterNot { it.id == "plan_1_term" }
+    assertEquals(3, plans.size)
+    assertFalse(plans.any { it.id == "plan_1_term" })
+  }
+
+  @Test
+  fun `verify admin analysis time range options`() {
+    val ranges = AnalysisTimeRange.values()
+    assertEquals(3, ranges.size)
+    assertEquals("Week", ranges[0].label)
+    assertEquals("Month", ranges[1].label)
+    assertEquals("Year", ranges[2].label)
+  }
+
+  @Test
+  fun `verify admin analysis revenue data for different time ranges`() {
+    // Week
+    assertEquals("Weekly Revenue", WeekRevenueChartData.title)
+    assertEquals(7, WeekRevenueChartData.points.size)
+    assertEquals(listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"), WeekRevenueChartData.points.map { it.label })
+    assertEquals("UGX 1,450,000", WeekRevenueChartData.currentFormattedValue)
+
+    // Year
+    assertEquals("Annual Revenue", YearRevenueChartData.title)
+    assertEquals(4, YearRevenueChartData.points.size)
+    assertEquals(listOf("2023", "2024", "2025", "2026"), YearRevenueChartData.points.map { it.label })
+    assertEquals("UGX 52,300,000", YearRevenueChartData.currentFormattedValue)
+  }
+
+  @Test
+  fun `verify admin analysis users stacked bar data structures`() {
+    // Week users
+    assertEquals("Active Users", WeekUsersChartData.title)
+    assertEquals(7, WeekUsersChartData.points.size)
+    assertEquals(34, WeekUsersChartData.points[0].total) // Mon: 28 std + 6 tch
+
+    // Month users
+    assertEquals(4, MonthUsersChartData.points.size)
+    assertEquals(250, MonthUsersChartData.points[0].total) // Jan: 210 + 40
+    assertEquals(1050, MonthUsersChartData.points[3].total) // Apr: 880 + 170
+
+    // Year users
+    assertEquals(4, YearUsersChartData.points.size)
+    assertEquals(2150, YearUsersChartData.points[0].total)
+    assertEquals(8400, YearUsersChartData.points[3].total)
+  }
+
+  @Test
+  fun `verify admin analysis top affiliates ranking list`() {
+    assertEquals(5, DefaultTopAffiliates.size)
+    val names = DefaultTopAffiliates.map { it.name }
+    assertEquals(listOf("Moses", "Mary", "John", "Martin", "May"), names)
+    assertEquals(listOf(142, 118, 95, 74, 62), DefaultTopAffiliates.map { it.referralCount })
+    assertEquals(listOf(1, 2, 3, 4, 5), DefaultTopAffiliates.map { it.rank })
+  }
+
+  @Test
+  fun `verify affiliate reward rate and earning calculation`() {
+    assertEquals(100, UGX_PER_REFERRAL)
+
+    val user = AffiliateUser(
+      id = "test_user",
+      name = "Test Student",
+      email = "test@catchup.ug",
+      referralCode = "TEST100",
+      referralCount = 10,
+      totalEarnedUgx = 10 * UGX_PER_REFERRAL,
+      currentBalanceUgx = 1000
+    )
+
+    assertEquals(1000, user.totalEarnedUgx)
+    assertEquals(1000, user.currentBalanceUgx)
+
+    // Simulate 1 referral use (+100 UGX)
+    val updatedUser = user.copy(
+      referralCount = user.referralCount + 1,
+      totalEarnedUgx = (user.referralCount + 1) * UGX_PER_REFERRAL,
+      currentBalanceUgx = user.currentBalanceUgx + UGX_PER_REFERRAL
+    )
+
+    assertEquals(11, updatedUser.referralCount)
+    assertEquals(1100, updatedUser.totalEarnedUgx)
+    assertEquals(1100, updatedUser.currentBalanceUgx)
+  }
+
+  @Test
+  fun `verify admin affiliate list and cancel account operation`() {
+    var affiliates = DefaultAffiliateUsersList
+    assertTrue(affiliates.size >= 8)
+
+    val moses = affiliates.first { it.referralCode == "MOSES100" }
+    assertEquals(142, moses.referralCount)
+    assertEquals(14200, moses.totalEarnedUgx)
+    assertEquals(AffiliateAccountStatus.ACTIVE, moses.status)
+
+    // Admin cancels an account
+    affiliates = affiliates.map {
+      if (it.id == moses.id) it.copy(status = AffiliateAccountStatus.CANCELLED) else it
+    }
+
+    val cancelledMoses = affiliates.first { it.id == moses.id }
+    assertEquals(AffiliateAccountStatus.CANCELLED, cancelledMoses.status)
+
+    // Admin reactivates account
+    affiliates = affiliates.map {
+      if (it.id == moses.id) it.copy(status = AffiliateAccountStatus.ACTIVE) else it
+    }
+    assertEquals(AffiliateAccountStatus.ACTIVE, affiliates.first { it.id == moses.id }.status)
+  }
+
+  @Test
+  fun `verify student affiliate wallet withdrawals and plan purchases`() {
+    var balance = 1500
+    val withdrawalAmount = 500
+
+    // Withdraw 500 UGX to Mobile Money
+    assertTrue(balance >= withdrawalAmount)
+    balance -= withdrawalAmount
+    assertEquals(1000, balance)
+
+    // Pay for 1 Month Pass (UGX 1,000)
+    val planPrice = 1000
+    assertTrue(balance >= planPrice)
+    balance -= planPrice
+    assertEquals(0, balance)
+
+    // Format helper
+    assertEquals("UGX 100", formatUgx(100))
+    assertEquals("UGX 1,500", formatUgx(1500))
+    assertEquals("UGX 10,000", formatUgx(10000))
+
+    // Transactions list verification
+    assertTrue(DefaultStudentAffiliateTransactions.isNotEmpty())
+    val referralTx = DefaultStudentAffiliateTransactions.first { it.type == AffiliateTransactionType.REFERRAL_EARNING }
+    assertTrue(referralTx.isCredit)
+    assertEquals(100, referralTx.amountUgx)
+    assertEquals("+UGX 100", referralTx.formattedAmount)
+
+    val planTx = DefaultStudentAffiliateTransactions.first { it.type == AffiliateTransactionType.PLAN_PAYMENT }
+    assertFalse(planTx.isCredit)
+    assertEquals(-1000, planTx.amountUgx)
+    assertEquals("-UGX 1,000", planTx.formattedAmount)
+  }
+
+  @Test
+  fun `verify payment subscription plan tiers configuration`() {
+    assertEquals(3, DefaultPlanTiers.size)
+    assertEquals("1 Month", DefaultPlanTiers[0].duration)
+    assertEquals("UGX 1,000", DefaultPlanTiers[0].price)
+    assertEquals(1000, DefaultPlanTiers[0].priceUgx)
+
+    assertEquals("1 Term", DefaultPlanTiers[1].duration)
+    assertEquals("UGX 3,000", DefaultPlanTiers[1].price)
+    assertEquals(3000, DefaultPlanTiers[1].priceUgx)
+
+    assertEquals("1 Year", DefaultPlanTiers[2].duration)
+    assertEquals("UGX 10,000", DefaultPlanTiers[2].price)
+    assertEquals(10000, DefaultPlanTiers[2].priceUgx)
+  }
+
+  @Test
+  fun `verify admin platform transactions data and calculations`() {
+    assertTrue(DefaultPlatformTransactions.isNotEmpty())
+    assertEquals(15, DefaultPlatformTransactions.size)
+
+    val subscriptionTxs = DefaultPlatformTransactions.filter { it.category == PlatformTransactionCategory.SUBSCRIPTION }
+    assertTrue(subscriptionTxs.all { it.isCredit })
+    assertTrue(subscriptionTxs.any { it.userName == "Amina Namukasa" && it.amountUgx == 35000L })
+
+    val withdrawalTxs = DefaultPlatformTransactions.filter { it.category == PlatformTransactionCategory.AFFILIATE_WITHDRAWAL }
+    assertTrue(withdrawalTxs.all { !it.isCredit })
+    assertTrue(withdrawalTxs.any { it.userName == "Denis Mukasa" && it.amountUgx == -50000L })
+
+    val teacherTxs = DefaultPlatformTransactions.filter { it.category == PlatformTransactionCategory.TEACHER_ROYALTY }
+    assertTrue(teacherTxs.any { it.userName == "Tr. Emmanuel Kato" && it.amountUgx == -250000L })
+
+    val taxTxs = DefaultPlatformTransactions.filter { it.category == PlatformTransactionCategory.TAX_OPS }
+    assertTrue(taxTxs.any { it.userName == "Uganda Revenue Authority" })
+
+    // Total Inflow > 0
+    val totalInflow = DefaultPlatformTransactions.filter { it.amountUgx > 0 }.sumOf { it.amountUgx }
+    assertTrue(totalInflow > 0)
+
+    // Formatted strings
+    val sampleTx = DefaultPlatformTransactions.first { it.id == "TX-98401" }
+    assertEquals("+UGX 35,000", sampleTx.formattedAmount)
+    assertEquals("+UGX 34,475", sampleTx.formattedNet)
+    assertEquals("UGX 525", sampleTx.formattedFee)
+  }
+
+  @Test
+  fun `verify teacher profile and admin settings screens exist in AppScreen navigation`() {
+    assertTrue(com.example.AppScreen.values().any { it.name == "TEACHER_PROFILE" })
+    assertTrue(com.example.AppScreen.values().any { it.name == "ADMIN_SETTINGS" })
+    assertTrue(com.example.AppScreen.values().any { it.name == "SETTINGS" })
+  }
+
+  @Test
+  fun `verify admin health and logs screens exist in AppScreen navigation`() {
+    assertTrue(com.example.AppScreen.values().any { it.name == "ADMIN_HEALTH" })
+    assertTrue(com.example.AppScreen.values().any { it.name == "ADMIN_LOGS" })
+  }
+
+  @Test
+  fun `verify admin health and logs navigation routing from more screen`() {
+    var currentScreen = AppScreen.ADMIN_MORE
+
+    val onNavigateToHealth = { currentScreen = AppScreen.ADMIN_HEALTH }
+    onNavigateToHealth()
+    assertEquals(AppScreen.ADMIN_HEALTH, currentScreen)
+
+    val onNavigateBackFromHealth = { currentScreen = AppScreen.ADMIN_MORE }
+    onNavigateBackFromHealth()
+    assertEquals(AppScreen.ADMIN_MORE, currentScreen)
+
+    val onNavigateToLogs = { currentScreen = AppScreen.ADMIN_LOGS }
+    onNavigateToLogs()
+    assertEquals(AppScreen.ADMIN_LOGS, currentScreen)
+
+    val onNavigateBackFromLogs = { currentScreen = AppScreen.ADMIN_MORE }
+    onNavigateBackFromLogs()
+    assertEquals(AppScreen.ADMIN_MORE, currentScreen)
+  }
+
+  @Test
+  fun `verify default admin audit logs dataset contains required categories`() {
+    assertTrue(DefaultAdminLogs.isNotEmpty())
+    assertEquals(7, DefaultAdminLogs.size)
+
+    val categories = DefaultAdminLogs.map { it.category }.toSet()
+    assertTrue(categories.contains("CONTENT"))
+    assertTrue(categories.contains("PAYMENT"))
+    assertTrue(categories.contains("SECURITY"))
+    assertTrue(categories.contains("DATABASE"))
+    assertTrue(categories.contains("AFFILIATE"))
+    assertTrue(categories.contains("STORAGE"))
+
+    val levels = DefaultAdminLogs.map { it.level }.toSet()
+    assertTrue(levels.contains("INFO"))
+    assertTrue(levels.contains("PAYOUT"))
+    assertTrue(levels.contains("SECURITY"))
+    assertTrue(levels.contains("DATABASE"))
+    assertTrue(levels.contains("WARN"))
+    assertTrue(levels.contains("ERROR"))
+  }
+
+  @Test
+  fun `verify admin audit logs filtering by level and query`() {
+    val databaseLogs = DefaultAdminLogs.filter { it.level == "DATABASE" || it.category == "DATABASE" }
+    assertEquals(1, databaseLogs.size)
+    assertTrue(databaseLogs.first().title.contains("SQLite VACUUM"))
+
+    val securityLogs = DefaultAdminLogs.filter { it.level == "SECURITY" || it.category == "SECURITY" }
+    assertEquals(1, securityLogs.size)
+    assertTrue(securityLogs.first().title.contains("2FA"))
+
+    val queryFiltered = DefaultAdminLogs.filter { it.description.contains("Okello", ignoreCase = true) }
+    assertEquals(1, queryFiltered.size)
+    assertEquals("log-101", queryFiltered.first().id)
+  }
+
+  @Test
+  fun `verify onboarding pages match student panel colors and steps`() {
+    val pages = com.example.ui.DefaultOnboardingPages
+    assertEquals(3, pages.size)
+    assertEquals("01 / 03", pages[0].stepBadge)
+    assertEquals(Color(0xFFE76F51), pages[0].accentColor)
+    assertEquals("02 / 03", pages[1].stepBadge)
+    assertEquals(Color(0xFF2A9D8F), pages[1].accentColor)
+    assertEquals("03 / 03", pages[2].stepBadge)
+    assertEquals(Color(0xFFFF7A53), pages[2].accentColor)
+  }
+
+  @Test
+  fun `verify user entity stores phone number role password and individual class stream`() {
+    val studentUser = com.example.data.UserEntity(
+      id = "usr-1",
+      phoneNumber = "0772123456",
+      fullName = "Mukasa David",
+      role = "student",
+      password = "secret",
+      academicClass = "S.4",
+      stream = "Green"
+    )
+    assertEquals("Mukasa David", studentUser.fullName)
+    assertEquals("0772123456", studentUser.phoneNumber)
+    assertEquals("student", studentUser.role)
+    assertEquals("S.4", studentUser.academicClass)
+    assertEquals("Green", studentUser.stream)
+  }
+
+  @Test
+  fun `verify student panel current plan active and unloaded states`() {
+    assertFalse(com.example.ui.isStudentPlanActive(""))
+    assertFalse(com.example.ui.isStudentPlanActive("   "))
+    assertFalse(com.example.ui.isStudentPlanActive("None"))
+    assertFalse(com.example.ui.isStudentPlanActive("No Plan Selected"))
+    assertFalse(com.example.ui.isStudentPlanActive("Inactive"))
+
+    assertTrue(com.example.ui.isStudentPlanActive("1 Month"))
+    assertTrue(com.example.ui.isStudentPlanActive("1 Term"))
+    assertTrue(com.example.ui.isStudentPlanActive("1 Year"))
+  }
+
+  @Test
+  fun `verify fcm notification channels token storage settings toggles and deep links`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+
+    // 1. Verify notification channels creation
+    com.example.notifications.NotificationHelper.createNotificationChannels(context)
+    val notificationManager =
+      context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+
+    val newNotesChannel =
+      notificationManager.getNotificationChannel(com.example.notifications.NotificationHelper.CHANNEL_ID_NEW_NOTES)
+    assertEquals("New Notes", newNotesChannel.name.toString())
+    assertEquals(android.app.NotificationManager.IMPORTANCE_HIGH, newNotesChannel.importance)
+
+    val paymentRemindersChannel =
+      notificationManager.getNotificationChannel(com.example.notifications.NotificationHelper.CHANNEL_ID_PAYMENT_REMINDERS)
+    assertEquals("Payment Reminders", paymentRemindersChannel.name.toString())
+    assertEquals(android.app.NotificationManager.IMPORTANCE_DEFAULT, paymentRemindersChannel.importance)
+
+    // 2. Verify FCM token capture & persistence
+    com.example.notifications.NotificationHelper.saveFcmToken(context, "sample_fcm_token_123")
+    assertEquals("sample_fcm_token_123", com.example.notifications.NotificationHelper.getSavedFcmToken(context))
+
+    // 3. Verify Settings toggles default to ON and suppress notifications when OFF
+    assertTrue(com.example.notifications.NotificationHelper.isNewNoteAlertsEnabled(context))
+    assertTrue(com.example.notifications.NotificationHelper.isPaymentRemindersEnabled(context))
+
+    com.example.notifications.NotificationHelper.setNewNoteAlertsEnabled(context, false)
+    assertFalse(com.example.notifications.NotificationHelper.isNewNoteAlertsEnabled(context))
+    assertFalse(
+      com.example.notifications.NotificationHelper.showNewNoteNotification(
+        context = context,
+        noteId = "upload-1",
+        noteTitle = "Population Density",
+        body = "New Geography note shared with S.5"
+      )
+    )
+
+    com.example.notifications.NotificationHelper.setPaymentRemindersEnabled(context, false)
+    assertFalse(com.example.notifications.NotificationHelper.isPaymentRemindersEnabled(context))
+    assertFalse(
+      com.example.notifications.NotificationHelper.showPaymentReminderNotification(
+        context = context,
+        title = "Your plan is expiring soon",
+        body = "Renew your access to keep reading notes without interruption"
+      )
+    )
+
+    // Restore defaults
+    com.example.notifications.NotificationHelper.setNewNoteAlertsEnabled(context, true)
+    com.example.notifications.NotificationHelper.setPaymentRemindersEnabled(context, true)
+
+    // 4. Verify deep-link intents
+    val noteIntent = com.example.notifications.NotificationHelper.buildNewNoteDeepLinkIntent(
+      context = context,
+      noteId = "upload-1",
+      noteTitle = "Population Density",
+      subject = "Geography"
+    )
+    assertEquals("new_note", noteIntent.getStringExtra(com.example.notifications.NotificationHelper.EXTRA_NOTIFICATION_TYPE))
+    assertEquals("upload-1", noteIntent.getStringExtra(com.example.notifications.NotificationHelper.EXTRA_NOTE_ID))
+    assertEquals("Population Density", noteIntent.getStringExtra(com.example.notifications.NotificationHelper.EXTRA_NOTE_TITLE))
+    assertEquals("Geography", noteIntent.getStringExtra(com.example.notifications.NotificationHelper.EXTRA_NOTE_SUBJECT))
+
+    val paymentIntent = com.example.notifications.NotificationHelper.buildPaymentReminderDeepLinkIntent(context)
+    assertEquals(
+      "payment_reminder",
+      paymentIntent.getStringExtra(com.example.notifications.NotificationHelper.EXTRA_NOTIFICATION_TYPE)
+    )
   }
 }

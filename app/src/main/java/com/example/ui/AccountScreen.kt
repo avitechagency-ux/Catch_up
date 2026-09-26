@@ -54,8 +54,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -121,8 +123,8 @@ val DefaultPlanTiers = listOf(
 @Composable
 fun AccountScreen(
     modifier: Modifier = Modifier,
-    activePlanDuration: String = "1 Year",
-    activePlanExpiry: String = "Valid until Term 2, 2026",
+    activePlanDuration: String = "",
+    activePlanExpiry: String = "",
     plans: List<PlanTier> = DefaultPlanTiers,
     onNavigateBack: () -> Unit = {},
     onNavigateToPayment: (PlanTier) -> Unit = {},
@@ -133,8 +135,9 @@ fun AccountScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var selectedPlanForPayment by remember { mutableStateOf<PlanTier?>(null) }
-    var currentActiveDuration by remember { mutableStateOf(activePlanDuration) }
-    var currentActiveExpiry by remember { mutableStateOf(activePlanExpiry) }
+    var currentActiveDuration by remember(activePlanDuration) { mutableStateOf(activePlanDuration) }
+    var currentActiveExpiry by remember(activePlanExpiry) { mutableStateOf(activePlanExpiry) }
+    val hasActivePlan = isStudentPlanActive(currentActiveDuration)
 
     Scaffold(
         modifier = modifier
@@ -234,47 +237,60 @@ fun AccountScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("account_current_plan_card"),
-                        shape = RoundedCornerShape(16.dp),
-                        color = IndigoPurple,
-                        shadowElevation = 2.dp
-                    ) {
-                        Column(
+                    if (hasActivePlan) {
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(18.dp)
+                                .testTag("account_current_plan_card"),
+                            shape = RoundedCornerShape(16.dp),
+                            color = IndigoPurple,
+                            shadowElevation = 2.dp
                         ) {
-                            Text(
-                                text = "Current Plan",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = LightLavender,
-                                modifier = Modifier.testTag("current_plan_label")
-                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(18.dp)
+                            ) {
+                                Text(
+                                    text = "Current Plan",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = LightLavender,
+                                    modifier = Modifier.testTag("current_plan_label")
+                                )
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
 
-                            Text(
-                                text = currentActiveDuration,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                modifier = Modifier.testTag("current_plan_duration")
-                            )
+                                Text(
+                                    text = currentActiveDuration,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    modifier = Modifier.testTag("current_plan_duration")
+                                )
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
 
-                            Text(
-                                text = currentActiveExpiry,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = LightLavender,
-                                modifier = Modifier.testTag("current_plan_expiry")
-                            )
+                                Text(
+                                    text = currentActiveExpiry,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = LightLavender,
+                                    modifier = Modifier.testTag("current_plan_expiry")
+                                )
+                            }
                         }
+                    } else {
+                        UnloadedPlanCardPlaceholder(
+                            onClick = {
+                                val firstPlan = plans.firstOrNull()
+                                if (firstPlan != null) {
+                                    onNavigateToPayment(firstPlan)
+                                    selectedPlanForPayment = firstPlan
+                                }
+                            },
+                            modifier = Modifier.testTag("account_unloaded_plan_card")
+                        )
                     }
                 }
 
@@ -335,16 +351,18 @@ fun AccountScreen(
                 if (!isProcessing) selectedPlanForPayment = null
             },
             sheetState = sheetState,
-            containerColor = Color.White,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            containerColor = IndigoPurple,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             modifier = Modifier.testTag("payment_bottom_sheet")
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Top Row: Title & Close Button
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -353,187 +371,209 @@ fun AccountScreen(
                     Column {
                         Text(
                             text = "Payment",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Subscribe to ${targetPlan.duration} plan",
-                            fontSize = 13.sp,
-                            color = TextMuted
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = LightLavender
                         )
                     }
                     IconButton(
                         onClick = { selectedPlanForPayment = null },
                         enabled = !isProcessing,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(Icons.Outlined.Close, contentDescription = "Close", tint = TextMuted)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Price Summary Card
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFF7F6FB),
-                    border = BorderStroke(1.dp, Color(0xFFECEAF5))
-                ) {
-                    Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.20f))
                     ) {
-                        Column {
-                            Text(
-                                text = targetPlan.duration,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextDark
-                            )
-                            Text(
-                                text = targetPlan.caption,
-                                fontSize = 12.sp,
-                                color = TextMuted
-                            )
-                        }
-                        Text(
-                            text = targetPlan.price,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = IndigoPurple
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // Mobile Network Selection
-                Text(
-                    text = "Select Mobile Network",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextMuted
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    // MTN Mobile Money
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(52.dp)
-                            .clickable { selectedNetwork = "MTN" }
-                            .testTag("network_mtn"),
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selectedNetwork == "MTN") Color(0xFFFFF8E1) else Color.White,
-                        border = BorderStroke(
-                            1.5.dp,
-                            if (selectedNetwork == "MTN") Color(0xFFFFB300) else Color(0xFFE0E0E0)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedNetwork == "MTN",
-                                onClick = { selectedNetwork = "MTN" },
-                                colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFFF8F00))
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "MTN MoMo",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextDark
-                            )
-                        }
-                    }
-
-                    // Airtel Money
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(52.dp)
-                            .clickable { selectedNetwork = "Airtel" }
-                            .testTag("network_airtel"),
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (selectedNetwork == "Airtel") Color(0xFFFFEBEE) else Color.White,
-                        border = BorderStroke(
-                            1.5.dp,
-                            if (selectedNetwork == "Airtel") Color(0xFFE53935) else Color(0xFFE0E0E0)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedNetwork == "Airtel",
-                                onClick = { selectedNetwork = "Airtel" },
-                                colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFE53935))
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Airtel Money",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextDark
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Phone Number input
-                Text(
-                    text = "Phone Number",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = TextMuted
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                OutlinedTextField(
-                    value = phoneNumber,
-                    onValueChange = { phoneNumber = it },
-                    placeholder = { Text("07XX XXXXXX") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    leadingIcon = {
                         Icon(
-                            imageVector = Icons.Outlined.PhoneAndroid,
-                            contentDescription = null,
-                            tint = TextMuted,
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Close",
+                            tint = Color.White,
                             modifier = Modifier.size(20.dp)
                         )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("payment_phone_input"),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = IndigoPurple,
-                        unfocusedBorderColor = Color(0xFFD9D9D9)
-                    )
-                )
+                    }
+                }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                // Plan & Price Row (Clean, bold texts directly on popup background)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = targetPlan.duration,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = targetPlan.caption,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = LightLavender
+                        )
+                    }
+                    Text(
+                        text = targetPlan.price,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFFFFD54F) // Bright Gold
+                    )
+                }
+
+                // Mobile Network Selection
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Select Mobile Network",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // MTN Mobile Money
+                        val isMtn = selectedNetwork == "MTN"
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { selectedNetwork = "MTN" }
+                                .testTag("network_mtn"),
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isMtn) Color(0xFFFFB300) else Color.White.copy(alpha = 0.15f),
+                            border = BorderStroke(
+                                1.5.dp,
+                                if (isMtn) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.30f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isMtn,
+                                    onClick = { selectedNetwork = "MTN" },
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = if (isMtn) Color(0xFF1A1A1A) else Color.White,
+                                        unselectedColor = Color.White.copy(alpha = 0.7f)
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "MTN MoMo",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (isMtn) Color(0xFF1A1A1A) else Color.White
+                                )
+                            }
+                        }
+
+                        // Airtel Money
+                        val isAirtel = selectedNetwork == "Airtel"
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { selectedNetwork = "Airtel" }
+                                .testTag("network_airtel"),
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isAirtel) Color(0xFFE53935) else Color.White.copy(alpha = 0.15f),
+                            border = BorderStroke(
+                                1.5.dp,
+                                if (isAirtel) Color(0xFFFF8A80) else Color.White.copy(alpha = 0.30f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isAirtel,
+                                    onClick = { selectedNetwork = "Airtel" },
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = Color.White,
+                                        unselectedColor = Color.White.copy(alpha = 0.7f)
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Airtel Money",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Phone Number input
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        text = "Phone Number",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+
+                    OutlinedTextField(
+                        value = phoneNumber,
+                        onValueChange = { phoneNumber = it },
+                        placeholder = {
+                            Text(
+                                "07XX XXXXXX",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        textStyle = TextStyle(
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        ),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.PhoneAndroid,
+                                contentDescription = null,
+                                tint = Color(0xFFFFD54F),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("payment_phone_input"),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.White.copy(alpha = 0.15f),
+                            unfocusedContainerColor = Color.White.copy(alpha = 0.12f),
+                            focusedBorderColor = Color(0xFFFFD54F),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.35f),
+                            cursorColor = Color(0xFFFFD54F),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
 
                 // Pay Button
                 Button(
@@ -555,16 +595,19 @@ fun AccountScreen(
                         }
                     },
                     enabled = !isProcessing && phoneNumber.isNotBlank(),
-                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),
-                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFB300),
+                        disabledContainerColor = Color(0xFFFFB300).copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(52.dp)
                         .testTag("pay_button")
                 ) {
                     if (isProcessing) {
                         CircularProgressIndicator(
-                            color = Color.White,
+                            color = Color(0xFF1A1A1A),
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp
                         )
@@ -572,15 +615,15 @@ fun AccountScreen(
                         Text(
                             text = "Processing payment...",
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1A1A1A)
                         )
                     } else {
                         Text(
                             text = "Pay ${targetPlan.price}",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF1A1A1A)
                         )
                     }
                 }

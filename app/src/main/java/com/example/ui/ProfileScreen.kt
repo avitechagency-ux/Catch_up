@@ -1,5 +1,6 @@
 package com.example.ui
 
+import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,8 +24,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.CardGiftcard
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Info
@@ -34,6 +37,8 @@ import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -63,7 +68,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -153,29 +161,28 @@ fun ProfilePillRow(
  *
  * Layout Structure:
  * - Existing purple Header (~200dp) with avatar, student name, class + school
- * - White body with clean vertical stack of pill-shaped outlined rows:
- *   - Top Identity row (60dp, 24dp avatar icon on left, student name)
- *   - 14dp vertical gaps
+ * - White body with clean vertical stack of pill-shaped rows:
  *   1. "Account"
  *   2. "Settings"
- *   3. "About"
- *   4. "Help & Support"
- *   5. "Privacy Policy"
- *   6. "Log Out" (with small exit/arrow icon on the right side)
+ *   3. "Affiliate"
+ *   4. "About"
+ *   5. "Help & Support"
+ *   6. "Privacy Policy"
+ *   7. "Log Out"
  * - Reused BottomNavigationBar composable (Profile tab active)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     modifier: Modifier = Modifier,
-    studentName: String = "Sarah Ssenyonga",
-    schoolName: String = "Jjungo Senior Secondary School",
-    academicClass: String = "S.5 Blue",
-    streakDays: Int = 6,
-    notesReadCount: Int = 47,
-    timeThisTermText: String = "18h",
+    studentName: String = "Student",
+    schoolName: String = "Secondary School",
+    academicClass: String = "S.4",
+    streakDays: Int = 0,
+    notesReadCount: Int = 0,
+    timeThisTermText: String = "0h",
     isAccessActive: Boolean = true,
-    validUntilText: String = "Valid until Term 2, 2026",
+    validUntilText: String = "Active",
     onNavigateToHome: () -> Unit = {},
     onNavigateToSubjects: () -> Unit = {},
     onNavigateToDownloads: () -> Unit = {},
@@ -184,7 +191,11 @@ fun ProfileScreen(
     onNavigateToSettings: () -> Unit = {},
     onNavigateToHelpAndSupport: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
-    onUpdateProfile: (name: String, school: String, studentClass: String) -> Unit = { _, _, _ -> }
+    onNavigateToAffiliate: (() -> Unit)? = null,
+    onNavigateToAdmin: () -> Unit = {},
+    onNavigateToPrivacyPolicy: () -> Unit = {},
+    onUpdateProfile: (name: String, school: String, studentClass: String) -> Unit = { _, _, _ -> },
+    onLogout: () -> Unit = {}
 ) {
     var currentName by remember { mutableStateOf(studentName) }
     var currentSchool by remember { mutableStateOf(schoolName) }
@@ -196,9 +207,9 @@ fun ProfileScreen(
 
     var showAccountDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showAffiliateDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
-    var showPrivacyDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     // Settings state
@@ -248,36 +259,6 @@ fun ProfileScreen(
                     .testTag("profile_header"),
                 contentAlignment = Alignment.Center
             ) {
-                // Switch to Teacher Profile button on top right of the banner
-                Surface(
-                    onClick = onNavigateToTeacher,
-                    color = Color.White.copy(alpha = 0.18f),
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 8.dp)
-                        .testTag("profile_switch_to_teacher_button")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.SwapHoriz,
-                            contentDescription = "Switch to Teacher View",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Teacher",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White
-                        )
-                    }
-                }
-
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
@@ -340,37 +321,7 @@ fun ProfileScreen(
                     .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 36.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // 1. Identity row (60dp height, solid #4B3F8F, small 24dp white circular avatar with #4B3F8F initial, student name in white)
-                ProfilePillRow(
-                    text = currentName,
-                    height = 60.dp,
-                    cornerRadius = 26.dp,
-                    backgroundColor = IndigoPurple,
-                    textColor = Color.White,
-                    startPadding = 20.dp,
-                    elevation = 2.dp,
-                    leadingContent = {
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(Color.White),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val initial = currentName.trim().firstOrNull()?.uppercase() ?: "S"
-                            Text(
-                                text = initial,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = IndigoPurple
-                            )
-                        }
-                    },
-                    testTag = "profile_identity_pill",
-                    onClick = { showAccountDialog = true }
-                )
-
-                // 2. "Account" — plain purple pill, white text
+                // 1. "Account" — plain purple pill, white text
                 ProfilePillRow(
                     text = "Account",
                     height = 52.dp,
@@ -383,7 +334,7 @@ fun ProfileScreen(
                     onClick = onNavigateToAccount
                 )
 
-                // 3. "Settings" — plain purple pill, white text
+                // 2. "Settings" — plain purple pill, white text
                 ProfilePillRow(
                     text = "Settings",
                     height = 52.dp,
@@ -394,6 +345,25 @@ fun ProfileScreen(
                     elevation = 2.dp,
                     testTag = "profile_pill_settings",
                     onClick = onNavigateToSettings
+                )
+
+                // 3. "Affiliate" — plain purple pill, white text (52.dp height, #4B3F8F, white text, elevation, standard 20dp margin)
+                ProfilePillRow(
+                    text = "Affiliate",
+                    height = 52.dp,
+                    cornerRadius = 26.dp,
+                    backgroundColor = IndigoPurple,
+                    textColor = Color.White,
+                    startPadding = 20.dp,
+                    elevation = 2.dp,
+                    testTag = "profile_pill_affiliate",
+                    onClick = {
+                        if (onNavigateToAffiliate != null) {
+                            onNavigateToAffiliate()
+                        } else {
+                            showAffiliateDialog = true
+                        }
+                    }
                 )
 
                 // 4. "About" — plain purple pill, white text
@@ -432,7 +402,7 @@ fun ProfileScreen(
                     startPadding = 20.dp,
                     elevation = 2.dp,
                     testTag = "profile_pill_privacy_policy",
-                    onClick = { showPrivacyDialog = true }
+                    onClick = onNavigateToPrivacyPolicy
                 )
 
                 // 7. "Log Out" — same purple pill style, white text, with small exit arrow icon (18dp, white) on right
@@ -546,49 +516,6 @@ fun ProfileScreen(
                         )
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Switch to Teacher View link
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable {
-                                showAccountDialog = false
-                                onNavigateToTeacher()
-                            },
-                        color = SoftLavenderGrey,
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.SwapHoriz,
-                                    contentDescription = null,
-                                    tint = IndigoPurple,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Switch to Teacher View",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = IndigoPurple
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
-                                contentDescription = null,
-                                tint = IndigoPurple,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
-
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Row(
@@ -668,7 +595,7 @@ fun ProfileScreen(
                                 color = TextDark
                             )
                             Text(
-                                text = "Get notified at 6:00 PM to keep your streak",
+                                text = "Get notified at 6:00 PM for daily study revision",
                                 fontSize = 12.sp,
                                 color = TextMuted
                             )
@@ -731,6 +658,168 @@ fun ProfileScreen(
         }
     }
 
+    // Affiliate Modal
+    if (showAffiliateDialog) {
+        val context = LocalContext.current
+        val clipboardManager = LocalClipboardManager.current
+        val referralCode = "CATCHUP-${currentName.uppercase().replace(" ", "").ifBlank { "STUDENT" }}"
+
+        Dialog(onDismissRequest = { showAffiliateDialog = false }) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .testTag("affiliate_dialog"),
+                color = Color.White,
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(modifier = Modifier.padding(22.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(SoftLavenderGrey),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CardGiftcard,
+                                    contentDescription = null,
+                                    tint = IndigoPurple,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Student Affiliate",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark
+                            )
+                        }
+                        IconButton(
+                            onClick = { showAffiliateDialog = false },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(Icons.Outlined.Close, contentDescription = "Close", tint = TextMuted)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "Share Catch Up with classmates and earn tuition or airtime rewards for every active subscriber!",
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        color = Color(0xFF4A4A4A)
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Referral Code Card
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = SoftLavenderGrey,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "YOUR REFERRAL CODE",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextMuted
+                                )
+                                Text(
+                                    text = referralCode,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = IndigoPurple
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    clipboardManager.setText(AnnotatedString(referralCode))
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Referral code copied to clipboard!")
+                                    }
+                                },
+                                modifier = Modifier.testTag("copy_referral_code_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ContentCopy,
+                                    contentDescription = "Copy code",
+                                    tint = IndigoPurple,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Affiliate Perks
+                    Text(
+                        text = "• Friends get 10% off their first term subscription\n• You earn UGX 5,000 for each friend who subscribes\n• Rewards can be redeemed for term notes or MTN/Airtel airtime",
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        color = Color(0xFF555555)
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { showAffiliateDialog = false }) {
+                            Text("Close", color = TextMuted)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val sendIntent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Hey! Study smarter with Catch Up notes app. Use my referral code $referralCode for 10% off: https://catchup.ac.ug/ref/$referralCode"
+                                    )
+                                    type = "text/plain"
+                                }
+                                val shareIntent = Intent.createChooser(sendIntent, "Share Referral Code")
+                                context.startActivity(shareIntent)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.testTag("share_referral_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Share,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Share Link", color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // About Modal
     if (showAboutDialog) {
         Dialog(onDismissRequest = { showAboutDialog = false }) {
@@ -783,7 +872,7 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Crafted for Jjungo Senior Secondary School and secondary learners nationwide.",
+                        text = "Crafted for secondary learners and schools nationwide.",
                         fontSize = 12.sp,
                         color = TextMuted
                     )
@@ -893,109 +982,84 @@ fun ProfileScreen(
         }
     }
 
-    // Privacy Policy Modal
-    if (showPrivacyDialog) {
-        Dialog(onDismissRequest = { showPrivacyDialog = false }) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .testTag("privacy_dialog"),
-                color = Color.White,
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(modifier = Modifier.padding(22.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Privacy Policy",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark
-                        )
-                        IconButton(
-                            onClick = { showPrivacyDialog = false },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(Icons.Outlined.Close, contentDescription = "Close", tint = TextMuted)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        text = "Catch Up is designed with student privacy in mind:",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextDark
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "• All downloaded revision notes are cached locally on your device.\n• Your study streak and reading time metrics remain private to your student profile.\n• No unauthorized personal data is sold or shared with third-party advertisers.",
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        color = Color(0xFF4A4A4A)
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        Button(
-                            onClick = { showPrivacyDialog = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Close", color = Color.White)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // Logout Confirmation Dialog
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
+            shape = RoundedCornerShape(22.dp),
+            containerColor = IndigoPurple,
+            modifier = Modifier.testTag("student_logout_dialog"),
+            icon = {
+                Surface(
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.18f),
+                    modifier = Modifier.size(54.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.Logout,
+                            contentDescription = "Log Out",
+                            tint = Color(0xFFFFD54F),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            },
             title = {
                 Text(
                     text = "Log Out",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center
                 )
             },
             text = {
                 Text(
                     text = "Are you sure you want to log out of Catch Up? Offline notes will remain saved on this device.",
                     fontSize = 14.sp,
-                    color = TextMuted
+                    fontWeight = FontWeight.Bold,
+                    color = LightLavender,
+                    lineHeight = 20.sp,
+                    textAlign = TextAlign.Center
                 )
             },
             confirmButton = {
                 Button(
                     onClick = {
                         showLogoutDialog = false
+                        onLogout()
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar("Logged out")
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE76F51))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.testTag("student_confirm_logout_button")
                 ) {
-                    Text("Log Out", color = Color.White)
+                    Text(
+                        text = "Log Out",
+                        color = Color(0xFF1A1A1A),
+                        fontWeight = FontWeight.ExtraBold
+                    )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showLogoutDialog = false }) {
-                    Text("Cancel", color = TextMuted)
+                TextButton(
+                    onClick = { showLogoutDialog = false },
+                    colors = ButtonDefaults.textButtonColors(
+                        containerColor = Color.White.copy(alpha = 0.15f),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.5.dp, Color.White.copy(alpha = 0.30f)),
+                    modifier = Modifier.testTag("student_cancel_logout_button")
+                ) {
+                    Text(
+                        text = "Cancel",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         )

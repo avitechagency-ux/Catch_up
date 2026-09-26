@@ -68,9 +68,8 @@ import com.example.ui.theme.SoftLavenderGrey
  * SECTION 3 — Made By:
  * - 28dp spacing below Section 2
  * - Section label: "Made By" (13sp, weight Medium, color #8A8A8A)
- * - Grouped card: background #F7F6FB, corner radius 16dp, containing 2 rows with a 1dp divider (#ECEAF5)
- * - ROW 1: Ssenyonga Moses (Developer)
- * - ROW 2: Nakintu Sylivia (Teacher & Product Lead)
+ * - Grouped card: background #F7F6FB, corner radius 16dp
+ * - Ssenyonga Moses (Developer)
  */
 @Composable
 fun AboutScreen(
@@ -280,7 +279,7 @@ fun AboutScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Grouped card: background #F7F6FB, corner radius 16dp, containing 2 rows with a 1dp divider (#ECEAF5)
+                    // Grouped card: background #F7F6FB, corner radius 16dp
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -289,26 +288,10 @@ fun AboutScreen(
                         color = SoftLavenderGrey
                     ) {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            // ROW 1: Ssenyonga Moses
                             MadeByRow(
                                 name = "Ssenyonga Moses",
                                 role = "Developer",
                                 testTag = "made_by_row_moses"
-                            )
-
-                            // 1dp divider (#ECEAF5)
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(Color(0xFFECEAF5))
-                            )
-
-                            // ROW 2: Nakintu Sylivia
-                            MadeByRow(
-                                name = "Nakintu Sylivia",
-                                role = "Teacher & Product Lead",
-                                testTag = "made_by_row_sylivia"
                             )
                         }
                     }

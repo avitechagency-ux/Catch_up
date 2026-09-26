@@ -38,5 +38,6 @@ val PeachOrangeMuted = Color(0xFFFFD5C6)
 
 // Subject Card Note Count Color
 val NoteCountGreen = Color(0xFF2E7D5B)
+val GreenAccent = Color(0xFF2E7D32)
 
 

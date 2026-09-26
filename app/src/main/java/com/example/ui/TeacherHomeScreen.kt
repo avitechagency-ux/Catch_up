@@ -75,58 +75,21 @@ data class TeacherRecentUpload(
     val dateUploaded: String
 )
 
-val DefaultTeacherRecentUploads = listOf(
-    TeacherRecentUpload(
-        id = "1",
-        title = "East African Climate & Vegetation",
-        subject = "Geography",
-        targetClass = "S.4",
-        dateUploaded = "Yesterday"
-    ),
-    TeacherRecentUpload(
-        id = "2",
-        title = "Map Reading & Contour Analysis",
-        subject = "Geography",
-        targetClass = "S.5",
-        dateUploaded = "Sep 17"
-    ),
-    TeacherRecentUpload(
-        id = "3",
-        title = "Soil Formation & Agriculture Systems",
-        subject = "Geography",
-        targetClass = "S.4",
-        dateUploaded = "Sep 14"
-    )
-)
+val DefaultTeacherRecentUploads: List<TeacherRecentUpload> = emptyList()
 
 /**
  * Teacher Home Screen for Catch Up.
- *
- * Screen Structure:
- * 1. BANNER HEADER:
- *    - Purple gradient #4B3F8F to #5F4FA8 with 28dp bottom rounded corners.
- *    - Decorative subtle geometric shapes in lighter purple (#6B5CA5 at 30% opacity).
- *    - Greeting "Good morning,", Teacher name ("Mr. Okello"), subjects ("Geography • S.4, S.5").
- *    - Menu icon on top-right (with Switch to Student View).
- *    - "18 notes shared this term" card FULLY INSIDE the header card (not overlapping).
- * 2. WHITE BODY:
- *    - Quick Stats: 2 colorful tiles (Teal for uploads, Blue for classes).
- *    - "This Week" highlight: Most active class card with trophy icon.
- *    - Upload Notes: Primary action card with cloud upload icon.
- *    - Recently Uploaded: Topic cards styled like student panel cards with subject theme colors.
- * 3. BOTTOM NAV:
- *    - Reused BottomNavigationBar composable with teacher items (Home active).
  */
 @Composable
 fun TeacherHomeScreen(
     modifier: Modifier = Modifier,
-    teacherName: String = "Mr. Okello",
-    subjectsTaught: String = "Geography • S.4, S.5",
-    notesUploadedCount: Int = 5,
-    classesCount: Int = 3,
-    notesSharedThisTermCount: Int = 18,
-    mostActiveClass: String = "S.5 Geography",
-    notesOpenedThisWeekCount: Int = 12,
+    teacherName: String = "Teacher",
+    subjectsTaught: String = "Secondary Curriculum",
+    notesUploadedCount: Int = 0,
+    classesCount: Int = 0,
+    notesSharedThisTermCount: Int = 0,
+    mostActiveClass: String = "None yet",
+    notesOpenedThisWeekCount: Int = 0,
     recentUploads: List<TeacherRecentUpload> = DefaultTeacherRecentUploads,
     onNavigateToMySubjects: () -> Unit = {},
     onNavigateToUploads: () -> Unit = {},
@@ -425,13 +388,13 @@ fun TeacherHomeScreen(
                 // 24dp spacing between sections
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // SECTION — Upload Notes (primary action)
+                // SECTION — Upload (primary action for notes and assessments)
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
                         .clickable {
-                            // Stub navigation to Uploads screen
+                            // Navigation to Uploads / Upload Notes flow
                             onUploadNotesClick()
                         }
                         .testTag("upload_notes_card"),
@@ -446,7 +409,7 @@ fun TeacherHomeScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.CloudUpload,
-                            contentDescription = "Upload Notes",
+                            contentDescription = "Upload",
                             tint = Color.White,
                             modifier = Modifier
                                 .size(28.dp)
@@ -456,7 +419,7 @@ fun TeacherHomeScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "Upload Notes",
+                            text = "Upload",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -466,7 +429,7 @@ fun TeacherHomeScreen(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         Text(
-                            text = "Share a new PDF with your class",
+                            text = "Share notes or assessments with your class",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Normal,
                             color = LightLavender,

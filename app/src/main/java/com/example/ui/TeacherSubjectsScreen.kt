@@ -116,22 +116,20 @@ data class SubjectUploadItem(
     val dateUploaded: String,
     val dueDate: String? = null,
     val isOwnUpload: Boolean = true,
-    val uploaderName: String = "Mr. Okello",
+    val uploaderName: String = "Teacher",
     val fileName: String = "document.pdf"
 )
 
 /**
- * Default subjects taught by Mr. Okello:
- * - Geography: S.4, S.5
- * - Math: S.3, S.4
+ * Default subjects for secondary curriculum teaching.
  */
 val DefaultTeacherSubjects = listOf(
     TeacherSubjectItem(
         id = "geography",
         name = "Geography",
         classes = "S.4, S.5",
-        noteCount = 5,
-        assignmentCount = 2,
+        noteCount = 0,
+        assignmentCount = 0,
         icon = Icons.Outlined.Public,
         color = CoralTile
     ),
@@ -139,93 +137,16 @@ val DefaultTeacherSubjects = listOf(
         id = "math",
         name = "Math",
         classes = "S.3, S.4",
-        noteCount = 4,
-        assignmentCount = 3,
+        noteCount = 0,
+        assignmentCount = 0,
         icon = Icons.Outlined.Architecture,
         color = TealTile
     )
 )
 
-val DefaultGeographyUploads = listOf(
-    SubjectUploadItem(
-        id = "geo-1",
-        title = "East African Climate & Vegetation",
-        subject = "Geography",
-        targetClass = "S.4",
-        type = "Notes",
-        dateUploaded = "Yesterday"
-    ),
-    SubjectUploadItem(
-        id = "geo-2",
-        title = "Weather Station Instruments Assignment",
-        subject = "Geography",
-        targetClass = "S.4",
-        type = "Assignment",
-        dateUploaded = "Sep 18",
-        dueDate = "Due: Sep 25"
-    ),
-    SubjectUploadItem(
-        id = "geo-3",
-        title = "Map Reading & Contour Analysis",
-        subject = "Geography",
-        targetClass = "S.5",
-        type = "Notes",
-        dateUploaded = "Sep 17"
-    ),
-    SubjectUploadItem(
-        id = "geo-4",
-        title = "Soil Formation & Agriculture Systems",
-        subject = "Geography",
-        targetClass = "S.4",
-        type = "Notes",
-        dateUploaded = "Sep 14"
-    ),
-    SubjectUploadItem(
-        id = "geo-5",
-        title = "Plate Tectonics & Rift Valley Formations",
-        subject = "Geography",
-        targetClass = "S.5",
-        type = "Notes",
-        dateUploaded = "Sep 10"
-    )
-)
+val DefaultGeographyUploads: List<SubjectUploadItem> = emptyList()
 
-val DefaultMathUploads = listOf(
-    SubjectUploadItem(
-        id = "math-1",
-        title = "Quadratic Equations & Graphs",
-        subject = "Math",
-        targetClass = "S.3",
-        type = "Notes",
-        dateUploaded = "2 days ago"
-    ),
-    SubjectUploadItem(
-        id = "math-2",
-        title = "Trigonometry & Bearings Problem Set",
-        subject = "Math",
-        targetClass = "S.4",
-        type = "Assignment",
-        dateUploaded = "Sep 16",
-        dueDate = "Due: Sep 24"
-    ),
-    SubjectUploadItem(
-        id = "math-3",
-        title = "Matrices & Linear Transformations",
-        subject = "Math",
-        targetClass = "S.4",
-        type = "Notes",
-        dateUploaded = "Sep 12"
-    ),
-    SubjectUploadItem(
-        id = "math-4",
-        title = "Simultaneous Equations Exercise 4B",
-        subject = "Math",
-        targetClass = "S.3",
-        type = "Assignment",
-        dateUploaded = "Sep 08",
-        dueDate = "Due: Sep 15"
-    )
-)
+val DefaultMathUploads: List<SubjectUploadItem> = emptyList()
 
 /**
  * Teacher Subjects Screen:
@@ -236,7 +157,7 @@ val DefaultMathUploads = listOf(
 @Composable
 fun TeacherSubjectsScreen(
     modifier: Modifier = Modifier,
-    teacherName: String = "Mr. Okello",
+    teacherName: String = "Teacher",
     subjects: List<TeacherSubjectItem> = DefaultTeacherSubjects,
     onNavigateToHome: () -> Unit = {},
     onNavigateToMySubjects: () -> Unit = {},

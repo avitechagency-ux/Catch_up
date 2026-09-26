@@ -31,9 +31,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -276,46 +278,7 @@ fun HelpAndSupportScreen(
                     color = SoftLavenderGrey
                 ) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        // Row 1: Call us
-                        ContactRow(
-                            iconVector = Icons.Default.Phone,
-                            label = "Call us",
-                            value = "+256 704 039 55",
-                            onClick = {
-                                openDialer(context, "+25670403955")
-                            },
-                            testTag = "contact_row_call_us"
-                        )
-
-                        ContactDivider()
-
-                        // Row 2: WhatsApp
-                        ContactRowWithCustomIcon(
-                            iconResId = R.drawable.ic_whatsapp,
-                            label = "WhatsApp",
-                            value = "+256 704 039 55",
-                            onClick = {
-                                openWhatsApp(context, "+25670403955")
-                            },
-                            testTag = "contact_row_whatsapp"
-                        )
-
-                        ContactDivider()
-
-                        // Row 3: Alternative line
-                        ContactRow(
-                            iconVector = Icons.Default.Phone,
-                            label = "Alternative line",
-                            value = "+256 788 166 600",
-                            onClick = {
-                                openDialer(context, "+256788166600")
-                            },
-                            testTag = "contact_row_alternative_line"
-                        )
-
-                        ContactDivider()
-
-                        // Row 4: Email us
+                        // Email us
                         ContactRow(
                             iconVector = Icons.Default.Email,
                             label = "Email us",
@@ -324,6 +287,55 @@ fun HelpAndSupportScreen(
                                 openEmail(context, "mosesylv@gmail.com")
                             },
                             testTag = "contact_row_email_us"
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // WhatsApp Channel Button Link
+                Button(
+                    onClick = {
+                        openWhatsAppChannel(
+                            context,
+                            "https://whatsapp.com/channel/0029Vb9JiCGF1YlVKEibAe1x"
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .testTag("contact_row_whatsapp"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF25D366),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_whatsapp),
+                                contentDescription = "WhatsApp Channel",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Join WhatsApp Channel",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                            contentDescription = "Open Channel Link",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -550,33 +562,17 @@ fun ContactRowWithCustomIcon(
 }
 
 /**
- * Helper to safely open the phone dialer.
+ * Helper to safely open the WhatsApp Channel link.
  */
-private fun openDialer(context: Context, phoneNumber: String) {
+private fun openWhatsAppChannel(context: Context, channelUrl: String) {
     try {
-        val intent = Intent(Intent.ACTION_DIAL).apply {
-            data = Uri.parse("tel:$phoneNumber")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        context.startActivity(intent)
-    } catch (e: Exception) {
-        Toast.makeText(context, "Cannot open dialer: $phoneNumber", Toast.LENGTH_SHORT).show()
-    }
-}
-
-/**
- * Helper to safely open WhatsApp with the target number.
- */
-private fun openWhatsApp(context: Context, phoneNumber: String) {
-    try {
-        val cleanPhone = phoneNumber.replace("+", "").replace(" ", "")
-        val uri = Uri.parse("https://api.whatsapp.com/send?phone=$cleanPhone")
+        val uri = Uri.parse(channelUrl)
         val intent = Intent(Intent.ACTION_VIEW, uri).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         context.startActivity(intent)
     } catch (e: Exception) {
-        Toast.makeText(context, "Cannot open WhatsApp for $phoneNumber", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Cannot open WhatsApp Channel link", Toast.LENGTH_SHORT).show()
     }
 }
 

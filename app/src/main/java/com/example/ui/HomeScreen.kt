@@ -1,6 +1,7 @@
 package com.example.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.outlined.AccountBalance
@@ -46,6 +48,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -66,8 +69,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -271,33 +279,21 @@ val TeacherNavItems: List<BottomNavItem> = listOf(
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    studentName: String = "Sarah Ssenyonga",
+    studentName: String = "Student",
     greeting: String = "Good morning 👋",
-    streakData: StreakData = StreakData(streakDays = 6, isTodayCompleted = false, nextMilestoneDays = 7),
-    recentNotes: List<RecentNoteData> = listOf(
-        RecentNoteData(
-            title = "Population Density",
-            subject = "Geography",
-            date = "18/09/2026"
-        ),
-        RecentNoteData(
-            title = "Cell Division",
-            subject = "Biology",
-            date = "16/09/2026"
-        ),
-        RecentNoteData(
-            title = "Algebra",
-            subject = "Math",
-            date = "15/09/2026"
-        )
-    ),
+    streakData: StreakData = StreakData(streakDays = 0, isTodayCompleted = false, nextMilestoneDays = 7),
+    activePlanDuration: String = "",
+    activePlanExpiry: String = "",
+    recentNotes: List<RecentNoteData> = emptyList(),
     onNavigateToSubjects: () -> Unit = {},
     onNavigateToDownloads: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onNavigateToAccount: () -> Unit = {},
     onNavigateToTab: (Int) -> Unit = {},
     onNavigateToSubjectDetail: (String) -> Unit = {},
     onOpenNote: (title: String, subject: String) -> Unit = { _, _ -> },
-    onNavigateToTeacher: () -> Unit = {}
+    onNavigateToTeacher: () -> Unit = {},
+    onNavigateToAdmin: () -> Unit = {}
 ) {
     var selectedNavIndex by remember { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -308,25 +304,25 @@ fun HomeScreen(
         listOf(
             SubjectTileData(
                 name = "Geography",
-                lastOpenedDate = "18/09/2026",
+                lastOpenedDate = "Tap to open",
                 backgroundColor = CoralTile,
                 icon = Icons.Outlined.Public
             ),
             SubjectTileData(
                 name = "Biology",
-                lastOpenedDate = "16/09/2026",
+                lastOpenedDate = "Tap to open",
                 backgroundColor = NavyTile,
                 icon = Icons.Outlined.Eco
             ),
             SubjectTileData(
                 name = "Math",
-                lastOpenedDate = "15/09/2026",
+                lastOpenedDate = "Tap to open",
                 backgroundColor = TealTile,
                 icon = Icons.Outlined.Architecture
             ),
             SubjectTileData(
                 name = "History",
-                lastOpenedDate = "12/09/2026",
+                lastOpenedDate = "Tap to open",
                 backgroundColor = BlueTile,
                 icon = Icons.Outlined.AccountBalance
             )
@@ -368,20 +364,23 @@ fun HomeScreen(
                 .padding(bottom = innerPadding.calculateBottomPadding())
                 .verticalScroll(scrollState)
         ) {
-            // Purple Header Block with Platform Name at top, lowered Welcome Text, and Profile Avatar
+            // Purple Header Block with Platform Name at top and Welcome Text
             AppHeader(
                 platformName = "Catch Up",
                 greeting = greeting,
                 studentName = studentName,
                 onProfileClick = onNavigateToProfile,
-                onNavigateToTeacher = onNavigateToTeacher
+                onNavigateToTeacher = onNavigateToTeacher,
+                onNavigateToAdmin = onNavigateToAdmin
             )
 
             // White Body Content
             WhiteBody(
-                streakData = streakData,
+                activePlanDuration = activePlanDuration,
+                activePlanExpiry = activePlanExpiry,
                 quickAccessTiles = quickAccessTiles,
                 recentNotes = recentNotes,
+                onSelectOrManagePlan = onNavigateToAccount,
                 onTileClick = { subject ->
                     onNavigateToSubjectDetail(subject)
                     onActionNotice("Opening $subject notes")
@@ -392,7 +391,8 @@ fun HomeScreen(
                 onRecentClick = { note ->
                     onOpenNote(note.title, note.subject)
                 },
-                onRecentSeeAll = { onActionNotice("Opening all recent notes") }
+                onRecentSeeAll = { onActionNotice("Opening all recent notes") },
+                onNavigateToAdmin = onNavigateToAdmin
             )
         }
     }
@@ -414,10 +414,9 @@ fun AppHeader(
     studentName: String,
     onProfileClick: () -> Unit = {},
     onNavigateToTeacher: () -> Unit = {},
+    onNavigateToAdmin: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var showAvatarMenu by remember { mutableStateOf(false) }
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -487,13 +486,16 @@ fun AppHeader(
  */
 @Composable
 fun WhiteBody(
-    streakData: StreakData,
+    activePlanDuration: String = "",
+    activePlanExpiry: String = "",
     quickAccessTiles: List<SubjectTileData>,
     recentNotes: List<RecentNoteData>,
+    onSelectOrManagePlan: () -> Unit = {},
     onTileClick: (String) -> Unit,
     onQuickAccessSeeAll: () -> Unit,
     onRecentClick: (RecentNoteData) -> Unit,
     onRecentSeeAll: () -> Unit,
+    onNavigateToAdmin: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -502,9 +504,11 @@ fun WhiteBody(
             .background(color = Color.White)
             .padding(top = 20.dp, start = 20.dp, end = 20.dp, bottom = 28.dp)
     ) {
-        // Section: Your Streak (Replaces previous Notes Overview section in exact same position)
-        StreakSection(
-            streakData = streakData
+        // Section: Current Plan (replaces streaks on the student panel)
+        CurrentPlanSection(
+            activePlanDuration = activePlanDuration,
+            activePlanExpiry = activePlanExpiry,
+            onSelectOrManagePlan = onSelectOrManagePlan
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -524,6 +528,599 @@ fun WhiteBody(
             onNoteClick = onRecentClick,
             onSeeAllClick = onRecentSeeAll
         )
+    }
+}
+
+/**
+ * Helper to determine if a student plan is currently active.
+ */
+fun isStudentPlanActive(planDuration: String): Boolean {
+    val trimmed = planDuration.trim()
+    return trimmed.isNotEmpty() &&
+        !trimmed.equals("None", ignoreCase = true) &&
+        !trimmed.equals("No Plan", ignoreCase = true) &&
+        !trimmed.equals("No Plan Selected", ignoreCase = true) &&
+        !trimmed.equals("Inactive", ignoreCase = true)
+}
+
+/**
+ * 4. SECTION — "Current Plan"
+ * Replaces streaks on the Student Home panel.
+ * - If a plan is active: displays the brand-purple Current Plan card with active badge, duration, and expiry.
+ * - If no plan is active: displays a custom website-style "unloaded plan card" placeholder specifically
+ *   crafted for our subscription plan card (dashed border frame, custom unloaded Plan Pass graphic,
+ *   skeleton placeholder lines, and "No Plan Selected" prompt).
+ */
+@Composable
+fun CurrentPlanSection(
+    activePlanDuration: String,
+    activePlanExpiry: String,
+    onSelectOrManagePlan: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val hasActivePlan = isStudentPlanActive(activePlanDuration)
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        // Section Header Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Current Plan",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextDark,
+                modifier = Modifier.testTag("section_title_current_plan")
+            )
+            Text(
+                text = if (hasActivePlan) "Manage" else "Select Plan",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IndigoPurple,
+                modifier = Modifier
+                    .clickable(onClick = onSelectOrManagePlan)
+                    .padding(vertical = 4.dp)
+                    .testTag("current_plan_action_link")
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (hasActivePlan) {
+            ActiveStudentPlanCard(
+                planDuration = activePlanDuration,
+                planExpiry = activePlanExpiry.ifBlank { "Active subscription" },
+                onClick = onSelectOrManagePlan
+            )
+        } else {
+            UnloadedPlanCardPlaceholder(
+                onClick = onSelectOrManagePlan
+            )
+        }
+    }
+}
+
+/**
+ * Active Plan Card shown when the student has an active subscription plan.
+ */
+@Composable
+fun ActiveStudentPlanCard(
+    planDuration: String,
+    planExpiry: String,
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .testTag("home_active_plan_card"),
+        shape = RoundedCornerShape(16.dp),
+        color = IndigoPurple,
+        shadowElevation = 2.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Current Plan",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = LightLavender,
+                    modifier = Modifier.testTag("home_current_plan_label")
+                )
+
+                Surface(
+                    color = Color(0xFFE5F5F0),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.testTag("home_current_plan_active_badge")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            tint = Color(0xFF2A9D8F),
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Active",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF2A9D8F)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = planDuration,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.testTag("home_current_plan_duration")
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = planExpiry,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = LightLavender,
+                    modifier = Modifier.testTag("home_current_plan_expiry")
+                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Change plan",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFFFD54F)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                        contentDescription = "Change plan",
+                        tint = Color(0xFFFFD54F),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Website-style "Unloaded Plan Card" placeholder shown when no plan is active.
+ * Styled after web unloaded-component placeholders, but custom-built specifically for a Plan Card
+ * (NOT an image/mountain placeholder):
+ * - Dashed inset border around the plan card slot
+ * - Custom-drawn Unloaded Plan Pass icon (miniature subscription card with header band, tier badge,
+ *   skeleton lines, and diagonal unloaded slash)
+ * - Skeleton placeholder bars representing the unloaded plan title & expiry fields
+ * - Clear "No Plan Selected" label + "Tap to choose a plan" call-to-action
+ */
+@Composable
+fun UnloadedPlanCardPlaceholder(
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val dashBorderColor = Color(0xFFC5BFE0)
+    val cardBgColor = Color(0xFFF7F6FB)
+    val skeletonBarColor = Color(0xFFE4E0F2)
+    val skeletonBarLight = Color(0xFFECE9F7)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(cardBgColor)
+            .drawBehind {
+                val strokeWidthPx = 1.5.dp.toPx()
+                val halfStroke = strokeWidthPx / 2f
+                // Subtle diagonal unloaded web-slot guide lines in background
+                drawLine(
+                    color = Color(0xFFECE9F6),
+                    start = Offset(0f, size.height),
+                    end = Offset(size.width, 0f),
+                    strokeWidth = 1.dp.toPx()
+                )
+                // Dashed border around the entire unloaded plan card slot
+                drawRoundRect(
+                    color = dashBorderColor,
+                    topLeft = Offset(halfStroke, halfStroke),
+                    size = Size(size.width - strokeWidthPx, size.height - strokeWidthPx),
+                    cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx()),
+                    style = Stroke(
+                        width = strokeWidthPx,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 9f), 0f)
+                    )
+                )
+            }
+            .clickable(onClick = onClick)
+            .padding(18.dp)
+            .testTag("unloaded_plan_card_placeholder")
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Top Row: Unloaded status tag + ghost skeleton badge on right (mirrors ActivePlanCard top row)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(PeachOrange)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "PLAN CARD NOT LOADED",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.6.sp,
+                        color = Color(0xFF7E789A),
+                        modifier = Modifier.testTag("unloaded_plan_status_tag")
+                    )
+                }
+
+                // Website-style unloaded badge placeholder pill
+                Box(
+                    modifier = Modifier
+                        .width(54.dp)
+                        .height(18.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(skeletonBarColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(30.dp)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background( Color(0xFFD0CBE6))
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Middle Row: Custom Unloaded Plan Card Graphic + "No Plan Selected" & Skeleton Lines
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Custom-drawn Unloaded Plan Pass Card Icon (specifically for plan card, NOT an image icon)
+                UnloadedPlanCardIcon(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .testTag("unloaded_plan_card_icon")
+                )
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "No Plan Selected",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF2D284B),
+                        modifier = Modifier.testTag("no_plan_selected_title")
+                    )
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = "No active study plan loaded for your account",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = Color(0xFF7E789A),
+                        modifier = Modifier.testTag("no_plan_selected_subtitle")
+                    )
+
+                    Spacer(modifier = Modifier.height(9.dp))
+
+                    // Skeleton bars mimicking the unloaded duration & expiry rows of a Plan Card
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(76.dp)
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(skeletonBarColor)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(48.dp)
+                                .height(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(skeletonBarLight)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Bottom Row: Unloaded expiry skeleton bar on left + "Select a Plan ->" pill on right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(16.dp)
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(skeletonBarColor)
+                    )
+                    Text(
+                        text = "0 / 3 plans active",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF8E88A8)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = IndigoPurple.copy(alpha = 0.10f),
+                    border = BorderStroke(1.dp, IndigoPurple.copy(alpha = 0.28f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Choose Plan",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = IndigoPurple
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                            contentDescription = "Choose Plan",
+                            tint = IndigoPurple,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Custom Canvas graphic built specifically for an unloaded Subscription Plan Card (NOT a broken image icon).
+ * Renders:
+ * - A recessed rounded square frame with a dashed inner border
+ * - A miniature horizontal "Plan Pass / Subscription Card" with a purple top header strip,
+ *   a plan chip/badge circle on the right, and two horizontal plan text lines on the left
+ * - A crisp diagonal "unloaded / disconnected" break line with an orange status indicator badge
+ */
+@Composable
+fun UnloadedPlanCardIcon(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFFECE9F8))
+            .border(
+                width = 1.dp,
+                color = Color(0xFFD2CCE8),
+                shape = RoundedCornerShape(14.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(40.dp)) {
+            val w = size.width
+            val h = size.height
+
+            // Miniature Plan Card dimensions
+            val cardLeft = w * 0.08f
+            val cardTop = h * 0.18f
+            val cardWidth = w * 0.84f
+            val cardHeight = h * 0.64f
+            val corner = 5.dp.toPx()
+
+            // 1. Plan Card soft fill
+            drawRoundRect(
+                color = Color.White.copy(alpha = 0.85f),
+                topLeft = Offset(cardLeft, cardTop),
+                size = Size(cardWidth, cardHeight),
+                cornerRadius = CornerRadius(corner, corner)
+            )
+
+            // 2. Plan Card top header band (represents the subscription tier header strip)
+            drawRoundRect(
+                color = Color(0xFF4B3F8F).copy(alpha = 0.22f),
+                topLeft = Offset(cardLeft, cardTop),
+                size = Size(cardWidth, cardHeight * 0.32f),
+                cornerRadius = CornerRadius(corner, corner)
+            )
+
+            // 3. Plan Card dashed outline
+            drawRoundRect(
+                color = Color(0xFF4B3F8F).copy(alpha = 0.65f),
+                topLeft = Offset(cardLeft, cardTop),
+                size = Size(cardWidth, cardHeight),
+                cornerRadius = CornerRadius(corner, corner),
+                style = Stroke(
+                    width = 1.6.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 5f), 0f)
+                )
+            )
+
+            // 4. Miniature Plan lines inside the card (duration bar + expiry bar)
+            val lineStartX = cardLeft + cardWidth * 0.14f
+            val line1Y = cardTop + cardHeight * 0.54f
+            val line2Y = cardTop + cardHeight * 0.74f
+
+            drawLine(
+                color = Color(0xFF4B3F8F).copy(alpha = 0.55f),
+                start = Offset(lineStartX, line1Y),
+                end = Offset(cardLeft + cardWidth * 0.56f, line1Y),
+                strokeWidth = 2.4.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+
+            drawLine(
+                color = Color(0xFF4B3F8F).copy(alpha = 0.30f),
+                start = Offset(lineStartX, line2Y),
+                end = Offset(cardLeft + cardWidth * 0.42f, line2Y),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+
+            // 5. Miniature Plan Badge ring on the right side of the mini card
+            val badgeCenter = Offset(cardLeft + cardWidth * 0.78f, cardTop + cardHeight * 0.62f)
+            drawCircle(
+                color = Color(0xFF4B3F8F).copy(alpha = 0.35f),
+                radius = 3.5.dp.toPx(),
+                center = badgeCenter,
+                style = Stroke(width = 1.4.dp.toPx())
+            )
+
+            // 6. Diagonal "Unloaded / No Plan" slash across the mini plan card
+            drawLine(
+                color = Color(0xFFECE9F8),
+                start = Offset(w * 0.18f, h * 0.84f),
+                end = Offset(w * 0.82f, h * 0.16f),
+                strokeWidth = 4.2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = Color(0xFFE76F51),
+                start = Offset(w * 0.20f, h * 0.82f),
+                end = Offset(w * 0.80f, h * 0.18f),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}
+
+/**
+ * Dedicated linking button / card on the Student page to navigate directly to the Admin Portal.
+ */
+@Composable
+fun AdminPortalCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("student_admin_portal_card"),
+        shape = RoundedCornerShape(18.dp),
+        color = SoftLavenderGrey,
+        border = BorderStroke(1.dp, IndigoPurple.copy(alpha = 0.25f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = IndigoPurple,
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.Shield,
+                            contentDescription = "Admin Portal",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(14.dp))
+
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Admin Portal",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = IndigoPurple,
+                            modifier = Modifier.testTag("student_admin_portal_title")
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = IndigoPurple.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = "Admin",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IndigoPurple,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "Access revenue, analytics, users & platform controls",
+                        fontSize = 12.sp,
+                        color = TextMuted,
+                        maxLines = 1,
+                        modifier = Modifier.testTag("student_admin_portal_subtitle")
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                contentDescription = "Navigate to Admin Portal",
+                tint = IndigoPurple,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
 
@@ -722,7 +1319,7 @@ fun StreakSection(
  * - 12dp below header: 2x2 grid, 12dp gap horizontal and vertical
  * - Tile height: 90dp, corner radius 16dp, padding 14dp
  * - Top-right: 20dp white icon
- * - Bottom-left: Subject name (15sp Bold #FFFFFF) + 2dp + "Last opened: [date]" (11sp Regular 85% white)
+ * - Bottom-left: Subject name (15sp Bold #FFFFFF)
  */
 @Composable
 fun QuickAccessSection(
@@ -837,26 +1434,14 @@ fun QuickAccessTile(
                 .align(Alignment.TopEnd)
         )
 
-        // Subject name and Last opened date in bottom-left
-        Column(
+        // Subject name in bottom-left
+        Text(
+            text = tileData.name,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
             modifier = Modifier.align(Alignment.BottomStart)
-        ) {
-            Text(
-                text = tileData.name,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "Last opened: ${tileData.lastOpenedDate}",
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color.White.copy(alpha = 0.85f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        )
     }
 }
 

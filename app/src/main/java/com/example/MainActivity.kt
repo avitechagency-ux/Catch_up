@@ -1,11 +1,17 @@
 package com.example
 
+import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -18,31 +24,53 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.example.notifications.NotificationHelper
 import com.example.ui.AccountScreen
 import com.example.ui.AboutScreen
+import com.example.ui.AdminAccountScreen
+import com.example.ui.AdminAffiliateScreen
+import com.example.ui.AdminAnalysisScreen
+import com.example.ui.AdminHealthScreen
+import com.example.ui.AdminHomeScreen
+import com.example.ui.AdminLogsScreen
+import com.example.ui.AdminMoreScreen
+import com.example.ui.AdminPlaceholderScreen
+import com.example.ui.AdminPlansScreen
+import com.example.ui.AdminSettingsScreen
+import com.example.ui.AdminTransactionsScreen
+import com.example.ui.AdminUsersScreen
 import com.example.ui.CachedNote
-import com.example.ui.DefaultGeographyUploads
-import com.example.ui.DefaultMathUploads
 import com.example.ui.DefaultTeacherSubjects
 import com.example.ui.DownloadsScreen
 import com.example.ui.HelpAndSupportScreen
 import com.example.ui.HomeScreen
 import com.example.ui.PdfViewerScreen
 import com.example.ui.PlanTier
+import com.example.ui.PrivacyPolicyScreen
 import com.example.ui.ProfileScreen
 import com.example.ui.RecentNoteData
 import com.example.ui.SettingsScreen
 import com.example.ui.StreakData
+import com.example.ui.StudentAffiliateScreen
 import com.example.ui.SubjectNotesScreen
 import com.example.ui.SubjectsScreen
+import com.example.ui.OnboardingScreen
+import com.example.ui.WelcomeScreen
+import com.example.ui.LoginScreen
+import com.example.ui.SignupScreen
+import com.example.ui.TeacherAccountScreen
 import com.example.ui.TeacherHomeScreen
 import com.example.ui.TeacherPlaceholderScreen
 import com.example.ui.TeacherProfileScreen
+import com.example.ui.TeacherRecentUpload
 import com.example.ui.TeacherSubjectConfigScreen
 import com.example.ui.TeacherSubjectItem
 import com.example.ui.TeacherSubjectsScreen
+import com.example.ui.DefaultTeacherAllUploads
+import com.example.ui.TeacherUploadItem
 import com.example.ui.TeacherUploadNotesScreen
 import com.example.ui.TeacherUploadsScreen
 import com.example.ui.SubjectUploadItem
@@ -56,27 +84,56 @@ import java.util.Date
 import java.util.Locale
 
 enum class AppScreen {
+    ONBOARDING,
+    WELCOME,
+    LOGIN,
+    SIGNUP,
     HOME,
     SUBJECTS,
     SUBJECT_NOTES,
     PDF_VIEWER,
     DOWNLOADS,
     PROFILE,
+    STUDENT_AFFILIATE,
     ACCOUNT,
     SETTINGS,
     HELP_AND_SUPPORT,
     ABOUT,
+    PRIVACY_POLICY,
     TEACHER_HOME,
     TEACHER_MY_SUBJECTS,
     TEACHER_SUBJECT_CONFIG,
     TEACHER_UPLOAD_NOTES,
     TEACHER_UPLOADS,
-    TEACHER_PROFILE
+    TEACHER_PROFILE,
+    TEACHER_ACCOUNT,
+    ADMIN_HOME,
+    ADMIN_ANALYSIS,
+    ADMIN_USERS,
+    ADMIN_MORE,
+    ADMIN_AFFILIATE,
+    ADMIN_ACCOUNT,
+    ADMIN_PLANS,
+    ADMIN_TRANSACTIONS,
+    ADMIN_SETTINGS,
+    ADMIN_HEALTH,
+    ADMIN_LOGS
 }
 
 class MainActivity : ComponentActivity() {
+    private var pendingNotificationIntent by mutableStateOf<Intent?>(null)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingNotificationIntent = intent
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        NotificationHelper.createNotificationChannels(this)
+        NotificationHelper.fetchAndStoreCurrentFcmToken(this)
+        pendingNotificationIntent = intent
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme(dynamicColor = false) {
@@ -86,10 +143,10 @@ class MainActivity : ComponentActivity() {
 
                 // Load persisted streak data or initialize with 6 days, 42 minutes today
                 var streakData by remember {
-                    val savedDays = prefs.getInt("streak_days", 6)
-                    val savedMillis = prefs.getLong("streak_millis_today", 42L * 60L * 1000L)
+                    val savedDays = prefs.getInt("streak_days", 0)
+                    val savedMillis = prefs.getLong("streak_millis_today", 0L)
                     val savedDate = prefs.getString("streak_last_active_date", todayStr) ?: todayStr
-                    val savedCompleted = prefs.getBoolean("streak_today_completed", savedMillis >= 60L * 60L * 1000L)
+                    val savedCompleted = prefs.getBoolean("streak_today_completed", false)
                     val savedMilestone = prefs.getInt("streak_next_milestone", 7)
 
                     val initial = StreakData(
@@ -164,11 +221,25 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val initialScreen = remember {
-                    val saved = prefs.getString("last_active_screen", AppScreen.PROFILE.name)
-                    try {
-                        AppScreen.valueOf(saved ?: AppScreen.PROFILE.name)
-                    } catch (e: Exception) {
-                        AppScreen.PROFILE
+                    val hasResetForV5 = prefs.getBoolean("onboarding_v5_begin_icon_reset", false)
+                    if (!hasResetForV5) {
+                        prefs.edit()
+                            .putBoolean("onboarding_v5_begin_icon_reset", true)
+                            .putBoolean("is_first_time", true)
+                            .putBoolean("is_logged_in", false)
+                            .remove("last_active_screen")
+                            .apply()
+                    }
+                    val isLoggedIn = prefs.getBoolean("is_logged_in", false)
+                    val isFirstTime = prefs.getBoolean("is_first_time", true)
+                    val savedScreen = prefs.getString("last_active_screen", null)
+                    when {
+                        isFirstTime -> AppScreen.ONBOARDING
+                        !isLoggedIn -> AppScreen.WELCOME
+                        savedScreen != null -> {
+                            try { AppScreen.valueOf(savedScreen) } catch (e: Exception) { AppScreen.HOME }
+                        }
+                        else -> AppScreen.HOME
                     }
                 }
                 var currentScreen by remember { mutableStateOf(initialScreen) }
@@ -182,19 +253,19 @@ class MainActivity : ComponentActivity() {
                 var selectedPdfSubject by remember { mutableStateOf("Math") }
 
                 var studentName by remember {
-                    mutableStateOf(prefs.getString("student_name", "Sarah Ssenyonga") ?: "Sarah Ssenyonga")
+                    mutableStateOf(prefs.getString("student_name", "Student") ?: "Student")
                 }
                 var schoolName by remember {
-                    mutableStateOf(prefs.getString("student_school", "Jjungo Senior Secondary School") ?: "Jjungo Senior Secondary School")
+                    mutableStateOf(prefs.getString("student_school", "Secondary School") ?: "Secondary School")
                 }
                 var academicClass by remember {
-                    mutableStateOf(prefs.getString("student_class", "S.5 Blue") ?: "S.5 Blue")
+                    mutableStateOf(prefs.getString("student_class", "S.4") ?: "S.4")
                 }
                 var activePlanDuration by remember {
-                    mutableStateOf(prefs.getString("student_plan_duration", "1 Year") ?: "1 Year")
+                    mutableStateOf(prefs.getString("student_active_plan_duration", "") ?: "")
                 }
                 var activePlanExpiry by remember {
-                    mutableStateOf(prefs.getString("student_plan_expiry", "Valid until Term 2, 2026") ?: "Valid until Term 2, 2026")
+                    mutableStateOf(prefs.getString("student_active_plan_expiry", "") ?: "")
                 }
 
                 val onSaveProfile: (String, String, String) -> Unit = { newName, newSchool, newClass ->
@@ -208,54 +279,45 @@ class MainActivity : ComponentActivity() {
                         .apply()
                 }
 
+                var teacherName by remember {
+                    mutableStateOf(prefs.getString("teacher_name", "Teacher") ?: "Teacher")
+                }
+                var teacherSchool by remember {
+                    mutableStateOf(prefs.getString("teacher_school", "Secondary School") ?: "Secondary School")
+                }
+                var teacherSubjectsTaught by remember {
+                    mutableStateOf(prefs.getString("teacher_subjects", "Secondary Curriculum") ?: "Secondary Curriculum")
+                }
+
+                val onSaveTeacherProfile: (String, String, String) -> Unit = { newName, newSchool, newSubjects ->
+                    teacherName = newName
+                    teacherSchool = newSchool
+                    teacherSubjectsTaught = newSubjects
+                    prefs.edit()
+                        .putString("teacher_name", newName)
+                        .putString("teacher_school", newSchool)
+                        .putString("teacher_subjects", newSubjects)
+                        .apply()
+                }
+
                 var recentNotesList by remember {
-                    mutableStateOf(
-                        listOf(
-                            RecentNoteData(
-                                title = "Population Density",
-                                subject = "Geography",
-                                date = "18/09/2026"
-                            ),
-                            RecentNoteData(
-                                title = "Cell Division",
-                                subject = "Biology",
-                                date = "16/09/2026"
-                            ),
-                            RecentNoteData(
-                                title = "Algebra",
-                                subject = "Math",
-                                date = "15/09/2026"
-                            )
-                        )
-                    )
+                    mutableStateOf<List<RecentNoteData>>(emptyList())
                 }
 
                 var downloadsList by remember {
-                    mutableStateOf(
-                        listOf(
-                            CachedNote(
-                                id = "1",
-                                title = "Algebra",
-                                subject = "Math",
-                                dateAdded = "18/09/2026",
-                                lastAccessedTimestamp = System.currentTimeMillis()
-                            ),
-                            CachedNote(
-                                id = "2",
-                                title = "Physical Geography of East Africa",
-                                subject = "Geography",
-                                dateAdded = "17/09/2026",
-                                lastAccessedTimestamp = System.currentTimeMillis()
-                            )
-                        )
-                    )
+                    mutableStateOf<List<CachedNote>>(emptyList())
+                }
+
+                var teacherUploadsList by remember {
+                    mutableStateOf<List<TeacherUploadItem>>(DefaultTeacherAllUploads)
                 }
 
                 val recordRecentTopic: (String, String, String?) -> Unit = { title, subject, date ->
+                    val currentDate = date ?: SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
                     val newRecent = RecentNoteData(
                         title = title,
                         subject = subject,
-                        date = date ?: "19/09/2026"
+                        date = currentDate
                     )
                     val updated = listOf(newRecent) + recentNotesList.filterNot {
                         it.title.equals(title, ignoreCase = true) && it.subject.equals(subject, ignoreCase = true)
@@ -274,6 +336,10 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(AppScreen.PROFILE)
                 }
 
+                var accountPreviousScreen by remember {
+                    mutableStateOf(AppScreen.PROFILE)
+                }
+
                 var helpPreviousScreen by remember {
                     mutableStateOf(AppScreen.PROFILE)
                 }
@@ -282,32 +348,231 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(AppScreen.PROFILE)
                 }
 
+                var privacyPreviousScreen by remember {
+                    mutableStateOf(AppScreen.PROFILE)
+                }
+
+                var adminPreviousScreen by remember {
+                    mutableStateOf(AppScreen.HOME)
+                }
+
+                var adminAccountPreviousScreen by remember {
+                    mutableStateOf(AppScreen.ADMIN_MORE)
+                }
+
+                var adminAffiliatePreviousScreen by remember {
+                    mutableStateOf(AppScreen.ADMIN_MORE)
+                }
+
+                var adminTransactionsPreviousScreen by remember {
+                    mutableStateOf(AppScreen.ADMIN_MORE)
+                }
+
+                var adminHealthPreviousScreen by remember {
+                    mutableStateOf(AppScreen.ADMIN_MORE)
+                }
+
+                var adminLogsPreviousScreen by remember {
+                    mutableStateOf(AppScreen.ADMIN_MORE)
+                }
+
+                // Request POST_NOTIFICATIONS runtime permission on Android 13+ when entering Home screen
+                val notificationPermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission()
+                ) { _ ->
+                    prefs.edit()
+                        .putBoolean(NotificationHelper.PREF_NOTIFICATION_PERMISSION_REQUESTED, true)
+                        .apply()
+                }
+
+                LaunchedEffect(currentScreen) {
+                    if (currentScreen == AppScreen.HOME && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        val alreadyRequested = prefs.getBoolean(
+                            NotificationHelper.PREF_NOTIFICATION_PERMISSION_REQUESTED,
+                            false
+                        )
+                        val isGranted = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.POST_NOTIFICATIONS
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (!isGranted && !alreadyRequested) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                }
+
+                // Handle deep-linking from tapped push notifications ("new_note" -> PDF_VIEWER, "payment_reminder" -> ACCOUNT)
+                LaunchedEffect(pendingNotificationIntent) {
+                    val activeIntent = pendingNotificationIntent ?: return@LaunchedEffect
+                    val notifType = activeIntent.getStringExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
+                    val noteId = activeIntent.getStringExtra(NotificationHelper.EXTRA_NOTE_ID)
+
+                    when {
+                        notifType == NotificationHelper.TYPE_NEW_NOTE || !noteId.isNullOrBlank() -> {
+                            val matchedNote = if (!noteId.isNullOrBlank()) {
+                                teacherUploadsList.firstOrNull { it.id.equals(noteId, ignoreCase = true) }
+                            } else {
+                                null
+                            }
+                            val targetTitle = matchedNote?.title
+                                ?: activeIntent.getStringExtra(NotificationHelper.EXTRA_NOTE_TITLE)
+                                    ?.takeIf { it.isNotBlank() }
+                                ?: "Population Density"
+                            val targetSubject = matchedNote?.subject
+                                ?: activeIntent.getStringExtra(NotificationHelper.EXTRA_NOTE_SUBJECT)
+                                    ?.takeIf { it.isNotBlank() }
+                                ?: "Geography"
+
+                            selectedPdfTitle = targetTitle
+                            selectedPdfSubject = targetSubject
+                            recordRecentTopic(targetTitle, targetSubject, null)
+                            previousScreen = AppScreen.HOME
+                            currentScreen = AppScreen.PDF_VIEWER
+
+                            activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
+                            activeIntent.removeExtra(NotificationHelper.EXTRA_NOTE_ID)
+                            pendingNotificationIntent = null
+                        }
+                        notifType == NotificationHelper.TYPE_PAYMENT_REMINDER -> {
+                            accountPreviousScreen = AppScreen.HOME
+                            currentScreen = AppScreen.ACCOUNT
+
+                            activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
+                            pendingNotificationIntent = null
+                        }
+                    }
+                }
+
                 BackHandler(enabled = currentScreen != AppScreen.HOME) {
                     currentScreen = when (currentScreen) {
+                        AppScreen.LOGIN -> AppScreen.WELCOME
+                        AppScreen.SIGNUP -> AppScreen.WELCOME
+                        AppScreen.WELCOME -> AppScreen.WELCOME
+                        AppScreen.ONBOARDING -> AppScreen.ONBOARDING
                         AppScreen.PDF_VIEWER -> previousScreen
                         AppScreen.SUBJECT_NOTES -> AppScreen.SUBJECTS
                         AppScreen.DOWNLOADS -> AppScreen.HOME
                         AppScreen.SUBJECTS -> AppScreen.HOME
                         AppScreen.PROFILE -> AppScreen.HOME
-                        AppScreen.ACCOUNT -> AppScreen.PROFILE
+                        AppScreen.STUDENT_AFFILIATE -> AppScreen.PROFILE
+                        AppScreen.ACCOUNT -> accountPreviousScreen
                         AppScreen.SETTINGS -> settingsPreviousScreen
                         AppScreen.HELP_AND_SUPPORT -> helpPreviousScreen
                         AppScreen.ABOUT -> aboutPreviousScreen
+                        AppScreen.PRIVACY_POLICY -> privacyPreviousScreen
                         AppScreen.TEACHER_UPLOAD_NOTES -> previousScreen
                         AppScreen.TEACHER_SUBJECT_CONFIG -> AppScreen.TEACHER_MY_SUBJECTS
                         AppScreen.TEACHER_MY_SUBJECTS -> AppScreen.TEACHER_HOME
                         AppScreen.TEACHER_UPLOADS -> AppScreen.TEACHER_HOME
+                        AppScreen.TEACHER_ACCOUNT -> AppScreen.TEACHER_PROFILE
                         AppScreen.TEACHER_PROFILE -> AppScreen.TEACHER_HOME
                         AppScreen.TEACHER_HOME -> AppScreen.PROFILE
+                        AppScreen.ADMIN_ANALYSIS -> AppScreen.ADMIN_HOME
+                        AppScreen.ADMIN_USERS -> AppScreen.ADMIN_HOME
+                        AppScreen.ADMIN_MORE -> AppScreen.ADMIN_HOME
+                        AppScreen.ADMIN_AFFILIATE -> adminAffiliatePreviousScreen
+                        AppScreen.ADMIN_ACCOUNT -> adminAccountPreviousScreen
+                        AppScreen.ADMIN_PLANS -> AppScreen.ADMIN_HOME
+                        AppScreen.ADMIN_TRANSACTIONS -> adminTransactionsPreviousScreen
+                        AppScreen.ADMIN_SETTINGS -> AppScreen.ADMIN_MORE
+                        AppScreen.ADMIN_HEALTH -> adminHealthPreviousScreen
+                        AppScreen.ADMIN_LOGS -> adminLogsPreviousScreen
+                        AppScreen.ADMIN_HOME -> adminPreviousScreen
                         else -> AppScreen.HOME
                     }
                 }
 
                 Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
                     when (screen) {
+                        AppScreen.ONBOARDING -> OnboardingScreen(
+                            onFinishOnboarding = {
+                                prefs.edit().putBoolean("is_first_time", false).apply()
+                                currentScreen = AppScreen.WELCOME
+                            }
+                        )
+                        AppScreen.WELCOME -> WelcomeScreen(
+                            onNavigateToLogin = { currentScreen = AppScreen.LOGIN },
+                            onNavigateToSignup = { currentScreen = AppScreen.SIGNUP },
+                            onExploreAsGuest = { currentScreen = AppScreen.HOME }
+                        )
+                        AppScreen.LOGIN -> LoginScreen(
+                            onNavigateBack = { currentScreen = AppScreen.WELCOME },
+                            onNavigateToSignup = { currentScreen = AppScreen.SIGNUP },
+                            onLoginSuccess = { role, phoneOrIdentifier, fullName, savedClass, savedStream ->
+                                val editor = prefs.edit()
+                                    .putBoolean("is_logged_in", true)
+                                    .putString("user_role", role)
+                                    .putString("user_email", phoneOrIdentifier)
+                                    .putString("user_phone", phoneOrIdentifier)
+
+                                if (role.equals("student", ignoreCase = true)) {
+                                    if (!fullName.isNullOrBlank()) {
+                                        studentName = fullName
+                                        editor.putString("student_name", fullName)
+                                    }
+                                    val combinedClassStream = listOfNotNull(
+                                        savedClass?.takeIf { it.isNotBlank() },
+                                        savedStream?.takeIf { it.isNotBlank() }
+                                    ).joinToString(" ")
+                                    if (combinedClassStream.isNotBlank()) {
+                                        academicClass = combinedClassStream
+                                        editor.putString("student_class", combinedClassStream)
+                                    }
+                                } else if (role.equals("teacher", ignoreCase = true)) {
+                                    if (!fullName.isNullOrBlank()) {
+                                        teacherName = fullName
+                                        editor.putString("teacher_name", fullName)
+                                    }
+                                }
+                                editor.apply()
+
+                                currentScreen = when (role.lowercase()) {
+                                    "teacher" -> AppScreen.TEACHER_HOME
+                                    "admin" -> AppScreen.ADMIN_HOME
+                                    else -> AppScreen.HOME
+                                }
+                            }
+                        )
+                        AppScreen.SIGNUP -> SignupScreen(
+                            onNavigateBack = { currentScreen = AppScreen.WELCOME },
+                            onNavigateToLogin = { currentScreen = AppScreen.LOGIN },
+                            onSignupSuccess = { role, phoneNumber, name, studentClass, studentStream ->
+                                val editor = prefs.edit()
+                                    .putBoolean("is_logged_in", true)
+                                    .putString("user_role", role)
+                                    .putString("user_email", phoneNumber)
+                                    .putString("user_phone", phoneNumber)
+
+                                if (role.equals("student", ignoreCase = true)) {
+                                    studentName = name
+                                    val combinedClassStream = listOf(studentClass.trim(), studentStream.trim())
+                                        .filter { it.isNotBlank() }
+                                        .joinToString(" ")
+                                        .ifBlank { "S.4" }
+                                    academicClass = combinedClassStream
+                                    editor
+                                        .putString("student_name", name)
+                                        .putString("student_class", combinedClassStream)
+                                        .putString("student_class_only", studentClass.trim())
+                                        .putString("student_stream_only", studentStream.trim())
+                                } else if (role.equals("teacher", ignoreCase = true)) {
+                                    teacherName = name
+                                    editor.putString("teacher_name", name)
+                                }
+                                editor.apply()
+
+                                currentScreen = when (role.lowercase()) {
+                                    "teacher" -> AppScreen.TEACHER_HOME
+                                    "admin" -> AppScreen.ADMIN_HOME
+                                    else -> AppScreen.HOME
+                                }
+                            }
+                        )
                         AppScreen.HOME -> HomeScreen(
                             studentName = studentName,
                             streakData = streakData,
+                            activePlanDuration = activePlanDuration,
+                            activePlanExpiry = activePlanExpiry,
                             recentNotes = recentNotesList,
                             onNavigateToSubjects = {
                                 currentScreen = AppScreen.SUBJECTS
@@ -317,6 +582,10 @@ class MainActivity : ComponentActivity() {
                             },
                             onNavigateToProfile = {
                                 currentScreen = AppScreen.PROFILE
+                            },
+                            onNavigateToAccount = {
+                                accountPreviousScreen = AppScreen.HOME
+                                currentScreen = AppScreen.ACCOUNT
                             },
                             onNavigateToSubjectDetail = { subject ->
                                 selectedSubjectName = subject
@@ -331,6 +600,10 @@ class MainActivity : ComponentActivity() {
                             },
                             onNavigateToTeacher = {
                                 currentScreen = AppScreen.TEACHER_HOME
+                            },
+                            onNavigateToAdmin = {
+                                adminPreviousScreen = AppScreen.HOME
+                                currentScreen = AppScreen.ADMIN_HOME
                             }
                         )
                         AppScreen.SUBJECTS -> SubjectsScreen(
@@ -458,7 +731,11 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.TEACHER_HOME
                             },
                             onNavigateToAccount = {
+                                accountPreviousScreen = AppScreen.PROFILE
                                 currentScreen = AppScreen.ACCOUNT
+                            },
+                            onNavigateToAffiliate = {
+                                currentScreen = AppScreen.STUDENT_AFFILIATE
                             },
                             onNavigateToSettings = {
                                 settingsPreviousScreen = AppScreen.PROFILE
@@ -472,7 +749,47 @@ class MainActivity : ComponentActivity() {
                                 aboutPreviousScreen = AppScreen.PROFILE
                                 currentScreen = AppScreen.ABOUT
                             },
-                            onUpdateProfile = onSaveProfile
+                            onNavigateToPrivacyPolicy = {
+                                privacyPreviousScreen = AppScreen.PROFILE
+                                currentScreen = AppScreen.PRIVACY_POLICY
+                            },
+                            onNavigateToAdmin = {
+                                adminPreviousScreen = AppScreen.PROFILE
+                                currentScreen = AppScreen.ADMIN_HOME
+                            },
+                            onUpdateProfile = onSaveProfile,
+                            onLogout = {
+                                prefs.edit().putBoolean("is_logged_in", false).apply()
+                                currentScreen = AppScreen.WELCOME
+                            }
+                        )
+                        AppScreen.STUDENT_AFFILIATE -> StudentAffiliateScreen(
+                            studentName = studentName,
+                            initialBalance = 1500,
+                            initialReferralCode = "STUDENT100",
+                            onNavigateBack = {
+                                currentScreen = AppScreen.PROFILE
+                            },
+                            onNavigateToHome = {
+                                currentScreen = AppScreen.HOME
+                            },
+                            onNavigateToSubjects = {
+                                currentScreen = AppScreen.SUBJECTS
+                            },
+                            onNavigateToDownloads = {
+                                currentScreen = AppScreen.DOWNLOADS
+                            },
+                            onNavigateToProfile = {
+                                currentScreen = AppScreen.PROFILE
+                            },
+                            onPlanPurchased = { planDuration, planExpiry ->
+                                activePlanDuration = planDuration
+                                activePlanExpiry = planExpiry
+                                prefs.edit()
+                                    .putString("student_active_plan_duration", planDuration)
+                                    .putString("student_active_plan_expiry", planExpiry)
+                                    .apply()
+                            }
                         )
                         AppScreen.SETTINGS -> SettingsScreen(
                             onNavigateBack = {
@@ -492,11 +809,16 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = aboutPreviousScreen
                             }
                         )
+                        AppScreen.PRIVACY_POLICY -> PrivacyPolicyScreen(
+                            onNavigateBack = {
+                                currentScreen = privacyPreviousScreen
+                            }
+                        )
                         AppScreen.ACCOUNT -> AccountScreen(
                             activePlanDuration = activePlanDuration,
                             activePlanExpiry = activePlanExpiry,
                             onNavigateBack = {
-                                currentScreen = AppScreen.PROFILE
+                                currentScreen = accountPreviousScreen
                             },
                             onPlanUpdated = { newPlan ->
                                 activePlanDuration = newPlan.duration
@@ -507,19 +829,28 @@ class MainActivity : ComponentActivity() {
                                     else -> "Valid until Term 2, 2026"
                                 }
                                 prefs.edit()
-                                    .putString("student_plan_duration", activePlanDuration)
-                                    .putString("student_plan_expiry", activePlanExpiry)
+                                    .putString("student_active_plan_duration", activePlanDuration)
+                                    .putString("student_active_plan_expiry", activePlanExpiry)
                                     .apply()
                             }
                         )
                         AppScreen.TEACHER_HOME -> TeacherHomeScreen(
-                            teacherName = "Mr. Okello",
-                            subjectsTaught = "Geography • S.4, S.5",
-                            notesUploadedCount = 5,
-                            classesCount = 3,
-                            notesSharedThisTermCount = 18,
-                            mostActiveClass = "S.5 Geography",
-                            notesOpenedThisWeekCount = 12,
+                            teacherName = teacherName,
+                            subjectsTaught = teacherSubjectsTaught,
+                            notesUploadedCount = teacherUploadsList.size,
+                            classesCount = if (teacherUploadsList.isEmpty()) 0 else teacherUploadsList.map { it.targetClass }.distinct().size,
+                            notesSharedThisTermCount = teacherUploadsList.size,
+                            mostActiveClass = if (teacherUploadsList.isEmpty()) "None yet" else teacherUploadsList.groupBy { it.targetClass }.maxByOrNull { it.value.size }?.key ?: "None yet",
+                            notesOpenedThisWeekCount = 0,
+                            recentUploads = teacherUploadsList.take(5).map {
+                                TeacherRecentUpload(
+                                    id = it.id,
+                                    title = it.title,
+                                    subject = it.subject,
+                                    targetClass = it.targetClass,
+                                    dateUploaded = it.dateUploaded
+                                )
+                            },
                             onNavigateToMySubjects = {
                                 currentScreen = AppScreen.TEACHER_MY_SUBJECTS
                             },
@@ -549,8 +880,14 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                         AppScreen.TEACHER_MY_SUBJECTS -> TeacherSubjectsScreen(
-                            teacherName = "Mr. Okello",
-                            subjects = DefaultTeacherSubjects,
+                            teacherName = teacherName,
+                            subjects = DefaultTeacherSubjects.map { subjectItem ->
+                                val subjectUploads = teacherUploadsList.filter { it.subject.equals(subjectItem.name, ignoreCase = true) }
+                                subjectItem.copy(
+                                    noteCount = subjectUploads.count { it.type.equals("Notes", ignoreCase = true) },
+                                    assignmentCount = subjectUploads.count { it.type.equals("Assignment", ignoreCase = true) }
+                                )
+                            },
                             onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
                             onNavigateToMySubjects = { /* Already on My Subjects */ },
                             onNavigateToUploads = { currentScreen = AppScreen.TEACHER_UPLOADS },
@@ -562,10 +899,16 @@ class MainActivity : ComponentActivity() {
                         )
                         AppScreen.TEACHER_SUBJECT_CONFIG -> TeacherSubjectConfigScreen(
                             subject = selectedTeacherSubjectItem,
-                            initialUploads = if (selectedTeacherSubjectItem.name.equals("Math", ignoreCase = true)) {
-                                DefaultMathUploads
-                            } else {
-                                DefaultGeographyUploads
+                            initialUploads = teacherUploadsList.filter { it.subject.equals(selectedTeacherSubjectItem.name, ignoreCase = true) }.map {
+                                SubjectUploadItem(
+                                    id = it.id,
+                                    title = it.title,
+                                    subject = it.subject,
+                                    targetClass = it.targetClass,
+                                    type = it.type,
+                                    dateUploaded = it.dateUploaded,
+                                    dueDate = it.dueDate
+                                )
                             },
                             onNavigateBack = {
                                 currentScreen = AppScreen.TEACHER_MY_SUBJECTS
@@ -597,21 +940,49 @@ class MainActivity : ComponentActivity() {
                             TeacherUploadNotesScreen(
                                 subjectName = selectedTeacherSubjectItem.name,
                                 subjectIcon = selectedTeacherSubjectItem.icon,
+                                availableSubjects = DefaultTeacherSubjects,
                                 assignedClasses = assignedClasses,
                                 existingNote = teacherNoteToEdit,
                                 onNavigateBack = {
                                     currentScreen = previousScreen
                                 },
-                                onSaveSuccess = { _ ->
+                                onSaveSuccess = { savedItem ->
+                                    val nowStr = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date())
+                                    val newUpload = TeacherUploadItem(
+                                        id = savedItem.id.ifBlank { "upload-${System.currentTimeMillis()}" },
+                                        title = savedItem.title,
+                                        subject = savedItem.subject,
+                                        targetClass = savedItem.targetClass,
+                                        term = "Term 3",
+                                        type = savedItem.type,
+                                        dateUploaded = savedItem.dateUploaded.ifBlank { nowStr },
+                                        fileSize = "2.4 MB",
+                                        downloadCount = 0,
+                                        viewCount = 0,
+                                        dueDate = savedItem.dueDate,
+                                        status = if (savedItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published"
+                                    )
+                                    val existingIdx = teacherUploadsList.indexOfFirst { it.id == newUpload.id }
+                                    teacherUploadsList = if (existingIdx >= 0) {
+                                        teacherUploadsList.toMutableList().apply { set(existingIdx, newUpload) }
+                                    } else {
+                                        listOf(newUpload) + teacherUploadsList
+                                    }
                                     currentScreen = previousScreen
                                 }
                             )
                         }
                         AppScreen.TEACHER_UPLOADS -> TeacherUploadsScreen(
-                            teacherName = "Mr. Okello",
+                            teacherName = teacherName,
+                            initialUploads = teacherUploadsList,
                             onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
                             onNavigateToMySubjects = { currentScreen = AppScreen.TEACHER_MY_SUBJECTS },
                             onNavigateToUploads = { /* Already on Uploads */ },
+                            onNavigateToUploadNotes = {
+                                previousScreen = AppScreen.TEACHER_UPLOADS
+                                teacherNoteToEdit = null
+                                currentScreen = AppScreen.TEACHER_UPLOAD_NOTES
+                            },
                             onNavigateToTeacherProfile = { currentScreen = AppScreen.TEACHER_PROFILE },
                             onOpenUpload = { title, subject ->
                                 selectedPdfTitle = title
@@ -622,20 +993,15 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                         AppScreen.TEACHER_PROFILE -> TeacherProfileScreen(
-                            teacherName = "Mr. Okello",
-                            subjectsTaught = "Geography • S.4, S.5",
-                            schoolName = "Jjungo Senior Secondary School",
+                            teacherName = teacherName,
+                            subjectsTaught = teacherSubjectsTaught,
+                            schoolName = teacherSchool,
+                            onUpdateProfile = onSaveTeacherProfile,
                             onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
                             onNavigateToMySubjects = { currentScreen = AppScreen.TEACHER_MY_SUBJECTS },
                             onNavigateToUploads = { currentScreen = AppScreen.TEACHER_UPLOADS },
                             onNavigateToTeacherProfile = { /* Already on Profile */ },
-                            onNavigateToAccount = {
-                                currentScreen = AppScreen.ACCOUNT
-                            },
-                            onNavigateToSettings = {
-                                settingsPreviousScreen = AppScreen.TEACHER_PROFILE
-                                currentScreen = AppScreen.SETTINGS
-                            },
+                            onNavigateToAccount = { currentScreen = AppScreen.TEACHER_ACCOUNT },
                             onNavigateToHelpAndSupport = {
                                 helpPreviousScreen = AppScreen.TEACHER_PROFILE
                                 currentScreen = AppScreen.HELP_AND_SUPPORT
@@ -644,7 +1010,143 @@ class MainActivity : ComponentActivity() {
                                 aboutPreviousScreen = AppScreen.TEACHER_PROFILE
                                 currentScreen = AppScreen.ABOUT
                             },
+                            onNavigateToPrivacyPolicy = {
+                                privacyPreviousScreen = AppScreen.TEACHER_PROFILE
+                                currentScreen = AppScreen.PRIVACY_POLICY
+                            },
+                            onNavigateToAdmin = {
+                                adminPreviousScreen = AppScreen.TEACHER_PROFILE
+                                currentScreen = AppScreen.ADMIN_HOME
+                            },
+                            onSwitchToStudentView = { currentScreen = AppScreen.PROFILE },
+                            onLogout = {
+                                prefs.edit().putBoolean("is_logged_in", false).apply()
+                                currentScreen = AppScreen.WELCOME
+                            }
+                        )
+                        AppScreen.TEACHER_ACCOUNT -> TeacherAccountScreen(
+                            teacherName = teacherName,
+                            subjectsTaught = teacherSubjectsTaught,
+                            schoolName = teacherSchool,
+                            onNavigateBack = { currentScreen = AppScreen.TEACHER_PROFILE },
+                            onUpdateProfile = onSaveTeacherProfile,
                             onSwitchToStudentView = { currentScreen = AppScreen.PROFILE }
+                        )
+                        AppScreen.ADMIN_HOME -> AdminHomeScreen(
+                            revenueBalance = "UGX 5,867,000",
+                            studentsCount = "1,000",
+                            teachersCount = "50",
+                            notesCount = "300",
+                            assignmentsCount = "170",
+                            affiliatesCount = "100",
+                            onNavigateToPlans = {
+                                currentScreen = AppScreen.ADMIN_PLANS
+                            },
+                            onNavigateToAccount = {
+                                adminAccountPreviousScreen = AppScreen.ADMIN_HOME
+                                currentScreen = AppScreen.ADMIN_ACCOUNT
+                            },
+                            onNavigateToAffiliate = {
+                                adminAffiliatePreviousScreen = AppScreen.ADMIN_HOME
+                                currentScreen = AppScreen.ADMIN_AFFILIATE
+                            },
+                            onNavigateToTransactions = {
+                                adminTransactionsPreviousScreen = AppScreen.ADMIN_HOME
+                                currentScreen = AppScreen.ADMIN_TRANSACTIONS
+                            },
+                            onNavigateToHome = { /* Already on Admin Home */ },
+                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
+                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
+                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE },
+                            onSwitchToStudentView = { currentScreen = AppScreen.HOME },
+                            onSwitchToTeacherView = { currentScreen = AppScreen.TEACHER_HOME }
+                        )
+                        AppScreen.ADMIN_ANALYSIS -> AdminAnalysisScreen(
+                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME },
+                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
+                            onNavigateToAnalysis = { /* Already on Analysis */ },
+                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
+                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
+                        )
+                        AppScreen.ADMIN_USERS -> AdminUsersScreen(
+                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME },
+                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
+                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
+                            onNavigateToUsers = { /* Already on Users */ },
+                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
+                        )
+                        AppScreen.ADMIN_MORE -> AdminMoreScreen(
+                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME },
+                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
+                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
+                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
+                            onNavigateToMore = { /* Already on More */ },
+                            onNavigateToAccount = {
+                                adminAccountPreviousScreen = AppScreen.ADMIN_MORE
+                                currentScreen = AppScreen.ADMIN_ACCOUNT
+                            },
+                            onNavigateToTransactions = {
+                                adminTransactionsPreviousScreen = AppScreen.ADMIN_MORE
+                                currentScreen = AppScreen.ADMIN_TRANSACTIONS
+                            },
+                            onNavigateToSettings = { currentScreen = AppScreen.ADMIN_SETTINGS },
+                            onNavigateToHealth = {
+                                adminHealthPreviousScreen = AppScreen.ADMIN_MORE
+                                currentScreen = AppScreen.ADMIN_HEALTH
+                            },
+                            onNavigateToAffiliate = {
+                                adminAffiliatePreviousScreen = AppScreen.ADMIN_MORE
+                                currentScreen = AppScreen.ADMIN_AFFILIATE
+                            },
+                            onNavigateToLogs = {
+                                adminLogsPreviousScreen = AppScreen.ADMIN_MORE
+                                currentScreen = AppScreen.ADMIN_LOGS
+                            },
+                            onLogout = {
+                                prefs.edit().putBoolean("is_logged_in", false).apply()
+                                currentScreen = AppScreen.WELCOME
+                            }
+                        )
+                        AppScreen.ADMIN_SETTINGS -> AdminSettingsScreen(
+                            adminName = "Superadministrator",
+                            onNavigateBack = { currentScreen = AppScreen.ADMIN_MORE }
+                        )
+                        AppScreen.ADMIN_HEALTH -> AdminHealthScreen(
+                            onNavigateBack = { currentScreen = adminHealthPreviousScreen },
+                            onNavigateToLogs = {
+                                adminLogsPreviousScreen = AppScreen.ADMIN_HEALTH
+                                currentScreen = AppScreen.ADMIN_LOGS
+                            }
+                        )
+                        AppScreen.ADMIN_LOGS -> AdminLogsScreen(
+                            onNavigateBack = { currentScreen = adminLogsPreviousScreen }
+                        )
+                        AppScreen.ADMIN_AFFILIATE -> AdminAffiliateScreen(
+                            onNavigateBack = { currentScreen = adminAffiliatePreviousScreen },
+                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
+                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
+                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
+                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
+                        )
+                        AppScreen.ADMIN_ACCOUNT -> AdminAccountScreen(
+                            initialBalance = "UGX 5,867,000",
+                            initialTax = "UGX 293,350",
+                            initialDb = "UGX 300,000",
+                            onNavigateBack = { currentScreen = adminAccountPreviousScreen },
+                            onNavigateToTransactions = {
+                                adminTransactionsPreviousScreen = AppScreen.ADMIN_ACCOUNT
+                                currentScreen = AppScreen.ADMIN_TRANSACTIONS
+                            }
+                        )
+                        AppScreen.ADMIN_PLANS -> AdminPlansScreen(
+                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
+                        )
+                        AppScreen.ADMIN_TRANSACTIONS -> AdminTransactionsScreen(
+                            onNavigateBack = { currentScreen = adminTransactionsPreviousScreen },
+                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
+                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
+                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
+                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
                         )
                     }
                 }

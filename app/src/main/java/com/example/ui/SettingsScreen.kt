@@ -1,5 +1,6 @@
 package com.example.ui
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -47,12 +48,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.notifications.NotificationHelper
 import com.example.ui.theme.BorderGrey
 import com.example.ui.theme.CoralTile
 import com.example.ui.theme.IndigoPurple
@@ -75,7 +78,7 @@ import kotlinx.coroutines.launch
  *   - SECTION 1 — Notifications:
  *     - Label: "Notifications" (13sp, Medium, #8A8A8A)
  *     - Grouped card: #F7F6FB, corner radius 16dp, 1dp divider (#ECEAF5) between rows
- *     - Rows: "New note alerts", "Streak reminders", "General announcements"
+ *     - Rows: "New note alerts", "Payment reminders", "Streak reminders", "General announcements"
  *   - SECTION 2 — Appearance:
  *     - Label: "Appearance" (13sp, Medium, #8A8A8A)
  *     - Grouped card: same style
@@ -97,14 +100,25 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit = {},
     onClearCachedNotes: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(NotificationHelper.PREFS_NAME, Context.MODE_PRIVATE) }
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    // Notification Toggles
-    var newNoteAlerts by remember { mutableStateOf(true) }
-    var streakReminders by remember { mutableStateOf(true) }
-    var generalAnnouncements by remember { mutableStateOf(false) }
+    // Notification Toggles (persisted so FCM service respects user preferences)
+    var newNoteAlerts by remember {
+        mutableStateOf(NotificationHelper.isNewNoteAlertsEnabled(context))
+    }
+    var paymentReminders by remember {
+        mutableStateOf(NotificationHelper.isPaymentRemindersEnabled(context))
+    }
+    var streakReminders by remember {
+        mutableStateOf(prefs.getBoolean(NotificationHelper.PREF_STREAK_REMINDERS, true))
+    }
+    var generalAnnouncements by remember {
+        mutableStateOf(prefs.getBoolean(NotificationHelper.PREF_GENERAL_ANNOUNCEMENTS, false))
+    }
 
     // Appearance
     var selectedLanguage by remember { mutableStateOf("English") }
@@ -223,27 +237,49 @@ fun SettingsScreen(
                             SettingsSwitchRow(
                                 label = "New note alerts",
                                 checked = newNoteAlerts,
-                                onCheckedChange = { newNoteAlerts = it },
+                                onCheckedChange = {
+                                    newNoteAlerts = it
+                                    NotificationHelper.setNewNoteAlertsEnabled(context, it)
+                                },
                                 testTag = "setting_new_note_alerts"
                             )
 
                             SettingsDivider()
 
-                            // Row 2: Streak reminders
+                            // Row 2: Payment reminders
+                            SettingsSwitchRow(
+                                label = "Payment reminders",
+                                checked = paymentReminders,
+                                onCheckedChange = {
+                                    paymentReminders = it
+                                    NotificationHelper.setPaymentRemindersEnabled(context, it)
+                                },
+                                testTag = "setting_payment_reminders"
+                            )
+
+                            SettingsDivider()
+
+                            // Row 3: Streak reminders
                             SettingsSwitchRow(
                                 label = "Streak reminders",
                                 checked = streakReminders,
-                                onCheckedChange = { streakReminders = it },
+                                onCheckedChange = {
+                                    streakReminders = it
+                                    prefs.edit().putBoolean(NotificationHelper.PREF_STREAK_REMINDERS, it).apply()
+                                },
                                 testTag = "setting_streak_reminders"
                             )
 
                             SettingsDivider()
 
-                            // Row 3: General announcements
+                            // Row 4: General announcements
                             SettingsSwitchRow(
                                 label = "General announcements",
                                 checked = generalAnnouncements,
-                                onCheckedChange = { generalAnnouncements = it },
+                                onCheckedChange = {
+                                    generalAnnouncements = it
+                                    prefs.edit().putBoolean(NotificationHelper.PREF_GENERAL_ANNOUNCEMENTS, it).apply()
+                                },
                                 testTag = "setting_general_announcements"
                             )
                         }
