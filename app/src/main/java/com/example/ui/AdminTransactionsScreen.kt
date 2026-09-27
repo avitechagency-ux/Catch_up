@@ -444,7 +444,11 @@ fun AdminTransactionsScreen(
     var selectedTransactionForDetail by remember { mutableStateOf<AdminPlatformTransaction?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val allTransactions = remember { DefaultPlatformTransactions }
+    var allTransactions by remember { mutableStateOf<List<AdminPlatformTransaction>>(emptyList()) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        allTransactions = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
+    }
 
     // Filtered transaction list
     val filteredTransactions = remember(searchQuery, selectedCategory, selectedStatus, allTransactions) {
@@ -556,6 +560,7 @@ fun AdminTransactionsScreen(
                             .align(Alignment.CenterEnd)
                             .clickable {
                                 coroutineScope.launch {
+                                    allTransactions = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
                                     snackbarHostState.showSnackbar("All platform transactions up to date")
                                 }
                             },
@@ -693,7 +698,7 @@ fun AdminTransactionsScreen(
                         PlatformStatCard(
                             modifier = Modifier.weight(1f),
                             title = "Total Inflow",
-                            amount = "UGX " + java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(totalInflow),
+                            amount = if (totalInflow > 0L) "UGX " + java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(totalInflow) else "0",
                             icon = Icons.Outlined.TrendingUp,
                             backgroundColor = TealTile,
                             testTag = "stat_card_inflow"
@@ -702,7 +707,7 @@ fun AdminTransactionsScreen(
                         PlatformStatCard(
                             modifier = Modifier.weight(1f),
                             title = "Total Outflow",
-                            amount = "UGX " + java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(totalOutflow),
+                            amount = if (totalOutflow > 0L) "UGX " + java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(totalOutflow) else "0",
                             icon = Icons.Outlined.TrendingDown,
                             backgroundColor = CoralTile,
                             testTag = "stat_card_outflow"
@@ -721,7 +726,7 @@ fun AdminTransactionsScreen(
                         PlatformStatCard(
                             modifier = Modifier.weight(1f),
                             title = "Net Revenue",
-                            amount = "UGX " + java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(netBalance),
+                            amount = if (netBalance != 0L) "UGX " + java.text.NumberFormat.getNumberInstance(java.util.Locale.US).format(netBalance) else "0",
                             icon = Icons.Outlined.AccountBalanceWallet,
                             backgroundColor = IndigoPurple,
                             testTag = "stat_card_net_balance"
@@ -730,7 +735,7 @@ fun AdminTransactionsScreen(
                         PlatformStatCard(
                             modifier = Modifier.weight(1f),
                             title = "Total Volume",
-                            amount = "${allTransactions.size} Records",
+                            amount = "${allTransactions.size}",
                             icon = Icons.Outlined.Payments,
                             backgroundColor = NavyTile,
                             testTag = "stat_card_volume"

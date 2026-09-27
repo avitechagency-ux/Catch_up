@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -63,7 +64,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
-import com.example.data.AppDatabase
+import com.example.data.SupabaseRepository
+import com.example.data.SupabaseSecurityVault
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
 import kotlinx.coroutines.delay
@@ -88,12 +90,10 @@ fun LoginScreen(
         phoneOrIdentifier: String,
         fullName: String?,
         academicClass: String?,
-        stream: String?
-    ) -> Unit = { _, _, _, _, _ -> }
+        stream: String?,
+        subjects: String?
+    ) -> Unit = { _, _, _, _, _, _ -> }
 ) {
-    val context = LocalContext.current
-    val db = remember { AppDatabase.getDatabase(context) }
-
     var identifierInput by remember { mutableStateOf("") }
     var passwordInput by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
@@ -156,6 +156,7 @@ fun LoginScreen(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding()
+                    .imePadding()
                     .verticalScroll(scrollState)
                     .padding(horizontal = 24.dp, vertical = 20.dp)
                     .testTag("login_header"),
@@ -209,7 +210,7 @@ fun LoginScreen(
                 ) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                        contentDescription = "Catch Up App Icon",
+                        contentDescription = "Cachap App Icon",
                         tint = LoginSplashOrange,
                         modifier = Modifier
                             .size(164.dp)
@@ -409,35 +410,26 @@ fun LoginScreen(
                             coroutineScope.launch {
                                 delay(400L)
                                 val cleanIdentifier = identifierInput.trim()
-                                val registeredUser = db.userDao().getUserByIdentifier(cleanIdentifier)
-                                if (registeredUser != null &&
-                                    registeredUser.password.isNotEmpty() &&
-                                    registeredUser.password != passwordInput
-                                ) {
+                                val remoteUser = SupabaseRepository.authenticateWithTableAuth(
+                                    phoneOrIdentifier = cleanIdentifier,
+                                    plainPassword = passwordInput
+                                )
+                                if (remoteUser == null) {
                                     isLoading = false
-                                    errorMessage = "Incorrect password. Please try again."
+                                    errorMessage = "Invalid username/phone or password. Please try again."
                                     return@launch
                                 }
 
                                 isLoading = false
-                                val isAdminCredentials = cleanIdentifier.equals("admin", ignoreCase = true) ||
-                                    cleanIdentifier == "0700000000"
-                                val isTeacherCredentials = cleanIdentifier.equals("teacher", ignoreCase = true) ||
-                                    cleanIdentifier.startsWith("tr.", ignoreCase = true)
-                                val targetRole = when {
-                                    isAdminCredentials -> "admin"
-                                    registeredUser != null -> registeredUser.role.lowercase()
-                                    isTeacherCredentials -> "teacher"
-                                    else -> initialRole.lowercase()
-                                }
-                                val resolvedName = registeredUser?.fullName
-                                    ?: cleanIdentifier.takeIf { it.any { ch -> ch.isLetter() } }
+                                val targetRole = remoteUser.role.trim().lowercase().ifBlank { "student" }
+                                val resolvedName = remoteUser.fullName.ifBlank { cleanIdentifier }
                                 onLoginSuccess(
                                     targetRole,
-                                    cleanIdentifier,
+                                    remoteUser.phoneNumber.ifBlank { cleanIdentifier },
                                     resolvedName,
-                                    registeredUser?.academicClass,
-                                    registeredUser?.stream
+                                    remoteUser.academicClass,
+                                    remoteUser.stream,
+                                    remoteUser.subjectsTaught
                                 )
                             }
                         },

@@ -350,7 +350,7 @@ fun TeacherProfileScreen(
                         Icon(Icons.Outlined.Email, contentDescription = null, tint = IndigoPurple, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "teachers@catchup.ac.ug",
+                            text = "teachers@cachap.ac.ug",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = TextDark
@@ -407,7 +407,7 @@ fun TeacherProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "About Catch Up Teacher Portal",
+                            text = "About Cachap Teacher Portal",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextDark
@@ -432,7 +432,7 @@ fun TeacherProfileScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "The Catch Up Teacher Portal allows educators to distribute syllabus-aligned revision materials, track student study engagement, and publish coursework for secondary school classes across Uganda.",
+                        text = "The Cachap Teacher Portal allows educators to distribute syllabus-aligned revision materials, track student study engagement, and publish coursework for secondary school classes across Uganda.",
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
                         color = Color(0xFF4A4A4A)

@@ -155,7 +155,7 @@ fun PrivacyPolicyScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Catch Up Privacy Policy",
+                                    text = "Cachap Privacy Policy",
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextDark
@@ -172,7 +172,7 @@ fun PrivacyPolicyScreen(
                         Spacer(modifier = Modifier.height(14.dp))
 
                         Text(
-                            text = "Catch Up (“Catch Up,” “we,” “our,” or “us”) is an educational platform designed to help schools and teachers share learning notes with students digitally.",
+                            text = "Cachap (“Cachap,” “we,” “our,” or “us”) is an educational platform designed to help schools and teachers share learning notes with students digitally.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF2D2D2D)
@@ -181,7 +181,7 @@ fun PrivacyPolicyScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "This Privacy Policy explains what information we collect, how we use it, how we protect it, and the choices available to users of the Catch Up application.",
+                            text = "This Privacy Policy explains what information we collect, how we use it, how we protect it, and the choices available to users of the Cachap application.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF2D2D2D)
@@ -190,7 +190,7 @@ fun PrivacyPolicyScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Text(
-                            text = "By using Catch Up, you agree to the practices described in this Privacy Policy.",
+                            text = "By using Cachap, you agree to the practices described in this Privacy Policy.",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = IndigoPurple
@@ -203,7 +203,7 @@ fun PrivacyPolicyScreen(
                     title = "1. Who This Policy Applies To",
                     content = {
                         Text(
-                            text = "This Privacy Policy applies to users of the Catch Up mobile application, including:",
+                            text = "This Privacy Policy applies to users of the Cachap mobile application, including:",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -215,7 +215,7 @@ fun PrivacyPolicyScreen(
                         PrivacyBulletPoint("Other authorized school users")
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Catch Up is intended to be used within participating schools. Accounts may be created or authorized by the school or through the registration process provided by Catch Up.",
+                            text = "Cachap is intended to be used within participating schools. Accounts may be created or authorized by the school or through the registration process provided by Cachap.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -228,7 +228,7 @@ fun PrivacyPolicyScreen(
                     title = "2. Information We Collect",
                     content = {
                         Text(
-                            text = "Depending on how Catch Up is configured by your school, we may collect the following information.",
+                            text = "Depending on how Cachap is configured by your school, we may collect the following information.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -265,7 +265,7 @@ fun PrivacyPolicyScreen(
                             color = IndigoPurple
                         )
                         Text(
-                            text = "We may collect information related to your use of Catch Up, such as:",
+                            text = "We may collect information related to your use of Cachap, such as:",
                             fontSize = 14.sp,
                             lineHeight = 20.sp,
                             color = Color(0xFF333333)
@@ -314,7 +314,7 @@ fun PrivacyPolicyScreen(
                             color = IndigoPurple
                         )
                         Text(
-                            text = "If Catch Up provides paid subscriptions or access, payment transactions may be processed through a third-party payment provider.\n\nCatch Up does not intend to store users' mobile money PINs, card PINs, or other sensitive payment credentials.\n\nPayment providers may collect and process information necessary to complete a transaction according to their own privacy policies and terms.",
+                            text = "If Cachap provides paid subscriptions or access, payment transactions may be processed through a third-party payment provider.\n\nCachap does not intend to store users' mobile money PINs, card PINs, or other sensitive payment credentials.\n\nPayment providers may collect and process information necessary to complete a transaction according to their own privacy policies and terms.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -343,7 +343,7 @@ fun PrivacyPolicyScreen(
                         PrivacyBulletPoint("Maintain the security of the platform")
                         PrivacyBulletPoint("Prevent unauthorized access or misuse")
                         PrivacyBulletPoint("Troubleshoot technical problems")
-                        PrivacyBulletPoint("Improve the performance and functionality of Catch Up")
+                        PrivacyBulletPoint("Improve the performance and functionality of Cachap")
                         PrivacyBulletPoint("Maintain records necessary to operate the service")
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -368,7 +368,7 @@ fun PrivacyPolicyScreen(
                     title = "4. School and Classroom Access",
                     content = {
                         Text(
-                            text = "Catch Up is designed so that users only receive access appropriate to their role and school.\n\nFor example:",
+                            text = "Cachap is designed so that users only receive access appropriate to their role and school.\n\nFor example:",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -379,7 +379,7 @@ fun PrivacyPolicyScreen(
                         PrivacyBulletPoint("School administrators may have additional administrative access where enabled.")
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Schools are responsible for ensuring that information they provide to Catch Up is appropriate for the intended educational use of the platform.",
+                            text = "Schools are responsible for ensuring that information they provide to Cachap is appropriate for the intended educational use of the platform.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -392,7 +392,7 @@ fun PrivacyPolicyScreen(
                     title = "5. Educational Materials",
                     content = {
                         Text(
-                            text = "Notes uploaded by teachers remain educational materials provided by the relevant teacher or school.\n\nCatch Up provides the technology used to store and deliver these materials and does not claim ownership of teachers' original educational content.\n\nTeachers and schools should ensure that uploaded materials do not unlawfully contain private information or copyrighted material that they do not have permission to share.",
+                            text = "Notes uploaded by teachers remain educational materials provided by the relevant teacher or school.\n\nCachap provides the technology used to store and deliver these materials and does not claim ownership of teachers' original educational content.\n\nTeachers and schools should ensure that uploaded materials do not unlawfully contain private information or copyrighted material that they do not have permission to share.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -405,7 +405,7 @@ fun PrivacyPolicyScreen(
                     title = "6. How We Share Information",
                     content = {
                         Text(
-                            text = "We may share or provide access to information when necessary to operate Catch Up, including with:",
+                            text = "We may share or provide access to information when necessary to operate Cachap, including with:",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -419,7 +419,7 @@ fun PrivacyPolicyScreen(
                             color = IndigoPurple
                         )
                         Text(
-                            text = "Schools may receive access to information necessary to administer their Catch Up accounts and educational services.",
+                            text = "Schools may receive access to information necessary to administer their Cachap accounts and educational services.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -462,7 +462,7 @@ fun PrivacyPolicyScreen(
                             color = IndigoPurple
                         )
                         Text(
-                            text = "We may disclose information where required by applicable law, regulation, court order, or lawful government request.\n\nWe may also disclose information where reasonably necessary to protect the security, rights, or property of Catch Up, our users, schools, or others.",
+                            text = "We may disclose information where required by applicable law, regulation, court order, or lawful government request.\n\nWe may also disclose information where reasonably necessary to protect the security, rights, or property of Cachap, our users, schools, or others.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -475,7 +475,7 @@ fun PrivacyPolicyScreen(
                     title = "7. Third-Party Services",
                     content = {
                         Text(
-                            text = "Catch Up may use third-party technology providers to operate parts of the platform.\n\nThese may include services for:",
+                            text = "Cachap may use third-party technology providers to operate parts of the platform.\n\nThese may include services for:",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -502,7 +502,7 @@ fun PrivacyPolicyScreen(
                     title = "8. Data Security",
                     content = {
                         Text(
-                            text = "We take reasonable technical and organizational measures to protect information stored and processed through Catch Up.\n\nThese measures may include:",
+                            text = "We take reasonable technical and organizational measures to protect information stored and processed through Cachap.\n\nThese measures may include:",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -517,7 +517,7 @@ fun PrivacyPolicyScreen(
                         PrivacyBulletPoint("Security monitoring and maintenance")
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "However, no internet-based service can guarantee absolute security.\n\nUsers should keep their passwords and account credentials confidential and should notify the school or Catch Up if they believe their account has been accessed without authorization.",
+                            text = "However, no internet-based service can guarantee absolute security.\n\nUsers should keep their passwords and account credentials confidential and should notify the school or Cachap if they believe their account has been accessed without authorization.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -530,7 +530,7 @@ fun PrivacyPolicyScreen(
                     title = "9. Children's and Students' Privacy",
                     content = {
                         Text(
-                            text = "Catch Up may be used by secondary-school students, including students who may be under the age of 18.\n\nWe aim to collect only information reasonably necessary to provide the educational service.\n\nWhere required, schools, parents, guardians, or other authorized adults may be involved in the creation or management of student accounts.\n\nWe do not intentionally use student information for targeted advertising.\n\nIf a parent, guardian, student, teacher, or school believes that we have collected information that is not necessary for the service, they may contact us using the details below.",
+                            text = "Cachap may be used by secondary-school students, including students who may be under the age of 18.\n\nWe aim to collect only information reasonably necessary to provide the educational service.\n\nWhere required, schools, parents, guardians, or other authorized adults may be involved in the creation or management of student accounts.\n\nWe do not intentionally use student information for targeted advertising.\n\nIf a parent, guardian, student, teacher, or school believes that we have collected information that is not necessary for the service, they may contact us using the details below.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -543,7 +543,7 @@ fun PrivacyPolicyScreen(
                     title = "10. Data Retention",
                     content = {
                         Text(
-                            text = "We retain personal information for as long as reasonably necessary to provide Catch Up and maintain legitimate school, account, security, payment, and operational records.\n\nWhen information is no longer required, we may delete, anonymize, or securely dispose of it, subject to applicable legal or operational requirements.\n\nSchools may request information about their users or request appropriate account changes through the Catch Up support process.",
+                            text = "We retain personal information for as long as reasonably necessary to provide Cachap and maintain legitimate school, account, security, payment, and operational records.\n\nWhen information is no longer required, we may delete, anonymize, or securely dispose of it, subject to applicable legal or operational requirements.\n\nSchools may request information about their users or request appropriate account changes through the Cachap support process.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -582,7 +582,7 @@ fun PrivacyPolicyScreen(
                     title = "12. Account Deletion",
                     content = {
                         Text(
-                            text = "Users or authorized school representatives may request deletion of an account or personal information by contacting Catch Up.\n\nWhen an account is deleted, information may be removed or anonymized where appropriate.\n\nCertain records, including transaction or security records, may need to be retained for legitimate legal, accounting, fraud-prevention, or operational purposes.",
+                            text = "Users or authorized school representatives may request deletion of an account or personal information by contacting Cachap.\n\nWhen an account is deleted, information may be removed or anonymized where appropriate.\n\nCertain records, including transaction or security records, may need to be retained for legitimate legal, accounting, fraud-prevention, or operational purposes.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -595,7 +595,7 @@ fun PrivacyPolicyScreen(
                     title = "13. Cookies and Similar Technologies",
                     content = {
                         Text(
-                            text = "The Catch Up mobile application may use technologies necessary to maintain login sessions, security, preferences, and basic functionality.\n\nIf we introduce analytics or other tracking technologies, this Privacy Policy may be updated to explain their use.",
+                            text = "The Cachap mobile application may use technologies necessary to maintain login sessions, security, preferences, and basic functionality.\n\nIf we introduce analytics or other tracking technologies, this Privacy Policy may be updated to explain their use.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -608,7 +608,7 @@ fun PrivacyPolicyScreen(
                     title = "14. Changes to This Privacy Policy",
                     content = {
                         Text(
-                            text = "We may update this Privacy Policy when Catch Up introduces new features, changes how information is processed, or when legal or regulatory requirements change.\n\nWhen we make significant changes, we may provide notice through the application, website, or other appropriate communication channels.\n\nThe “Last Updated” date at the beginning of this policy indicates when the policy was most recently updated.",
+                            text = "We may update this Privacy Policy when Cachap introduces new features, changes how information is processed, or when legal or regulatory requirements change.\n\nWhen we make significant changes, we may provide notice through the application, website, or other appropriate communication channels.\n\nThe “Last Updated” date at the beginning of this policy indicates when the policy was most recently updated.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -631,7 +631,7 @@ fun PrivacyPolicyScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.School,
-                            contentDescription = "Catch Up Logo",
+                            contentDescription = "Cachap Logo",
                             tint = Color.White,
                             modifier = Modifier.size(26.dp)
                         )
@@ -640,7 +640,7 @@ fun PrivacyPolicyScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "Catch Up",
+                        text = "Cachap",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1A1A1A)

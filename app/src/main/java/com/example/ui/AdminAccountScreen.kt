@@ -152,9 +152,9 @@ val DefaultAdminTransactions = listOf(
 @Composable
 fun AdminAccountScreen(
     modifier: Modifier = Modifier,
-    initialBalance: String = "UGX 5,867,000",
-    initialTax: String = "UGX 293,350",
-    initialDb: String = "UGX 300,000",
+    initialBalance: String = "0",
+    initialTax: String = "0",
+    initialDb: String = "0",
     onNavigateBack: () -> Unit = {},
     onNavigateToTransactions: () -> Unit = {}
 ) {
@@ -162,7 +162,30 @@ fun AdminAccountScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    var transactions by remember { mutableStateOf(DefaultAdminTransactions) }
+    var liveBalance by remember(initialBalance) { mutableStateOf(initialBalance) }
+    var liveTax by remember(initialTax) { mutableStateOf(initialTax) }
+    var liveDb by remember(initialDb) { mutableStateOf(initialDb) }
+    var transactions by remember { mutableStateOf<List<AdminTransactionItem>>(emptyList()) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val stats = com.example.data.SupabaseRepository.fetchAdminOverviewStats()
+        if (stats != null) {
+            liveBalance = stats.formattedRevenue
+            liveTax = stats.taxReserveFormatted
+            liveDb = stats.dbReserveFormatted
+        }
+        val remoteTxs = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
+        transactions = remoteTxs.map { tx ->
+            AdminTransactionItem(
+                id = tx.id,
+                type = if (tx.amountUgx >= 0) "Received" else "Withdrew",
+                description = "${tx.userName} (${tx.title})",
+                amount = tx.formattedAmount,
+                date = tx.date,
+                isWithdrawal = tx.amountUgx < 0
+            )
+        }
+    }
 
     // Dialog states for Send and Withdraw stub flows
     var showSendDialog by remember { mutableStateOf(false) }
@@ -331,7 +354,7 @@ fun AdminAccountScreen(
                             Spacer(modifier = Modifier.height(14.dp))
 
                             Text(
-                                text = initialBalance,
+                                text = liveBalance,
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
@@ -356,7 +379,7 @@ fun AdminAccountScreen(
                     // Card 1: Tax (Warm Coral / Orange Card)
                     AccountStatCard(
                         label = "Tax",
-                        value = initialTax,
+                        value = liveTax,
                         subtitle = "5% Withholding",
                         icon = Icons.Outlined.ReceiptLong,
                         cardColor = CoralTile,
@@ -369,7 +392,7 @@ fun AdminAccountScreen(
                     // Card 2: DB (Tech Teal Card)
                     AccountStatCard(
                         label = "DB",
-                        value = initialDb,
+                        value = liveDb,
                         subtitle = "Operating Reserve",
                         icon = Icons.Outlined.Dns,
                         cardColor = TealTile,
@@ -448,8 +471,17 @@ fun AdminAccountScreen(
                         .testTag("admin_account_transactions_list"),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    transactions.forEach { item ->
-                        AdminTransactionCard(item = item)
+                    if (transactions.isEmpty()) {
+                        Text(
+                            text = "No transactions recorded in database yet.",
+                            fontSize = 13.sp,
+                            color = TextMuted,
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+                    } else {
+                        transactions.forEach { item ->
+                            AdminTransactionCard(item = item)
+                        }
                     }
                 }
 
@@ -527,26 +559,37 @@ fun AdminAccountScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val enteredAmount = sendAmount.trim().ifEmpty { "150,000" }
-                        val formattedAmount = if (enteredAmount.startsWith("UGX")) enteredAmount else "UGX $enteredAmount"
-                        val recipientText = sendRecipient.trim().ifEmpty { "Partner Account" }
-                        val currentDate = SimpleDateFormat("yy/MM/dd", Locale.getDefault()).format(Date())
+                        val numericAmount = sendAmount.replace(",", "").trim().toLongOrNull() ?: 0L
+                        val recipientText = sendRecipient.trim()
+                        val noteText = sendNote.trim()
+                        val currentDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
 
-                        val newTx = AdminTransactionItem(
-                            id = "tx-${System.currentTimeMillis()}",
-                            type = "Sent",
-                            description = recipientText,
-                            amount = formattedAmount,
-                            date = currentDate,
-                            isWithdrawal = false
-                        )
-                        transactions = listOf(newTx) + transactions
-                        showSendDialog = false
-                        sendRecipient = ""
-                        sendAmount = ""
-                        sendNote = ""
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Funds sent successfully: $formattedAmount to $recipientText")
+                        if (numericAmount > 0L && recipientText.isNotBlank()) {
+                            showSendDialog = false
+                            sendRecipient = ""
+                            sendAmount = ""
+                            sendNote = ""
+                            coroutineScope.launch {
+                                com.example.data.SupabaseRepository.recordAdminDisbursement(
+                                    type = "Sent",
+                                    recipientOrAccount = recipientText,
+                                    amountUgx = numericAmount,
+                                    note = noteText,
+                                    dateStr = currentDate
+                                )
+                                val remoteTxs = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
+                                transactions = remoteTxs.map { tx ->
+                                    AdminTransactionItem(
+                                        id = tx.id,
+                                        type = if (tx.amountUgx >= 0) "Received" else "Withdrew",
+                                        description = "${tx.userName} (${tx.title})",
+                                        amount = tx.formattedAmount,
+                                        date = tx.date,
+                                        isWithdrawal = tx.amountUgx < 0
+                                    )
+                                }
+                                snackbarHostState.showSnackbar("Funds sent and recorded in database")
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),
@@ -650,25 +693,35 @@ fun AdminAccountScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val enteredAmount = withdrawAmount.trim().ifEmpty { "500,000" }
-                        val formattedAmount = if (enteredAmount.startsWith("UGX")) enteredAmount else "UGX $enteredAmount"
-                        val acctText = withdrawAccount.trim().ifEmpty { "078-***-XXXX" }
-                        val currentDate = SimpleDateFormat("yy/MM/dd", Locale.getDefault()).format(Date())
+                        val numericAmount = withdrawAmount.replace(",", "").trim().toLongOrNull() ?: 0L
+                        val acctText = withdrawAccount.trim()
+                        val currentDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
 
-                        val newTx = AdminTransactionItem(
-                            id = "tx-${System.currentTimeMillis()}",
-                            type = "Withdrew",
-                            description = "$withdrawMethod ($acctText)",
-                            amount = formattedAmount,
-                            date = currentDate,
-                            isWithdrawal = true
-                        )
-                        transactions = listOf(newTx) + transactions
-                        showWithdrawDialog = false
-                        withdrawAccount = ""
-                        withdrawAmount = ""
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Withdrawal processed: $formattedAmount via $withdrawMethod")
+                        if (numericAmount > 0L && acctText.isNotBlank()) {
+                            showWithdrawDialog = false
+                            withdrawAccount = ""
+                            withdrawAmount = ""
+                            coroutineScope.launch {
+                                com.example.data.SupabaseRepository.recordAdminDisbursement(
+                                    type = "Withdrew",
+                                    recipientOrAccount = "$withdrawMethod ($acctText)",
+                                    amountUgx = numericAmount,
+                                    note = "Admin withdrawal via $withdrawMethod",
+                                    dateStr = currentDate
+                                )
+                                val remoteTxs = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
+                                transactions = remoteTxs.map { tx ->
+                                    AdminTransactionItem(
+                                        id = tx.id,
+                                        type = if (tx.amountUgx >= 0) "Received" else "Withdrew",
+                                        description = "${tx.userName} (${tx.title})",
+                                        amount = tx.formattedAmount,
+                                        date = tx.date,
+                                        isWithdrawal = tx.amountUgx < 0
+                                    )
+                                }
+                                snackbarHostState.showSnackbar("Withdrawal recorded in database")
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),

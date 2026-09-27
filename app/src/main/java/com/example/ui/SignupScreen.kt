@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,12 +25,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
@@ -67,12 +70,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.AppDatabase
-import com.example.data.UserEntity
+import com.example.data.SupabaseRepository
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 private val PaymentGold = Color(0xFFFFB300)
 private val PaymentBrightGold = Color(0xFFFFD54F)
@@ -91,12 +92,10 @@ fun SignupScreen(
         phoneNumber: String,
         name: String,
         studentClass: String,
-        studentStream: String
-    ) -> Unit = { _, _, _, _, _ -> }
+        studentStream: String,
+        teacherSubjects: String
+    ) -> Unit = { _, _, _, _, _, _ -> }
 ) {
-    val context = LocalContext.current
-    val db = remember { AppDatabase.getDatabase(context) }
-
     val normalizedInitialRole = if (initialRole.equals("Teacher", ignoreCase = true)) "Teacher" else "Student"
 
     // Exact field order requested:
@@ -104,14 +103,17 @@ fun SignupScreen(
     // 2. Phone Number
     // 3. Role Selection (Student or Teacher)
     // 4. Password
-    // 5. If Student -> Class and Stream (written individually)
-    // 6. Login / Submit
+    // 5a. If Student -> Class and Stream (written individually) + Selected Plan
+    // 5b. If Teacher -> Select Subjects You Teach (from DefaultCurriculumSubjects)
+    // 6. Submit / Sign Up
     var fullNameInput by remember { mutableStateOf("") }
     var phoneNumberInput by remember { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf(normalizedInitialRole) }
     var passwordInput by remember { mutableStateOf("") }
     var classInput by remember { mutableStateOf("") }
     var streamInput by remember { mutableStateOf("") }
+    var selectedTeacherSubjects by remember { mutableStateOf(setOf<String>()) }
+    var subjectSearchQuery by remember { mutableStateOf("") }
 
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
@@ -139,6 +141,7 @@ fun SignupScreen(
                 .padding(bottom = innerPadding.calculateBottomPadding())
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                .imePadding()
                 .verticalScroll(scrollState)
                 .padding(horizontal = 24.dp, vertical = 20.dp)
                 .testTag("signup_header"),
@@ -583,6 +586,296 @@ fun SignupScreen(
                             )
                         )
                     }
+
+                    // Selected Monthly Plan (UGX 1,000 / Month)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Selected Plan",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("signup_selected_plan_card"),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color.White.copy(alpha = 0.16f),
+                            border = BorderStroke(1.5.dp, PaymentBrightGold)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    RadioButton(
+                                        selected = true,
+                                        onClick = {},
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = PaymentBrightGold,
+                                            unselectedColor = Color.White
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Column {
+                                        Text(
+                                            text = "1 Month Plan",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = "Billed monthly • Paid via signup phone",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = LightLavender
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = "UGX 1,000",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = PaymentBrightGold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================================
+            // 5B. IF TEACHER -> SELECT SUBJECTS TO TEACH (FROM SUBJECTS PAGE)
+            // ==========================================================
+            AnimatedVisibility(visible = !isStudentRole) {
+                val filteredCurriculumSubjects = remember(subjectSearchQuery) {
+                    if (subjectSearchQuery.isBlank()) {
+                        DefaultCurriculumSubjects
+                    } else {
+                        DefaultCurriculumSubjects.filter {
+                            it.name.contains(subjectSearchQuery.trim(), ignoreCase = true)
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("signup_teacher_subjects_section"),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Select Subjects You Teach",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "Choose all subjects you will upload notes & assignments for",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = LightLavender
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (selectedTeacherSubjects.isNotEmpty()) PaymentGold else Color.White.copy(alpha = 0.16f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (selectedTeacherSubjects.isNotEmpty()) PaymentBrightGold else Color.White.copy(alpha = 0.30f)
+                            )
+                        ) {
+                            Text(
+                                text = "${selectedTeacherSubjects.size} selected",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (selectedTeacherSubjects.isNotEmpty()) PaymentDarkText else Color.White,
+                                modifier = Modifier
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    .testTag("signup_teacher_subjects_count")
+                            )
+                        }
+                    }
+
+                    // Filter / search input for subjects
+                    OutlinedTextField(
+                        value = subjectSearchQuery,
+                        onValueChange = { subjectSearchQuery = it },
+                        placeholder = {
+                            Text(
+                                "Search subjects (e.g. Math, Physics, Biology)...",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.6f)
+                            )
+                        },
+                        singleLine = true,
+                        textStyle = TextStyle(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        ),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = "Search subjects",
+                                tint = PaymentBrightGold,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        trailingIcon = {
+                            if (subjectSearchQuery.isNotEmpty()) {
+                                IconButton(onClick = { subjectSearchQuery = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Close,
+                                        contentDescription = "Clear search",
+                                        tint = Color.White.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("signup_teacher_subject_search"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.White.copy(alpha = 0.15f),
+                            unfocusedContainerColor = Color.White.copy(alpha = 0.10f),
+                            focusedBorderColor = PaymentBrightGold,
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.30f),
+                            cursorColor = PaymentBrightGold,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+
+                    // Selected subject pills summary (if any selected)
+                    if (selectedTeacherSubjects.isNotEmpty()) {
+                        val orderedSelected = DefaultCurriculumSubjects
+                            .filter { it.name in selectedTeacherSubjects }
+                            .joinToString(", ") { it.name }
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.White.copy(alpha = 0.14f),
+                            border = BorderStroke(1.dp, PaymentBrightGold.copy(alpha = 0.6f))
+                        ) {
+                            Text(
+                                text = "Teaching: $orderedSelected",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PaymentBrightGold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+
+                    // 2-Column Grid of all Subjects from SubjectsScreen (DefaultCurriculumSubjects)
+                    val subjectPairs = filteredCurriculumSubjects.chunked(2)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        subjectPairs.forEach { rowSubjects ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                rowSubjects.forEach { subjectItem ->
+                                    val isSelected = subjectItem.name in selectedTeacherSubjects
+                                    val safeTag = subjectItem.name.lowercase().replace(" ", "_")
+                                    Surface(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .clickable {
+                                                selectedTeacherSubjects = if (isSelected) {
+                                                    selectedTeacherSubjects - subjectItem.name
+                                                } else {
+                                                    selectedTeacherSubjects + subjectItem.name
+                                                }
+                                                errorMessage = null
+                                            }
+                                            .testTag("signup_teacher_subject_$safeTag"),
+                                        shape = RoundedCornerShape(14.dp),
+                                        color = if (isSelected) subjectItem.color else Color.White.copy(alpha = 0.12f),
+                                        border = BorderStroke(
+                                            width = if (isSelected) 2.dp else 1.dp,
+                                            color = if (isSelected) PaymentBrightGold else Color.White.copy(alpha = 0.28f)
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(
+                                                    imageVector = subjectItem.icon,
+                                                    contentDescription = subjectItem.name,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(22.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = subjectItem.name,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = Color.White,
+                                                    maxLines = 2
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(6.dp))
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .clip(CircleShape)
+                                                    .background(
+                                                        if (isSelected) PaymentGold else Color.White.copy(alpha = 0.18f)
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (isSelected) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        tint = PaymentDarkText,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                if (rowSubjects.size == 1) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -631,6 +924,9 @@ fun SignupScreen(
                         isStudentRole && streamInput.isBlank() -> {
                             errorMessage = "Please write your Stream (e.g. Green or North)"
                         }
+                        !isStudentRole && selectedTeacherSubjects.isEmpty() -> {
+                            errorMessage = "Please select at least one subject you will be teaching"
+                        }
                         else -> {
                             isLoading = true
                             errorMessage = null
@@ -639,27 +935,43 @@ fun SignupScreen(
                                 val cleanPhone = phoneNumberInput.trim()
                                 val cleanClass = if (isStudentRole) classInput.trim() else ""
                                 val cleanStream = if (isStudentRole) streamInput.trim() else ""
+                                val cleanTeacherSubjects = if (!isStudentRole) {
+                                    DefaultCurriculumSubjects
+                                        .filter { it.name in selectedTeacherSubjects }
+                                        .joinToString(", ") { it.name }
+                                } else ""
 
-                                val newUser = UserEntity(
-                                    id = UUID.randomUUID().toString(),
-                                    email = cleanPhone,
+                                val teacherCode = if (!isStudentRole) {
+                                    generateTeacherIdCode(cleanName.ifBlank { cleanPhone })
+                                } else null
+                                SupabaseRepository.syncUserToSupabase(
                                     phoneNumber = cleanPhone,
                                     fullName = cleanName,
                                     role = selectedRole.lowercase(),
-                                    password = passwordInput,
-                                    schoolName = "Secondary School",
+                                    plainPassword = passwordInput,
                                     academicClass = cleanClass,
                                     stream = cleanStream,
-                                    subjects = if (!isStudentRole) "Secondary Curriculum" else ""
+                                    teacherIdCode = teacherCode,
+                                    subjectsTaught = cleanTeacherSubjects,
+                                    isPlanActive = !isStudentRole,
+                                    planDuration = if (isStudentRole) "1 Month" else "Teacher"
                                 )
-                                db.userDao().insertUser(newUser)
+                                if (!isStudentRole && teacherCode != null) {
+                                    SupabaseRepository.syncTeacherSubjects(
+                                        teacherIdCode = teacherCode,
+                                        subjectNames = DefaultCurriculumSubjects
+                                            .filter { it.name in selectedTeacherSubjects }
+                                            .map { it.name }
+                                    )
+                                }
                                 isLoading = false
                                 onSignupSuccess(
                                     selectedRole.lowercase(),
                                     cleanPhone,
                                     cleanName,
                                     cleanClass,
-                                    cleanStream
+                                    cleanStream,
+                                    cleanTeacherSubjects
                                 )
                             }
                         }

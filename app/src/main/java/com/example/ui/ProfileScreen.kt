@@ -662,7 +662,7 @@ fun ProfileScreen(
     if (showAffiliateDialog) {
         val context = LocalContext.current
         val clipboardManager = LocalClipboardManager.current
-        val referralCode = "CATCHUP-${currentName.uppercase().replace(" ", "").ifBlank { "STUDENT" }}"
+        val referralCode = "CACHAP-${currentName.uppercase().replace(" ", "").ifBlank { "STUDENT" }}"
 
         Dialog(onDismissRequest = { showAffiliateDialog = false }) {
             Surface(
@@ -713,7 +713,7 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
-                        text = "Share Catch Up with classmates and earn tuition or airtime rewards for every active subscriber!",
+                        text = "Share Cachap with classmates and earn tuition or airtime rewards for every active subscriber!",
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
                         color = Color(0xFF4A4A4A)
@@ -794,7 +794,7 @@ fun ProfileScreen(
                                     action = Intent.ACTION_SEND
                                     putExtra(
                                         Intent.EXTRA_TEXT,
-                                        "Hey! Study smarter with Catch Up notes app. Use my referral code $referralCode for 10% off: https://catchup.ac.ug/ref/$referralCode"
+                                        "Hey! Study smarter with Cachap notes app. Use my referral code $referralCode for 10% off: https://cachap.ac.ug/ref/$referralCode"
                                     )
                                     type = "text/plain"
                                 }
@@ -838,7 +838,7 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "About Catch Up",
+                            text = "About Cachap",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextDark
@@ -863,7 +863,7 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "Catch Up empowers secondary students and teachers across Uganda with instant, offline-first access to high-quality syllabus revision notes, practice assignments, and curriculum guides.",
+                        text = "Cachap empowers secondary students and teachers across Uganda with instant, offline-first access to high-quality syllabus revision notes, practice assignments, and curriculum guides.",
                         fontSize = 13.sp,
                         lineHeight = 19.sp,
                         color = Color(0xFF4A4A4A)
@@ -942,7 +942,7 @@ fun ProfileScreen(
                         Icon(Icons.Outlined.Email, contentDescription = null, tint = IndigoPurple, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "support@catchup.ac.ug",
+                            text = "support@cachap.ac.ug",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = TextDark
@@ -1016,7 +1016,7 @@ fun ProfileScreen(
             },
             text = {
                 Text(
-                    text = "Are you sure you want to log out of Catch Up? Offline notes will remain saved on this device.",
+                    text = "Are you sure you want to log out of Cachap? Offline notes will remain saved on this device.",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = LightLavender,

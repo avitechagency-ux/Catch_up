@@ -93,7 +93,7 @@ import kotlinx.coroutines.launch
 fun AdminMoreScreen(
     modifier: Modifier = Modifier,
     adminName: String = "Administrator",
-    adminRole: String = "Super Admin • Catch Up Platform",
+    adminRole: String = "Super Admin • Cachap Platform",
     onNavigateBack: () -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onNavigateToAnalysis: () -> Unit = {},

@@ -117,7 +117,8 @@ data class SubjectUploadItem(
     val dueDate: String? = null,
     val isOwnUpload: Boolean = true,
     val uploaderName: String = "Teacher",
-    val fileName: String = "document.pdf"
+    val fileName: String = "document.pdf",
+    val fileSize: String = "2.4 MB"
 )
 
 /**
@@ -143,6 +144,43 @@ val DefaultTeacherSubjects = listOf(
         color = TealTile
     )
 )
+
+/**
+ * Resolves the list of [TeacherSubjectItem] cards for a teacher based on the subjects they selected
+ * during signup (matching [DefaultCurriculumSubjects] from the Subjects page).
+ * Falls back to [DefaultTeacherSubjects] if no custom subjects string is set.
+ */
+fun resolveTeacherSubjectItems(subjectsTaught: String): List<TeacherSubjectItem> {
+    val parsedNames = subjectsTaught
+        .split(",")
+        .map { it.trim() }
+        .filter { it.isNotBlank() && !it.equals("Secondary Curriculum", ignoreCase = true) }
+
+    if (parsedNames.isEmpty()) {
+        return DefaultTeacherSubjects
+    }
+
+    val matched = parsedNames.mapNotNull { subjectName ->
+        val curriculumMatch = DefaultCurriculumSubjects.find {
+            it.name.equals(subjectName, ignoreCase = true)
+        }
+        if (curriculumMatch != null) {
+            TeacherSubjectItem(
+                id = curriculumMatch.name.lowercase().replace(" ", "_"),
+                name = curriculumMatch.name,
+                classes = "S.1, S.2, S.3, S.4",
+                noteCount = 0,
+                assignmentCount = 0,
+                icon = curriculumMatch.icon,
+                color = curriculumMatch.color
+            )
+        } else {
+            null
+        }
+    }
+
+    return matched.ifEmpty { DefaultTeacherSubjects }
+}
 
 val DefaultGeographyUploads: List<SubjectUploadItem> = emptyList()
 

@@ -134,7 +134,7 @@ fun OnboardingScreen(
                 if (page == 2) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                        contentDescription = "Catch Up App Icon",
+                        contentDescription = "Cachap App Icon",
                         tint = SplashOrange,
                         modifier = Modifier
                             .size(220.dp)
@@ -241,7 +241,7 @@ fun OnboardingScreen(
                         .background(SplashPink)
                 )
                 Text(
-                    text = "catch up",
+                    text = "Cachap",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.White,

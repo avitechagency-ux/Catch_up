@@ -79,15 +79,19 @@ import kotlinx.coroutines.launch
 @Composable
 fun AdminAffiliateScreen(
     modifier: Modifier = Modifier,
-    initialAffiliates: List<AffiliateUser> = DefaultAffiliateUsersList,
+    initialAffiliates: List<AffiliateUser> = emptyList(),
     onNavigateBack: () -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onNavigateToAnalysis: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
     onNavigateToMore: () -> Unit = {}
 ) {
-    val affiliatesList by remember { mutableStateOf(initialAffiliates) }
+    var affiliatesList by remember(initialAffiliates) { mutableStateOf(initialAffiliates) }
     var searchQuery by remember { mutableStateOf("") }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        affiliatesList = com.example.data.SupabaseRepository.fetchAllAffiliates()
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()

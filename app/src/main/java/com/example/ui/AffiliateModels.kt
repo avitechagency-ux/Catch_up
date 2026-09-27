@@ -87,7 +87,7 @@ val DefaultAffiliateUsersList = listOf(
     AffiliateUser(
         id = "aff_moses",
         name = "Moses",
-        email = "moses.k@student.catchup.ug",
+        email = "moses.k@student.cachap.ug",
         role = "Student",
         referralCode = "MOSES100",
         referralCount = 142,
@@ -101,7 +101,7 @@ val DefaultAffiliateUsersList = listOf(
     AffiliateUser(
         id = "aff_mary",
         name = "Mary",
-        email = "mary.n@student.catchup.ug",
+        email = "mary.n@student.cachap.ug",
         role = "Student",
         referralCode = "MARY256",
         referralCount = 118,
@@ -115,7 +115,7 @@ val DefaultAffiliateUsersList = listOf(
     AffiliateUser(
         id = "aff_john",
         name = "John",
-        email = "john.o@student.catchup.ug",
+        email = "john.o@student.cachap.ug",
         role = "Student",
         referralCode = "JOHN99",
         referralCount = 95,
@@ -129,7 +129,7 @@ val DefaultAffiliateUsersList = listOf(
     AffiliateUser(
         id = "aff_martin",
         name = "Martin",
-        email = "martin.b@student.catchup.ug",
+        email = "martin.b@student.cachap.ug",
         role = "Student",
         referralCode = "MARTIN04",
         referralCount = 74,
@@ -143,7 +143,7 @@ val DefaultAffiliateUsersList = listOf(
     AffiliateUser(
         id = "aff_may",
         name = "May",
-        email = "may.t@student.catchup.ug",
+        email = "may.t@student.cachap.ug",
         role = "Student",
         referralCode = "MAY77",
         referralCount = 62,
@@ -157,7 +157,7 @@ val DefaultAffiliateUsersList = listOf(
     AffiliateUser(
         id = "aff_ezekiel",
         name = "Ezekiel Joseph",
-        email = "ezekiel.j@student.catchup.ug",
+        email = "ezekiel.j@student.cachap.ug",
         role = "Student",
         referralCode = "EZEKIEL01",
         referralCount = 38,
@@ -171,7 +171,7 @@ val DefaultAffiliateUsersList = listOf(
     AffiliateUser(
         id = "aff_sarah",
         name = "Sarah Seruwama",
-        email = "sarah.s@student.catchup.ug",
+        email = "sarah.s@student.cachap.ug",
         role = "Student",
         referralCode = "SARAH88",
         referralCount = 19,
@@ -185,7 +185,7 @@ val DefaultAffiliateUsersList = listOf(
     AffiliateUser(
         id = "aff_apollo",
         name = "Apollo Kenh",
-        email = "apollo.k@student.catchup.ug",
+        email = "apollo.k@student.cachap.ug",
         role = "Student",
         referralCode = "APOLLO20",
         referralCount = 12,
@@ -199,7 +199,7 @@ val DefaultAffiliateUsersList = listOf(
     AffiliateUser(
         id = "aff_denis",
         name = "Denis Mukasa",
-        email = "denis.m@student.catchup.ug",
+        email = "denis.m@student.cachap.ug",
         role = "Student",
         referralCode = "DENIS99",
         referralCount = 4,

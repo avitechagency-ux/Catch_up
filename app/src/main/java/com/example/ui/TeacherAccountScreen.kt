@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SwapHoriz
@@ -39,6 +40,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -82,6 +84,12 @@ fun TeacherAccountScreen(
     var editName by remember { mutableStateOf(teacherName) }
     var editSubjects by remember { mutableStateOf(subjectsTaught) }
     var editSchool by remember { mutableStateOf(schoolName) }
+
+    LaunchedEffect(subjectsTaught) {
+        if (subjectsTaught.isNotBlank()) {
+            editSubjects = subjectsTaught
+        }
+    }
 
     // Password change state
     var currentPassword by remember { mutableStateOf("") }
@@ -232,6 +240,84 @@ fun TeacherAccountScreen(
                                 focusedContainerColor = Color.White
                             )
                         )
+
+                        // Interactive Subject Selection Chips synced with DB subjects
+                        val activeSubjectSet = remember(editSubjects) {
+                            editSubjects.split(",", ";", "|", "/")
+                                .map { it.trim() }
+                                .filter { it.isNotBlank() && !it.equals("Secondary Curriculum", ignoreCase = true) }
+                                .toSet()
+                        }
+                        Text(
+                            text = "Tap to toggle subjects you teach:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextMuted
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("teacher_account_subject_chips"),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            DefaultSubjects.chunked(2).forEach { rowSubjects ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    rowSubjects.forEach { subject ->
+                                        val isSelected = activeSubjectSet.any { it.equals(subject.name, ignoreCase = true) }
+                                        Surface(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(38.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable {
+                                                    val updatedList = if (isSelected) {
+                                                        activeSubjectSet.filterNot { it.equals(subject.name, ignoreCase = true) }
+                                                    } else {
+                                                        activeSubjectSet.toList() + subject.name
+                                                    }
+                                                    editSubjects = updatedList.joinToString(", ")
+                                                }
+                                                .testTag("teacher_account_subject_chip_${subject.id}"),
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = if (isSelected) IndigoPurple else SoftLavenderGrey,
+                                            border = BorderStroke(
+                                                width = 1.dp,
+                                                color = if (isSelected) IndigoPurple else BorderGrey
+                                            )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .padding(horizontal = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = subject.name,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                    color = if (isSelected) Color.White else TextDark
+                                                )
+                                                if (isSelected) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.Check,
+                                                        contentDescription = "Selected",
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (rowSubjects.size == 1) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
 
                         OutlinedTextField(
                             value = editSchool,

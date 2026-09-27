@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -58,6 +60,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,6 +84,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.SupabaseRepository
 import com.example.ui.theme.AmberTile
 import com.example.ui.theme.BlueTile
 import com.example.ui.theme.BorderGrey
@@ -201,7 +205,7 @@ val DefaultAdminLogs: List<AdminLogItem> = listOf(
 @Composable
 fun AdminLogsScreen(
     modifier: Modifier = Modifier,
-    initialLogs: List<AdminLogItem> = DefaultAdminLogs,
+    initialLogs: List<AdminLogItem> = emptyList(),
     onNavigateBack: () -> Unit = {}
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -209,10 +213,18 @@ fun AdminLogsScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var logsList by remember { mutableStateOf(initialLogs) }
+    var isRefreshing by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedLevel by remember { mutableStateOf("All") }
     var selectedLogForModal by remember { mutableStateOf<AdminLogItem?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        isRefreshing = true
+        val remoteLogs = SupabaseRepository.fetchSystemAuditLogs()
+        logsList = remoteLogs
+        isRefreshing = false
+    }
 
     // Filtered logs computed
     val filteredLogs = remember(logsList, searchQuery, selectedLevel) {
@@ -247,6 +259,7 @@ fun AdminLogsScreen(
                 .fillMaxSize()
                 .padding(bottom = innerPadding.calculateBottomPadding())
                 .navigationBarsPadding()
+                .imePadding()
         ) {
             // ==========================================
             // 1. HEADER: Purple banner with Search Bar
@@ -267,7 +280,7 @@ fun AdminLogsScreen(
                     .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 22.dp)
                     .testTag("admin_logs_header")
             ) {
-                // Top Row: Back button, Title, Export CSV Button
+                // Top Row: Back button, Title, Refresh & Export CSV Button
                 Box(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -297,38 +310,74 @@ fun AdminLogsScreen(
                             modifier = Modifier.testTag("admin_logs_title")
                         )
                         Text(
-                            text = "Platform activity & security audit trail",
+                            text = "Live database & storage audit trail",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Normal,
                             color = LightLavender
                         )
                     }
 
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .clickable { showExportDialog = true }
-                            .testTag("admin_logs_export_button"),
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White.copy(alpha = 0.20f)
+                    Row(
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        IconButton(
+                            onClick = {
+                                if (!isRefreshing) {
+                                    isRefreshing = true
+                                    coroutineScope.launch {
+                                        logsList = SupabaseRepository.fetchSystemAuditLogs()
+                                        isRefreshing = false
+                                        snackbarHostState.showSnackbar("Audit logs synced with Supabase")
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .size(34.dp)
+                                .testTag("admin_logs_refresh_button")
                         ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Download,
-                                contentDescription = "Export",
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "CSV",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
+                            if (isRefreshing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Outlined.Refresh,
+                                    contentDescription = "Refresh Logs",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .clickable { showExportDialog = true }
+                                .testTag("admin_logs_export_button"),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color.White.copy(alpha = 0.20f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Download,
+                                    contentDescription = "Export",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "CSV",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
                         }
                     }
                 }
@@ -425,6 +474,7 @@ fun AdminLogsScreen(
                     val filterLevels = listOf(
                         "All",
                         "INFO",
+                        "STORAGE",
                         "PAYOUT",
                         "SECURITY",
                         "DATABASE",
@@ -697,7 +747,7 @@ fun AdminLogsScreen(
                     onClick = {
                         showExportDialog = false
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Exported CatchUp_Audit_Logs_2026.csv successfully")
+                            snackbarHostState.showSnackbar("Exported Cachap_Audit_Logs_2026.csv successfully")
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),

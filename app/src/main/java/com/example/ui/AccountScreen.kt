@@ -84,10 +84,8 @@ data class PlanTier(
 )
 
 /**
- * Predefined list of 3 plans in strict specification order:
- * 1. "1 Month" — caption "Billed monthly" — price "UGX 1,000"
- * 2. "1 Term" — caption "Billed per term" — price "UGX 3,000"
- * 3. "1 Year" — caption "Billed annually — best value" — price "UGX 10,000"
+ * Single student subscription plan:
+ * "1 Month" — caption "Billed monthly" — price "UGX 1,000"
  */
 val DefaultPlanTiers = listOf(
     PlanTier(
@@ -96,22 +94,399 @@ val DefaultPlanTiers = listOf(
         caption = "Billed monthly",
         price = "UGX 1,000",
         priceUgx = 1000
-    ),
-    PlanTier(
-        id = "1_term",
-        duration = "1 Term",
-        caption = "Billed per term",
-        price = "UGX 3,000",
-        priceUgx = 3000
-    ),
-    PlanTier(
-        id = "1_year",
-        duration = "1 Year",
-        caption = "Billed annually — best value",
-        price = "UGX 10,000",
-        priceUgx = 10000
     )
 )
+
+/**
+ * Dedicated Payment Screen shown immediately after Student Signup before entering the app.
+ * Uses the student's signup phone number and the pre-selected 1 Month (UGX 1,000) plan.
+ */
+@Composable
+fun StudentPaymentScreen(
+    modifier: Modifier = Modifier,
+    studentName: String = "Student",
+    signupPhoneNumber: String = "",
+    selectedPlan: PlanTier = DefaultPlanTiers.first(),
+    onNavigateBack: () -> Unit = {},
+    onPaymentSuccess: (PlanTier, String) -> Unit = { _, _ -> }
+) {
+    val scrollState = rememberScrollState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
+    var phoneNumber by remember(signupPhoneNumber) {
+        mutableStateOf(signupPhoneNumber)
+    }
+    val defaultNetwork = remember(signupPhoneNumber) {
+        val cleaned = signupPhoneNumber.replace(" ", "")
+        if (cleaned.startsWith("070") || cleaned.startsWith("074") || cleaned.startsWith("075") ||
+            cleaned.startsWith("+25670") || cleaned.startsWith("+25674") || cleaned.startsWith("+25675")
+        ) {
+            "Airtel"
+        } else {
+            "MTN"
+        }
+    }
+    var selectedNetwork by remember(defaultNetwork) { mutableStateOf(defaultNetwork) }
+    var isProcessing by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    Scaffold(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("student_payment_screen"),
+        containerColor = IndigoPurple,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(IndigoPurple)
+                .padding(bottom = innerPadding.calculateBottomPadding())
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .verticalScroll(scrollState)
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            // Top Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Payment",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        modifier = Modifier.testTag("payment_screen_title")
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Complete your ${selectedPlan.duration} subscription to continue",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = LightLavender
+                    )
+                }
+                IconButton(
+                    onClick = onNavigateBack,
+                    enabled = !isProcessing,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.20f))
+                        .testTag("payment_back_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = "Back",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // Selected Plan Card (1 Month — UGX 1,000)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("payment_selected_plan_card"),
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White.copy(alpha = 0.14f),
+                border = BorderStroke(1.5.dp, Color(0xFFFFD54F))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "SELECTED PLAN",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFFFD54F),
+                            letterSpacing = 1.sp
+                        )
+                        Surface(
+                            color = Color(0xFFE5F5F0),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    tint = Color(0xFF2A9D8F),
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "1,000 UGX / Month",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2A9D8F)
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = selectedPlan.duration,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = selectedPlan.caption,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = LightLavender
+                            )
+                        }
+                        Text(
+                            text = selectedPlan.price,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFFFFD54F)
+                        )
+                    }
+                }
+            }
+
+            // Mobile Network Selection
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Select Mobile Network",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val isMtn = selectedNetwork == "MTN"
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { selectedNetwork = "MTN" }
+                            .testTag("network_mtn"),
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isMtn) Color(0xFFFFB300) else Color.White.copy(alpha = 0.15f),
+                        border = BorderStroke(
+                            1.5.dp,
+                            if (isMtn) Color(0xFFFFD54F) else Color.White.copy(alpha = 0.30f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isMtn,
+                                onClick = { selectedNetwork = "MTN" },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = if (isMtn) Color(0xFF1A1A1A) else Color.White,
+                                    unselectedColor = Color.White.copy(alpha = 0.7f)
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "MTN MoMo",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isMtn) Color(0xFF1A1A1A) else Color.White
+                            )
+                        }
+                    }
+
+                    val isAirtel = selectedNetwork == "Airtel"
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { selectedNetwork = "Airtel" }
+                            .testTag("network_airtel"),
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (isAirtel) Color(0xFFE53935) else Color.White.copy(alpha = 0.15f),
+                        border = BorderStroke(
+                            1.5.dp,
+                            if (isAirtel) Color(0xFFFF8A80) else Color.White.copy(alpha = 0.30f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isAirtel,
+                                onClick = { selectedNetwork = "Airtel" },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = Color.White,
+                                    unselectedColor = Color.White.copy(alpha = 0.7f)
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Airtel Money",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Phone Number Input (Pre-filled from Signup)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "Phone Number (Used at Sign Up)",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = {
+                        phoneNumber = it
+                        errorMessage = null
+                    },
+                    placeholder = {
+                        Text(
+                            "07XX XXXXXX",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    textStyle = TextStyle(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    ),
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.PhoneAndroid,
+                            contentDescription = null,
+                            tint = Color(0xFFFFD54F),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("payment_phone_input"),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White.copy(alpha = 0.15f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.12f),
+                        focusedBorderColor = Color(0xFFFFD54F),
+                        unfocusedBorderColor = Color.White.copy(alpha = 0.35f),
+                        cursorColor = Color(0xFFFFD54F),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+            }
+
+            if (errorMessage != null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFE53935).copy(alpha = 0.25f),
+                    border = BorderStroke(1.5.dp, Color(0xFFFF8A80))
+                ) {
+                    Text(
+                        text = errorMessage!!,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Pay Button
+            Button(
+                onClick = {
+                    val cleanPhone = phoneNumber.trim()
+                    if (cleanPhone.isBlank()) {
+                        errorMessage = "Please enter your phone number to process payment"
+                        return@Button
+                    }
+                    isProcessing = true
+                    errorMessage = null
+                    coroutineScope.launch {
+                        delay(900L)
+                        isProcessing = false
+                        onPaymentSuccess(selectedPlan, cleanPhone)
+                    }
+                },
+                enabled = !isProcessing,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFFFB300),
+                    disabledContainerColor = Color(0xFFFFB300).copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .testTag("pay_button")
+            ) {
+                if (isProcessing) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF1A1A1A),
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Processing payment on $phoneNumber...",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1A1A1A)
+                    )
+                } else {
+                    Text(
+                        text = "Pay ${selectedPlan.price}",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF1A1A1A)
+                    )
+                }
+            }
+        }
+    }
+}
 
 /**
  * Student Account Screen
@@ -125,6 +500,7 @@ fun AccountScreen(
     modifier: Modifier = Modifier,
     activePlanDuration: String = "",
     activePlanExpiry: String = "",
+    initialPhoneNumber: String = "",
     plans: List<PlanTier> = DefaultPlanTiers,
     onNavigateBack: () -> Unit = {},
     onNavigateToPayment: (PlanTier) -> Unit = {},
@@ -342,8 +718,20 @@ fun AccountScreen(
     // ======================================
     selectedPlanForPayment?.let { targetPlan ->
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        var phoneNumber by remember { mutableStateOf("0772 849 103") }
-        var selectedNetwork by remember { mutableStateOf("MTN") } // "MTN" or "Airtel"
+        var phoneNumber by remember(initialPhoneNumber) {
+            mutableStateOf(initialPhoneNumber)
+        }
+        val defaultNetwork = remember(initialPhoneNumber) {
+            val cleaned = initialPhoneNumber.replace(" ", "")
+            if (cleaned.startsWith("070") || cleaned.startsWith("074") || cleaned.startsWith("075") ||
+                cleaned.startsWith("+25670") || cleaned.startsWith("+25674") || cleaned.startsWith("+25675")
+            ) {
+                "Airtel"
+            } else {
+                "MTN"
+            }
+        }
+        var selectedNetwork by remember(defaultNetwork) { mutableStateOf(defaultNetwork) } // "MTN" or "Airtel"
         var isProcessing by remember { mutableStateOf(false) }
 
         ModalBottomSheet(

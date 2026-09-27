@@ -279,7 +279,7 @@ fun AdminSettingsScreen(
                             Spacer(modifier = Modifier.height(2.dp))
 
                             Text(
-                                text = "Catch Up Platform • Uganda Production (v2.4.0)",
+                                text = "Cachap Platform • Uganda Production (v2.4.0)",
                                 fontSize = 12.sp,
                                 color = TextMuted,
                                 fontWeight = FontWeight.Medium
@@ -517,7 +517,7 @@ fun AdminSettingsScreen(
                                 icon = Icons.Outlined.Download,
                                 onClick = {
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar("Exporting 2026_Q3_CatchUp_Audit_Logs.csv...")
+                                        snackbarHostState.showSnackbar("Exporting 2026_Q3_Cachap_Audit_Logs.csv...")
                                     }
                                 },
                                 testTag = "button_export_audit_logs"

@@ -48,8 +48,7 @@ private val WelcomeSoftPink = Color(0xFFFF8FB8)
 fun WelcomeScreen(
     modifier: Modifier = Modifier,
     onNavigateToLogin: () -> Unit = {},
-    onNavigateToSignup: () -> Unit = {},
-    onExploreAsGuest: () -> Unit = {}
+    onNavigateToSignup: () -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -137,7 +136,7 @@ fun WelcomeScreen(
                     .background(WelcomePink)
             )
             Text(
-                text = "Catch Up",
+                text = "Cachap",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.White,
@@ -243,22 +242,6 @@ fun WelcomeScreen(
                     fontSize = 15.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.White
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            TextButton(
-                onClick = onExploreAsGuest,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("welcome_guest_button")
-            ) {
-                Text(
-                    text = "Continue as guest",
-                    color = LightLavender,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
                 )
             }
         }

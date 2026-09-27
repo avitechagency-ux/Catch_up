@@ -33,17 +33,22 @@ import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PersonSearch
+import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +66,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.SupabaseConfig
+import com.example.data.SupabaseRepository
+import com.example.data.SupabaseUserDto
 import com.example.ui.theme.BlueTile
 import com.example.ui.theme.BorderGrey
 import com.example.ui.theme.CoralTile
@@ -74,6 +82,7 @@ import com.example.ui.theme.SoftLavenderGrey
 import com.example.ui.theme.TealTile
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
+import kotlinx.coroutines.launch
 
 /**
  * Filter tab categories for the Admin Users screen.
@@ -99,108 +108,80 @@ data class AdminUserItem(
 )
 
 /**
- * Default list of students requested by user:
- * - Ezekiel Joseph
- * - Nifemi Moses
- * - Sarah Seruwama
- * - Apollo kenh
+ * Production student list starts empty; populated directly from Supabase `public.users`.
  */
-val DefaultStudentsList = listOf(
-    AdminUserItem(
-        id = "stu_1",
-        name = "Ezekiel Joseph",
-        role = UserRoleFilter.STUDENTS,
-        detailTag = "Senior 4",
-        email = "ezekiel.j@student.catchup.ug",
-        status = "Active",
-        planOrDepartment = "Termly Access",
-        joinedDate = "Sept 2026",
-        avatarColor = IndigoPurple
-    ),
-    AdminUserItem(
-        id = "stu_2",
-        name = "Nifemi Moses",
-        role = UserRoleFilter.STUDENTS,
-        detailTag = "Senior 3",
-        email = "nifemi.m@student.catchup.ug",
-        status = "Active",
-        planOrDepartment = "Annual Pass",
-        joinedDate = "Aug 2026",
-        avatarColor = BlueTile
-    ),
-    AdminUserItem(
-        id = "stu_3",
-        name = "Sarah Seruwama",
-        role = UserRoleFilter.STUDENTS,
-        detailTag = "Senior 4",
-        email = "sarah.s@student.catchup.ug",
-        status = "Active",
-        planOrDepartment = "Termly Access",
-        joinedDate = "Sept 2026",
-        avatarColor = CoralTile
-    ),
-    AdminUserItem(
-        id = "stu_4",
-        name = "Apollo kenh",
-        role = UserRoleFilter.STUDENTS,
-        detailTag = "Senior 2",
-        email = "apollo.k@student.catchup.ug",
-        status = "Active",
-        planOrDepartment = "Monthly Pass",
-        joinedDate = "Aug 2026",
-        avatarColor = TealTile
-    )
-)
+val DefaultStudentsList: List<AdminUserItem> = emptyList()
 
 /**
- * Default list of teachers to populate when the "Teachers" filter tab is selected.
+ * Production teacher list starts empty; populated directly from Supabase `public.users`.
  */
-val DefaultTeachersList = listOf(
-    AdminUserItem(
-        id = "tch_1",
-        name = "Tr. Okello Peter",
-        role = UserRoleFilter.TEACHERS,
-        detailTag = "Mathematics & Physics",
-        email = "okello.p@catchup.ug",
-        status = "Active",
-        planOrDepartment = "Senior 1–4 Dept",
-        joinedDate = "Jan 2026",
-        avatarColor = NavyTile
-    ),
-    AdminUserItem(
-        id = "tch_2",
-        name = "Tr. Nalubega Grace",
-        role = UserRoleFilter.TEACHERS,
-        detailTag = "Biology & Health Sciences",
-        email = "nalubega.g@catchup.ug",
-        status = "Active",
-        planOrDepartment = "Sciences Dept",
-        joinedDate = "Feb 2026",
-        avatarColor = PurpleTile
-    ),
-    AdminUserItem(
-        id = "tch_3",
-        name = "Tr. Mukasa David",
-        role = UserRoleFilter.TEACHERS,
-        detailTag = "Chemistry",
-        email = "mukasa.d@catchup.ug",
-        status = "Active",
-        planOrDepartment = "Sciences Dept",
-        joinedDate = "Mar 2026",
-        avatarColor = PeachOrange
-    ),
-    AdminUserItem(
-        id = "tch_4",
-        name = "Tr. Akello Beatrice",
-        role = UserRoleFilter.TEACHERS,
-        detailTag = "Geography & Social Studies",
-        email = "akello.b@catchup.ug",
-        status = "Active",
-        planOrDepartment = "Humanities Dept",
-        joinedDate = "May 2026",
-        avatarColor = TealTile
-    )
-)
+val DefaultTeachersList: List<AdminUserItem> = emptyList()
+
+/**
+ * Converts a remote [SupabaseUserDto] from `public.users` into an [AdminUserItem]
+ * for the Admin Panel Users screen.
+ */
+fun SupabaseUserDto.toAdminUserItem(): AdminUserItem? {
+    val normalizedRole = role.trim().lowercase()
+    val contactStr = phoneNumber.trim().ifBlank { email.trim() }
+    return when (normalizedRole) {
+        "teacher" -> {
+            val code = teacherIdCode?.takeIf { it.isNotBlank() }
+                ?: generateTeacherIdCode(fullName.ifBlank { contactStr })
+            AdminUserItem(
+                id = "usr_${contactStr.ifBlank { fullName.lowercase().replace(" ", "_") }}",
+                name = fullName.trim().ifBlank { "Teacher" },
+                role = UserRoleFilter.TEACHERS,
+                detailTag = subjectsTaught.trim().ifBlank { "Secondary Curriculum" },
+                email = contactStr,
+                status = "Active",
+                planOrDepartment = "ID: $code",
+                joinedDate = "Sept 2026",
+                avatarColor = NavyTile
+            )
+        }
+        "student" -> {
+            val combinedClassStream = listOf(academicClass.trim(), stream.trim())
+                .filter { it.isNotBlank() }
+                .joinToString(" ")
+                .ifBlank { "Student" }
+            val resolvedPlan = planDuration.trim().ifBlank { "1 Month Plan" }
+            AdminUserItem(
+                id = "usr_${contactStr.ifBlank { fullName.lowercase().replace(" ", "_") }}",
+                name = fullName.trim().ifBlank { "Student" },
+                role = UserRoleFilter.STUDENTS,
+                detailTag = combinedClassStream,
+                email = contactStr,
+                status = "Active",
+                planOrDepartment = resolvedPlan,
+                joinedDate = "Sept 2026",
+                avatarColor = IndigoPurple
+            )
+        }
+        else -> null
+    }
+}
+
+/**
+ * Merges newly signed-up users with the default users list for [targetRole], placing newly signed-up
+ * users at the top and deduplicating by phone/email or normalized full name.
+ */
+fun mergeSignedUpAndDefaultUsers(
+    signedUpUsers: List<AdminUserItem>,
+    defaultUsers: List<AdminUserItem>,
+    targetRole: UserRoleFilter
+): List<AdminUserItem> {
+    val roleSignups = signedUpUsers.filter { it.role == targetRole }
+    val combined = roleSignups + defaultUsers
+    val seenKeys = mutableSetOf<String>()
+    return combined.filter { item ->
+        val contactKey = item.email.trim().lowercase()
+        val nameKey = item.name.trim().lowercase()
+        val dedupeKey = if (contactKey.isNotBlank()) "contact:$contactKey" else "name:$nameKey"
+        val isNew = seenKeys.add(dedupeKey) && seenKeys.add("name:$nameKey")
+        isNew
+    }
+}
 
 /**
  * Admin Users Screen
@@ -229,13 +210,53 @@ fun AdminUsersScreen(
     onNavigateToUsers: () -> Unit = {},
     onNavigateToMore: () -> Unit = {}
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    var remoteSupabaseUsers by remember { mutableStateOf<List<AdminUserItem>>(emptyList()) }
+    var isLoadingUsers by remember { mutableStateOf(false) }
+    var usersFetchError by remember { mutableStateOf<String?>(null) }
+
+    val loadUsersFromSupabase: () -> Unit = {
+        coroutineScope.launch {
+            isLoadingUsers = true
+            usersFetchError = null
+            try {
+                val fetchedDtos = SupabaseRepository.fetchAllUsers()
+                remoteSupabaseUsers = fetchedDtos.mapNotNull { it.toAdminUserItem() }
+            } catch (_: Exception) {
+                usersFetchError = "Unable to sync latest users from Supabase."
+            } finally {
+                isLoadingUsers = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadUsersFromSupabase()
+    }
+
+    val allStudents = remember(remoteSupabaseUsers, students) {
+        mergeSignedUpAndDefaultUsers(
+            signedUpUsers = remoteSupabaseUsers,
+            defaultUsers = students,
+            targetRole = UserRoleFilter.STUDENTS
+        )
+    }
+
+    val allTeachers = remember(remoteSupabaseUsers, teachers) {
+        mergeSignedUpAndDefaultUsers(
+            signedUpUsers = remoteSupabaseUsers,
+            defaultUsers = teachers,
+            targetRole = UserRoleFilter.TEACHERS
+        )
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(UserRoleFilter.STUDENTS) }
 
     // Active dataset based on selected pill tab
     val currentRoleList = when (selectedTab) {
-        UserRoleFilter.STUDENTS -> students
-        UserRoleFilter.TEACHERS -> teachers
+        UserRoleFilter.STUDENTS -> allStudents
+        UserRoleFilter.TEACHERS -> allTeachers
     }
 
     // Filter by search query
@@ -247,7 +268,8 @@ fun AdminUsersScreen(
             currentRoleList.filter {
                 it.name.lowercase().contains(query) ||
                     it.detailTag.lowercase().contains(query) ||
-                    it.email.lowercase().contains(query)
+                    it.email.lowercase().contains(query) ||
+                    it.planOrDepartment.lowercase().contains(query)
             }
         }
     }
@@ -354,7 +376,7 @@ fun AdminUsersScreen(
                 // Students pill
                 FilterPillButton(
                     label = "Students",
-                    count = students.size,
+                    count = allStudents.size,
                     isSelected = selectedTab == UserRoleFilter.STUDENTS,
                     testTag = "admin_filter_pill_students",
                     onClick = { selectedTab = UserRoleFilter.STUDENTS },
@@ -364,12 +386,48 @@ fun AdminUsersScreen(
                 // Teachers pill
                 FilterPillButton(
                     label = "Teachers",
-                    count = teachers.size,
+                    count = allTeachers.size,
                     isSelected = selectedTab == UserRoleFilter.TEACHERS,
                     testTag = "admin_filter_pill_teachers",
                     onClick = { selectedTab = UserRoleFilter.TEACHERS },
                     modifier = Modifier.weight(1f)
                 )
+            }
+
+            if (isLoadingUsers) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    color = IndigoPurple,
+                    trackColor = LightLavender
+                )
+            }
+
+            usersFetchError?.let { errorMsg ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFFFEBEE)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = errorMsg,
+                            fontSize = 12.sp,
+                            color = Color(0xFFC62828),
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = loadUsersFromSupabase) {
+                            Text("Retry", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = IndigoPurple)
+                        }
+                    }
+                }
             }
 
             // ==========================================
@@ -640,111 +698,50 @@ fun AdminUserCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Dummy Avatar with crisp white container and bold Indigo initials
+                // Compact Avatar with crisp white container and bold Indigo initials
                 Surface(
                     shape = CircleShape,
                     color = Color.White,
-                    modifier = Modifier.size(46.dp)
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = initials,
-                            fontSize = 16.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = IndigoPurple
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
-                // User Info Column
+                // Compact User Info Column: Name and Phone Number only
                 Column(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = user.name,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
+                    Text(
+                        text = user.name,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
-                        // Active status badge
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.White.copy(alpha = 0.20f)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF4CAF50))
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = user.status,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(2.dp))
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Detail tag (e.g. Senior 4 or Mathematics & Physics)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = if (user.role == UserRoleFilter.STUDENTS) Icons.Outlined.School else Icons.Outlined.Person,
+                            imageVector = Icons.Outlined.PhoneAndroid,
                             contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = user.detailTag,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = LightLavender
-                        )
-                        Text(
-                            text = " • ",
-                            fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.60f)
-                        )
-                        Text(
-                            text = user.planOrDepartment,
-                            fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.85f)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Contact email
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Outlined.Mail,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.75f),
+                            tint = Color.White.copy(alpha = 0.80f),
                             modifier = Modifier.size(12.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = user.email,
-                            fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.75f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = 0.85f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

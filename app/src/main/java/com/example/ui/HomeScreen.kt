@@ -274,7 +274,7 @@ val TeacherNavItems: List<BottomNavItem> = listOf(
 )
 
 /**
- * Main Home screen for the "Catch Up" secondary school notes-sharing app.
+ * Main Home screen for the "Cachap" secondary school notes-sharing app.
  */
 @Composable
 fun HomeScreen(
@@ -285,6 +285,8 @@ fun HomeScreen(
     activePlanDuration: String = "",
     activePlanExpiry: String = "",
     recentNotes: List<RecentNoteData> = emptyList(),
+    linkedSubjectTeachers: Map<String, String> = emptyMap(),
+    onLinkSubjectTeacher: (subjectName: String, teacherId: String) -> Unit = { _, _ -> },
     onNavigateToSubjects: () -> Unit = {},
     onNavigateToDownloads: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
@@ -300,33 +302,28 @@ fun HomeScreen(
     val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
-    val quickAccessTiles = remember {
-        listOf(
+    var localLinkedTeachers by remember(linkedSubjectTeachers) {
+        mutableStateOf(linkedSubjectTeachers)
+    }
+    var subjectPendingLink by remember { mutableStateOf<String?>(null) }
+
+    // Synchronized with DefaultCurriculumSubjects from SubjectsScreen:
+    // Prioritizes subjects the student has linked, then fills up to 4 from DefaultCurriculumSubjects
+    val quickAccessTiles = remember(localLinkedTeachers) {
+        val linkedItems = localLinkedTeachers.keys.mapNotNull { linkedName ->
+            DefaultCurriculumSubjects.find { it.name.equals(linkedName, ignoreCase = true) }
+        }
+        val remainingItems = DefaultCurriculumSubjects.filterNot { candidate ->
+            linkedItems.any { it.name.equals(candidate.name, ignoreCase = true) }
+        }
+        (linkedItems + remainingItems).take(4).map { subjectItem ->
             SubjectTileData(
-                name = "Geography",
+                name = subjectItem.name,
                 lastOpenedDate = "Tap to open",
-                backgroundColor = CoralTile,
-                icon = Icons.Outlined.Public
-            ),
-            SubjectTileData(
-                name = "Biology",
-                lastOpenedDate = "Tap to open",
-                backgroundColor = NavyTile,
-                icon = Icons.Outlined.Eco
-            ),
-            SubjectTileData(
-                name = "Math",
-                lastOpenedDate = "Tap to open",
-                backgroundColor = TealTile,
-                icon = Icons.Outlined.Architecture
-            ),
-            SubjectTileData(
-                name = "History",
-                lastOpenedDate = "Tap to open",
-                backgroundColor = BlueTile,
-                icon = Icons.Outlined.AccountBalance
+                backgroundColor = subjectItem.color,
+                icon = subjectItem.icon
             )
-        )
+        }
     }
 
     val onActionNotice: (String) -> Unit = { message ->
@@ -366,7 +363,7 @@ fun HomeScreen(
         ) {
             // Purple Header Block with Platform Name at top and Welcome Text
             AppHeader(
-                platformName = "Catch Up",
+                platformName = "Cachap",
                 greeting = greeting,
                 studentName = studentName,
                 onProfileClick = onNavigateToProfile,
@@ -382,8 +379,15 @@ fun HomeScreen(
                 recentNotes = recentNotes,
                 onSelectOrManagePlan = onNavigateToAccount,
                 onTileClick = { subject ->
-                    onNavigateToSubjectDetail(subject)
-                    onActionNotice("Opening $subject notes")
+                    val linkedTeacherId = localLinkedTeachers.entries
+                        .firstOrNull { it.key.equals(subject, ignoreCase = true) }
+                        ?.value
+                    if (!linkedTeacherId.isNullOrBlank()) {
+                        onNavigateToSubjectDetail(subject)
+                        onActionNotice("Opening $subject notes...")
+                    } else {
+                        subjectPendingLink = subject
+                    }
                 },
                 onQuickAccessSeeAll = {
                     onNavigateToSubjects()
@@ -395,6 +399,21 @@ fun HomeScreen(
                 onNavigateToAdmin = onNavigateToAdmin
             )
         }
+    }
+
+    // Teacher ID code input popup when student clicks an unlinked Quick Access subject
+    subjectPendingLink?.let { targetSubjectName ->
+        TeacherIdLinkPopup(
+            subjectName = targetSubjectName,
+            onDismiss = { subjectPendingLink = null },
+            onSubmitTeacherId = { enteredCode ->
+                localLinkedTeachers = localLinkedTeachers + (targetSubjectName to enteredCode)
+                onLinkSubjectTeacher(targetSubjectName, enteredCode)
+                subjectPendingLink = null
+                onNavigateToSubjectDetail(targetSubjectName)
+                onActionNotice("Opening $targetSubjectName notes...")
+            }
+        )
     }
 }
 
@@ -409,7 +428,7 @@ fun HomeScreen(
  */
 @Composable
 fun AppHeader(
-    platformName: String = "Catch Up",
+    platformName: String = "Cachap",
     greeting: String,
     studentName: String,
     onProfileClick: () -> Unit = {},
@@ -627,44 +646,13 @@ fun ActiveStudentPlanCard(
                 .fillMaxWidth()
                 .padding(18.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Current Plan",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = LightLavender,
-                    modifier = Modifier.testTag("home_current_plan_label")
-                )
-
-                Surface(
-                    color = Color(0xFFE5F5F0),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.testTag("home_current_plan_active_badge")
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = Color(0xFF2A9D8F),
-                            modifier = Modifier.size(11.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Active",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF2A9D8F)
-                        )
-                    }
-                }
-            }
+            Text(
+                text = "Current Plan",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Normal,
+                color = LightLavender,
+                modifier = Modifier.testTag("home_current_plan_label")
+            )
 
             Spacer(modifier = Modifier.height(6.dp))
 
@@ -678,35 +666,13 @@ fun ActiveStudentPlanCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = planExpiry,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = LightLavender,
-                    modifier = Modifier.testTag("home_current_plan_expiry")
-                )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Change plan",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFFFD54F)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
-                        contentDescription = "Change plan",
-                        tint = Color(0xFFFFD54F),
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
+            Text(
+                text = planExpiry,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Normal,
+                color = LightLavender,
+                modifier = Modifier.testTag("home_current_plan_expiry")
+            )
         }
     }
 }
@@ -1356,15 +1322,15 @@ fun QuickAccessSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 2x2 Grid with 12dp spacing
+        // 2x2 Grid with 16dp spacing matching SubjectsScreen
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Row 1: Top-Left (Tile 0), Top-Right (Tile 1)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (tiles.isNotEmpty()) {
                     QuickAccessTile(
@@ -1385,7 +1351,7 @@ fun QuickAccessSection(
             // Row 2: Bottom-Left (Tile 2), Bottom-Right (Tile 3)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (tiles.size > 2) {
                     QuickAccessTile(
@@ -1407,7 +1373,7 @@ fun QuickAccessSection(
 }
 
 /**
- * Single Quick Access Tile
+ * Single Quick Access Subject Card — styled and linked identically to SubjectCard in SubjectsScreen
  */
 @Composable
 fun QuickAccessTile(
@@ -1415,33 +1381,50 @@ fun QuickAccessTile(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Surface(
         modifier = modifier
-            .height(90.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(tileData.backgroundColor)
+            .fillMaxWidth()
+            .shadow(
+                elevation = 4.dp,
+                shape = RoundedCornerShape(18.dp),
+                ambientColor = tileData.backgroundColor.copy(alpha = 0.35f),
+                spotColor = tileData.backgroundColor.copy(alpha = 0.35f)
+            )
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(18.dp)
+            )
             .clickable(onClick = onClick)
-            .padding(14.dp)
-            .testTag("quick_access_tile_${tileData.name.lowercase()}")
+            .testTag("quick_access_tile_${tileData.name.lowercase()}"),
+        shape = RoundedCornerShape(18.dp),
+        color = tileData.backgroundColor,
+        tonalElevation = 0.dp
     ) {
-        // Small icon in top-right corner
-        Icon(
-            imageVector = tileData.icon,
-            contentDescription = tileData.name,
-            tint = Color.White,
+        Column(
             modifier = Modifier
-                .size(20.dp)
-                .align(Alignment.TopEnd)
-        )
+                .fillMaxWidth()
+                .padding(vertical = 28.dp, horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = tileData.icon,
+                contentDescription = tileData.name,
+                tint = Color.White,
+                modifier = Modifier.size(44.dp)
+            )
 
-        // Subject name in bottom-left
-        Text(
-            text = tileData.name,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.align(Alignment.BottomStart)
-        )
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = tileData.name,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 

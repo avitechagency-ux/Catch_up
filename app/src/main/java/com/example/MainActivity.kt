@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -27,6 +28,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.example.data.SupabaseConfig
+import com.example.data.SupabaseRepository
 import com.example.notifications.NotificationHelper
 import com.example.ui.AccountScreen
 import com.example.ui.AboutScreen
@@ -44,6 +47,7 @@ import com.example.ui.AdminTransactionsScreen
 import com.example.ui.AdminUsersScreen
 import com.example.ui.CachedNote
 import com.example.ui.DefaultTeacherSubjects
+import com.example.ui.DefaultPlanTiers
 import com.example.ui.DownloadsScreen
 import com.example.ui.HelpAndSupportScreen
 import com.example.ui.HomeScreen
@@ -55,6 +59,7 @@ import com.example.ui.RecentNoteData
 import com.example.ui.SettingsScreen
 import com.example.ui.StreakData
 import com.example.ui.StudentAffiliateScreen
+import com.example.ui.StudentPaymentScreen
 import com.example.ui.SubjectNotesScreen
 import com.example.ui.SubjectsScreen
 import com.example.ui.OnboardingScreen
@@ -62,13 +67,19 @@ import com.example.ui.WelcomeScreen
 import com.example.ui.LoginScreen
 import com.example.ui.SignupScreen
 import com.example.ui.TeacherAccountScreen
+import com.example.ui.ConnectedStudent
+import com.example.ui.DEFAULT_TEACHER_ID_CODE
 import com.example.ui.TeacherHomeScreen
+import com.example.ui.deserializeConnectedStudents
+import com.example.ui.generateTeacherIdCode
+import com.example.ui.serializeConnectedStudents
 import com.example.ui.TeacherPlaceholderScreen
 import com.example.ui.TeacherProfileScreen
 import com.example.ui.TeacherRecentUpload
 import com.example.ui.TeacherSubjectConfigScreen
 import com.example.ui.TeacherSubjectItem
 import com.example.ui.TeacherSubjectsScreen
+import com.example.ui.resolveTeacherSubjectItems
 import com.example.ui.DefaultTeacherAllUploads
 import com.example.ui.TeacherUploadItem
 import com.example.ui.TeacherUploadNotesScreen
@@ -79,6 +90,7 @@ import com.example.ui.pruneExpiredDownloads
 import com.example.ui.recordSessionTime
 import com.example.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -88,6 +100,7 @@ enum class AppScreen {
     WELCOME,
     LOGIN,
     SIGNUP,
+    STUDENT_PAYMENT,
     HOME,
     SUBJECTS,
     SUBJECT_NOTES,
@@ -171,28 +184,45 @@ class MainActivity : ComponentActivity() {
                         .apply()
                 }
 
-                // Background & active session time tracking
-                var sessionStartTime by remember { mutableStateOf(System.currentTimeMillis()) }
+                // Background & active session time tracking without triggering 1-second root recompositions
+                val sessionRef = remember {
+                    object {
+                        var startTimeMs: Long = System.currentTimeMillis()
+                        var currentStreak: StreakData = streakData
+                    }
+                }
+
+                fun syncStreakIfVisibleChanged(updated: StreakData) {
+                    sessionRef.currentStreak = updated
+                    if (
+                        updated.streakDays != streakData.streakDays ||
+                        updated.isTodayCompleted != streakData.isTodayCompleted ||
+                        updated.nextMilestoneDays != streakData.nextMilestoneDays ||
+                        updated.accumulatedMinutes != streakData.accumulatedMinutes
+                    ) {
+                        streakData = updated
+                    }
+                    persistStreak(updated)
+                }
 
                 val lifecycleOwner = LocalLifecycleOwner.current
                 DisposableEffect(lifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
                         when (event) {
                             Lifecycle.Event.ON_RESUME -> {
-                                sessionStartTime = System.currentTimeMillis()
+                                sessionRef.startTimeMs = System.currentTimeMillis()
                                 // Check for day rollover if resumed past midnight
                                 val currentDay = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                                streakData = evaluateDayRollover(streakData, currentDay)
-                                persistStreak(streakData)
+                                val rolled = evaluateDayRollover(sessionRef.currentStreak, currentDay)
+                                syncStreakIfVisibleChanged(rolled)
                             }
                             Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_STOP -> {
-                                val elapsed = System.currentTimeMillis() - sessionStartTime
+                                val elapsed = System.currentTimeMillis() - sessionRef.startTimeMs
                                 if (elapsed > 0) {
-                                    val updated = recordSessionTime(streakData, elapsed)
-                                    streakData = updated
-                                    persistStreak(updated)
+                                    val updated = recordSessionTime(sessionRef.currentStreak, elapsed)
+                                    syncStreakIfVisibleChanged(updated)
                                 }
-                                sessionStartTime = System.currentTimeMillis()
+                                sessionRef.startTimeMs = System.currentTimeMillis()
                             }
                             else -> {}
                         }
@@ -200,31 +230,33 @@ class MainActivity : ComponentActivity() {
                     lifecycleOwner.lifecycle.addObserver(observer)
                     onDispose {
                         lifecycleOwner.lifecycle.removeObserver(observer)
-                        val elapsed = System.currentTimeMillis() - sessionStartTime
+                        val elapsed = System.currentTimeMillis() - sessionRef.startTimeMs
                         if (elapsed > 0) {
-                            val updated = recordSessionTime(streakData, elapsed)
+                            val updated = recordSessionTime(sessionRef.currentStreak, elapsed)
+                            sessionRef.currentStreak = updated
                             persistStreak(updated)
                         }
                     }
                 }
 
-                // Continuous ticker: accumulates 1 second every second while active
+                // Lightweight ticker: checks every 15 seconds and only triggers recomposition when visible minutes/streak change
                 LaunchedEffect(Unit) {
                     while (true) {
-                        delay(1000L)
-                        val elapsed = System.currentTimeMillis() - sessionStartTime
-                        sessionStartTime = System.currentTimeMillis()
-                        val updated = recordSessionTime(streakData, elapsed)
-                        streakData = updated
-                        persistStreak(updated)
+                        delay(15_000L)
+                        val elapsed = System.currentTimeMillis() - sessionRef.startTimeMs
+                        sessionRef.startTimeMs = System.currentTimeMillis()
+                        if (elapsed > 0) {
+                            val updated = recordSessionTime(sessionRef.currentStreak, elapsed)
+                            syncStreakIfVisibleChanged(updated)
+                        }
                     }
                 }
 
                 val initialScreen = remember {
-                    val hasResetForV5 = prefs.getBoolean("onboarding_v5_begin_icon_reset", false)
-                    if (!hasResetForV5) {
+                    val hasResetForV6 = prefs.getBoolean("onboarding_v6_reinstall_reset", false)
+                    if (!hasResetForV6) {
                         prefs.edit()
-                            .putBoolean("onboarding_v5_begin_icon_reset", true)
+                            .putBoolean("onboarding_v6_reinstall_reset", true)
                             .putBoolean("is_first_time", true)
                             .putBoolean("is_logged_in", false)
                             .remove("last_active_screen")
@@ -244,16 +276,21 @@ class MainActivity : ComponentActivity() {
                 }
                 var currentScreen by remember { mutableStateOf(initialScreen) }
                 var previousScreen by remember { mutableStateOf(AppScreen.TEACHER_HOME) }
+                val coroutineScope = rememberCoroutineScope()
 
                 LaunchedEffect(currentScreen) {
                     prefs.edit().putString("last_active_screen", currentScreen.name).apply()
                 }
                 var selectedSubjectName by remember { mutableStateOf("Math") }
+                var subjectNotesPreviousScreen by remember { mutableStateOf(AppScreen.SUBJECTS) }
                 var selectedPdfTitle by remember { mutableStateOf("Algebra") }
                 var selectedPdfSubject by remember { mutableStateOf("Math") }
 
                 var studentName by remember {
                     mutableStateOf(prefs.getString("student_name", "Student") ?: "Student")
+                }
+                var studentPhone by remember {
+                    mutableStateOf(prefs.getString("user_phone", "") ?: "")
                 }
                 var schoolName by remember {
                     mutableStateOf(prefs.getString("student_school", "Secondary School") ?: "Secondary School")
@@ -282,11 +319,85 @@ class MainActivity : ComponentActivity() {
                 var teacherName by remember {
                     mutableStateOf(prefs.getString("teacher_name", "Teacher") ?: "Teacher")
                 }
+                var teacherIdCode by remember {
+                    val savedId = prefs.getString("teacher_id_code", null)
+                    val initialId = if (!savedId.isNullOrBlank()) savedId else generateTeacherIdCode(teacherName)
+                    mutableStateOf(initialId)
+                }
                 var teacherSchool by remember {
                     mutableStateOf(prefs.getString("teacher_school", "Secondary School") ?: "Secondary School")
                 }
                 var teacherSubjectsTaught by remember {
                     mutableStateOf(prefs.getString("teacher_subjects", "Secondary Curriculum") ?: "Secondary Curriculum")
+                }
+
+                var linkedSubjectTeachers by remember {
+                    val raw = prefs.getString("student_linked_subject_teachers", "") ?: ""
+                    val initialMap = raw.split(";")
+                        .mapNotNull { entry ->
+                            val parts = entry.split(":")
+                            if (parts.size == 2 && parts[0].isNotBlank() && parts[1].isNotBlank()) {
+                                parts[0] to parts[1]
+                            } else null
+                        }
+                        .toMap()
+                    mutableStateOf(initialMap)
+                }
+
+                val persistLinkedSubjectTeachers: (Map<String, String>) -> Unit = { updatedMap ->
+                    linkedSubjectTeachers = updatedMap
+                    val serialized = updatedMap.entries.joinToString(";") { "${it.key}:${it.value}" }
+                    prefs.edit().putString("student_linked_subject_teachers", serialized).apply()
+                }
+
+                var connectedStudentsList by remember {
+                    val raw = prefs.getString("teacher_connected_students", "") ?: ""
+                    mutableStateOf(deserializeConnectedStudents(raw))
+                }
+
+                val recordConnectedStudent: (String, String) -> Unit = { subjectName, enteredTeacherId ->
+                    val normalizedCode = enteredTeacherId.trim().uppercase()
+                    val nowDate = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date())
+                    val currentStudentName = studentName.trim().ifBlank { "Student" }
+                    val currentStudentClass = academicClass.trim().ifBlank { "S.4" }
+                    val newEntry = ConnectedStudent(
+                        id = "${currentStudentName.lowercase().replace(" ", "_")}_${subjectName.lowercase().replace(" ", "_")}_$normalizedCode",
+                        studentName = currentStudentName,
+                        studentClass = currentStudentClass,
+                        subjectName = subjectName,
+                        teacherIdCode = normalizedCode,
+                        connectedDate = nowDate
+                    )
+                    val updatedList = listOf(newEntry) + connectedStudentsList.filterNot {
+                        it.studentName.equals(currentStudentName, ignoreCase = true) &&
+                            it.subjectName.equals(subjectName, ignoreCase = true) &&
+                            it.teacherIdCode.equals(normalizedCode, ignoreCase = true)
+                    }
+                    connectedStudentsList = updatedList
+                    prefs.edit().putString("teacher_connected_students", serializeConnectedStudents(updatedList)).apply()
+                    coroutineScope.launch {
+                        SupabaseRepository.syncStudentTeacherLink(
+                            studentPhone = studentPhone,
+                            studentName = currentStudentName,
+                            studentClass = currentStudentClass,
+                            subjectName = subjectName,
+                            teacherIdCode = normalizedCode,
+                            connectedDate = nowDate
+                        )
+                    }
+                }
+
+                // Sync connected students for teacher from Supabase when entering TEACHER_HOME
+                LaunchedEffect(currentScreen, teacherIdCode) {
+                    if (currentScreen == AppScreen.TEACHER_HOME && SupabaseConfig.isConfigured()) {
+                        val remoteStudents = SupabaseRepository.fetchConnectedStudentsForTeacher(teacherIdCode)
+                        if (remoteStudents.isNotEmpty()) {
+                            val merged = (remoteStudents + connectedStudentsList)
+                                .distinctBy { "${it.studentName.lowercase()}_${it.subjectName.lowercase()}_${it.teacherIdCode.uppercase()}" }
+                            connectedStudentsList = merged
+                            prefs.edit().putString("teacher_connected_students", serializeConnectedStudents(merged)).apply()
+                        }
+                    }
                 }
 
                 val onSaveTeacherProfile: (String, String, String) -> Unit = { newName, newSchool, newSubjects ->
@@ -447,6 +558,7 @@ class MainActivity : ComponentActivity() {
                     currentScreen = when (currentScreen) {
                         AppScreen.LOGIN -> AppScreen.WELCOME
                         AppScreen.SIGNUP -> AppScreen.WELCOME
+                        AppScreen.STUDENT_PAYMENT -> AppScreen.SIGNUP
                         AppScreen.WELCOME -> AppScreen.WELCOME
                         AppScreen.ONBOARDING -> AppScreen.ONBOARDING
                         AppScreen.PDF_VIEWER -> previousScreen
@@ -492,13 +604,12 @@ class MainActivity : ComponentActivity() {
                         )
                         AppScreen.WELCOME -> WelcomeScreen(
                             onNavigateToLogin = { currentScreen = AppScreen.LOGIN },
-                            onNavigateToSignup = { currentScreen = AppScreen.SIGNUP },
-                            onExploreAsGuest = { currentScreen = AppScreen.HOME }
+                            onNavigateToSignup = { currentScreen = AppScreen.SIGNUP }
                         )
                         AppScreen.LOGIN -> LoginScreen(
                             onNavigateBack = { currentScreen = AppScreen.WELCOME },
                             onNavigateToSignup = { currentScreen = AppScreen.SIGNUP },
-                            onLoginSuccess = { role, phoneOrIdentifier, fullName, savedClass, savedStream ->
+                            onLoginSuccess = { role, phoneOrIdentifier, fullName, savedClass, savedStream, savedSubjects ->
                                 val editor = prefs.edit()
                                     .putBoolean("is_logged_in", true)
                                     .putString("user_role", role)
@@ -506,6 +617,7 @@ class MainActivity : ComponentActivity() {
                                     .putString("user_phone", phoneOrIdentifier)
 
                                 if (role.equals("student", ignoreCase = true)) {
+                                    studentPhone = phoneOrIdentifier
                                     if (!fullName.isNullOrBlank()) {
                                         studentName = fullName
                                         editor.putString("student_name", fullName)
@@ -523,6 +635,17 @@ class MainActivity : ComponentActivity() {
                                         teacherName = fullName
                                         editor.putString("teacher_name", fullName)
                                     }
+                                    val generatedId = generateTeacherIdCode(fullName ?: phoneOrIdentifier)
+                                    teacherIdCode = generatedId
+                                    editor.putString("teacher_id_code", generatedId)
+                                    if (!savedSubjects.isNullOrBlank()) {
+                                        teacherSubjectsTaught = savedSubjects
+                                        val resolvedItems = resolveTeacherSubjectItems(savedSubjects)
+                                        if (resolvedItems.isNotEmpty()) {
+                                            selectedTeacherSubjectItem = resolvedItems.first()
+                                        }
+                                        editor.putString("teacher_subjects", savedSubjects)
+                                    }
                                 }
                                 editor.apply()
 
@@ -536,7 +659,7 @@ class MainActivity : ComponentActivity() {
                         AppScreen.SIGNUP -> SignupScreen(
                             onNavigateBack = { currentScreen = AppScreen.WELCOME },
                             onNavigateToLogin = { currentScreen = AppScreen.LOGIN },
-                            onSignupSuccess = { role, phoneNumber, name, studentClass, studentStream ->
+                            onSignupSuccess = { role, phoneNumber, name, studentClass, studentStream, selectedTeacherSubjects ->
                                 val editor = prefs.edit()
                                     .putBoolean("is_logged_in", true)
                                     .putString("user_role", role)
@@ -545,6 +668,9 @@ class MainActivity : ComponentActivity() {
 
                                 if (role.equals("student", ignoreCase = true)) {
                                     studentName = name
+                                    studentPhone = phoneNumber
+                                    activePlanDuration = ""
+                                    activePlanExpiry = ""
                                     val combinedClassStream = listOf(studentClass.trim(), studentStream.trim())
                                         .filter { it.isNotBlank() }
                                         .joinToString(" ")
@@ -555,17 +681,61 @@ class MainActivity : ComponentActivity() {
                                         .putString("student_class", combinedClassStream)
                                         .putString("student_class_only", studentClass.trim())
                                         .putString("student_stream_only", studentStream.trim())
+                                        .putString("student_active_plan_duration", "")
+                                        .putString("student_active_plan_expiry", "")
+                                        .putString("student_linked_subject_teachers", "")
+                                    linkedSubjectTeachers = emptyMap()
                                 } else if (role.equals("teacher", ignoreCase = true)) {
                                     teacherName = name
-                                    editor.putString("teacher_name", name)
+                                    val generatedId = generateTeacherIdCode(name.ifBlank { phoneNumber })
+                                    teacherIdCode = generatedId
+                                    val cleanSubjects = selectedTeacherSubjects.trim().ifBlank { "Secondary Curriculum" }
+                                    teacherSubjectsTaught = cleanSubjects
+                                    val resolvedTeacherItems = resolveTeacherSubjectItems(cleanSubjects)
+                                    if (resolvedTeacherItems.isNotEmpty()) {
+                                        selectedTeacherSubjectItem = resolvedTeacherItems.first()
+                                    }
+                                    editor
+                                        .putString("teacher_name", name)
+                                        .putString("teacher_id_code", generatedId)
+                                        .putString("teacher_subjects", cleanSubjects)
                                 }
                                 editor.apply()
 
                                 currentScreen = when (role.lowercase()) {
                                     "teacher" -> AppScreen.TEACHER_HOME
                                     "admin" -> AppScreen.ADMIN_HOME
-                                    else -> AppScreen.HOME
+                                    else -> AppScreen.STUDENT_PAYMENT
                                 }
+                            }
+                        )
+                        AppScreen.STUDENT_PAYMENT -> StudentPaymentScreen(
+                            studentName = studentName,
+                            signupPhoneNumber = studentPhone,
+                            selectedPlan = DefaultPlanTiers.first(),
+                            onNavigateBack = {
+                                currentScreen = AppScreen.SIGNUP
+                            },
+                            onPaymentSuccess = { paidPlan, paidPhone ->
+                                studentPhone = paidPhone
+                                activePlanDuration = paidPlan.duration
+                                activePlanExpiry = "Valid for 30 days"
+                                prefs.edit()
+                                    .putString("user_phone", paidPhone)
+                                    .putString("student_active_plan_duration", activePlanDuration)
+                                    .putString("student_active_plan_expiry", activePlanExpiry)
+                                    .apply()
+                                val nowDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                                coroutineScope.launch {
+                                    SupabaseRepository.recordStudentPayment(
+                                        studentName = studentName,
+                                        phoneNumber = paidPhone,
+                                        planDuration = paidPlan.duration,
+                                        amountUgx = paidPlan.priceUgx.toLong(),
+                                        transactionDate = nowDate
+                                    )
+                                }
+                                currentScreen = AppScreen.HOME
                             }
                         )
                         AppScreen.HOME -> HomeScreen(
@@ -574,6 +744,11 @@ class MainActivity : ComponentActivity() {
                             activePlanDuration = activePlanDuration,
                             activePlanExpiry = activePlanExpiry,
                             recentNotes = recentNotesList,
+                            linkedSubjectTeachers = linkedSubjectTeachers,
+                            onLinkSubjectTeacher = { subjectName, teacherId ->
+                                persistLinkedSubjectTeachers(linkedSubjectTeachers + (subjectName to teacherId))
+                                recordConnectedStudent(subjectName, teacherId)
+                            },
                             onNavigateToSubjects = {
                                 currentScreen = AppScreen.SUBJECTS
                             },
@@ -589,6 +764,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onNavigateToSubjectDetail = { subject ->
                                 selectedSubjectName = subject
+                                subjectNotesPreviousScreen = AppScreen.HOME
                                 currentScreen = AppScreen.SUBJECT_NOTES
                             },
                             onOpenNote = { title, subject ->
@@ -607,6 +783,11 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                         AppScreen.SUBJECTS -> SubjectsScreen(
+                            linkedSubjectTeachers = linkedSubjectTeachers,
+                            onLinkSubjectTeacher = { subjectName, teacherId ->
+                                persistLinkedSubjectTeachers(linkedSubjectTeachers + (subjectName to teacherId))
+                                recordConnectedStudent(subjectName, teacherId)
+                            },
                             onNavigateToHome = {
                                 currentScreen = AppScreen.HOME
                             },
@@ -618,16 +799,20 @@ class MainActivity : ComponentActivity() {
                             },
                             onSubjectClick = { subjectItem ->
                                 selectedSubjectName = subjectItem.name
+                                subjectNotesPreviousScreen = AppScreen.SUBJECTS
                                 currentScreen = AppScreen.SUBJECT_NOTES
                             }
                         )
                         AppScreen.SUBJECT_NOTES -> SubjectNotesScreen(
                             subjectName = selectedSubjectName,
                             onNavigateBack = {
-                                currentScreen = AppScreen.SUBJECTS
+                                currentScreen = subjectNotesPreviousScreen
                             },
                             onNavigateToHome = {
                                 currentScreen = AppScreen.HOME
+                            },
+                            onNavigateToSubjects = {
+                                currentScreen = AppScreen.SUBJECTS
                             },
                             onNavigateToDownloads = {
                                 currentScreen = AppScreen.DOWNLOADS
@@ -760,6 +945,7 @@ class MainActivity : ComponentActivity() {
                             onUpdateProfile = onSaveProfile,
                             onLogout = {
                                 prefs.edit().putBoolean("is_logged_in", false).apply()
+                                coroutineScope.launch { SupabaseRepository.revokeCurrentSession() }
                                 currentScreen = AppScreen.WELCOME
                             }
                         )
@@ -817,86 +1003,92 @@ class MainActivity : ComponentActivity() {
                         AppScreen.ACCOUNT -> AccountScreen(
                             activePlanDuration = activePlanDuration,
                             activePlanExpiry = activePlanExpiry,
+                            initialPhoneNumber = studentPhone,
                             onNavigateBack = {
                                 currentScreen = accountPreviousScreen
                             },
                             onPlanUpdated = { newPlan ->
                                 activePlanDuration = newPlan.duration
-                                activePlanExpiry = when (newPlan.id) {
-                                    "1_month" -> "Valid for 30 days"
-                                    "1_term" -> "Valid until end of Term 3, 2026"
-                                    "1_year" -> "Valid until Term 2, 2027"
-                                    else -> "Valid until Term 2, 2026"
-                                }
+                                activePlanExpiry = "Valid for 30 days"
                                 prefs.edit()
                                     .putString("student_active_plan_duration", activePlanDuration)
                                     .putString("student_active_plan_expiry", activePlanExpiry)
                                     .apply()
                             }
                         )
-                        AppScreen.TEACHER_HOME -> TeacherHomeScreen(
-                            teacherName = teacherName,
-                            subjectsTaught = teacherSubjectsTaught,
-                            notesUploadedCount = teacherUploadsList.size,
-                            classesCount = if (teacherUploadsList.isEmpty()) 0 else teacherUploadsList.map { it.targetClass }.distinct().size,
-                            notesSharedThisTermCount = teacherUploadsList.size,
-                            mostActiveClass = if (teacherUploadsList.isEmpty()) "None yet" else teacherUploadsList.groupBy { it.targetClass }.maxByOrNull { it.value.size }?.key ?: "None yet",
-                            notesOpenedThisWeekCount = 0,
-                            recentUploads = teacherUploadsList.take(5).map {
-                                TeacherRecentUpload(
-                                    id = it.id,
-                                    title = it.title,
-                                    subject = it.subject,
-                                    targetClass = it.targetClass,
-                                    dateUploaded = it.dateUploaded
-                                )
-                            },
-                            onNavigateToMySubjects = {
-                                currentScreen = AppScreen.TEACHER_MY_SUBJECTS
-                            },
-                            onNavigateToUploads = {
-                                currentScreen = AppScreen.TEACHER_UPLOADS
-                            },
-                            onNavigateToTeacherProfile = {
-                                currentScreen = AppScreen.TEACHER_PROFILE
-                            },
-                            onUploadNotesClick = {
-                                teacherNoteToEdit = null
-                                previousScreen = AppScreen.TEACHER_HOME
-                                currentScreen = AppScreen.TEACHER_UPLOAD_NOTES
-                            },
-                            onRecentNoteClick = { recentNote ->
-                                selectedPdfTitle = recentNote.title
-                                selectedPdfSubject = recentNote.subject
-                                recordRecentTopic(recentNote.title, recentNote.subject, null)
-                                previousScreen = AppScreen.TEACHER_HOME
-                                currentScreen = AppScreen.PDF_VIEWER
-                            },
-                            onSeeAllRecentClick = {
-                                currentScreen = AppScreen.TEACHER_UPLOADS
-                            },
-                            onSwitchToStudentView = {
-                                currentScreen = AppScreen.PROFILE
-                            }
-                        )
-                        AppScreen.TEACHER_MY_SUBJECTS -> TeacherSubjectsScreen(
-                            teacherName = teacherName,
-                            subjects = DefaultTeacherSubjects.map { subjectItem ->
-                                val subjectUploads = teacherUploadsList.filter { it.subject.equals(subjectItem.name, ignoreCase = true) }
-                                subjectItem.copy(
-                                    noteCount = subjectUploads.count { it.type.equals("Notes", ignoreCase = true) },
-                                    assignmentCount = subjectUploads.count { it.type.equals("Assignment", ignoreCase = true) }
-                                )
-                            },
-                            onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
-                            onNavigateToMySubjects = { /* Already on My Subjects */ },
-                            onNavigateToUploads = { currentScreen = AppScreen.TEACHER_UPLOADS },
-                            onNavigateToTeacherProfile = { currentScreen = AppScreen.TEACHER_PROFILE },
-                            onSubjectClick = { subjectItem ->
-                                selectedTeacherSubjectItem = subjectItem
-                                currentScreen = AppScreen.TEACHER_SUBJECT_CONFIG
-                            }
-                        )
+                        AppScreen.TEACHER_HOME -> {
+                            val teacherConnectedStudents = connectedStudentsList.filter {
+                                it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)
+                            }.ifEmpty { connectedStudentsList }
+                            TeacherHomeScreen(
+                                teacherName = teacherName,
+                                teacherIdCode = teacherIdCode,
+                                subjectsTaught = teacherSubjectsTaught,
+                                notesUploadedCount = teacherUploadsList.size,
+                                classesCount = teacherConnectedStudents.size,
+                                connectedStudents = teacherConnectedStudents,
+                                notesSharedThisTermCount = teacherUploadsList.size,
+                                mostActiveClass = if (teacherUploadsList.isEmpty()) "None yet" else teacherUploadsList.groupBy { it.targetClass }.maxByOrNull { it.value.size }?.key ?: "None yet",
+                                notesOpenedThisWeekCount = 0,
+                                recentUploads = teacherUploadsList.take(5).map {
+                                    TeacherRecentUpload(
+                                        id = it.id,
+                                        title = it.title,
+                                        subject = it.subject,
+                                        targetClass = it.targetClass,
+                                        dateUploaded = it.dateUploaded
+                                    )
+                                },
+                                onNavigateToMySubjects = {
+                                    currentScreen = AppScreen.TEACHER_MY_SUBJECTS
+                                },
+                                onNavigateToUploads = {
+                                    currentScreen = AppScreen.TEACHER_UPLOADS
+                                },
+                                onNavigateToTeacherProfile = {
+                                    currentScreen = AppScreen.TEACHER_PROFILE
+                                },
+                                onUploadNotesClick = {
+                                    teacherNoteToEdit = null
+                                    previousScreen = AppScreen.TEACHER_HOME
+                                    currentScreen = AppScreen.TEACHER_UPLOAD_NOTES
+                                },
+                                onRecentNoteClick = { recentNote ->
+                                    selectedPdfTitle = recentNote.title
+                                    selectedPdfSubject = recentNote.subject
+                                    recordRecentTopic(recentNote.title, recentNote.subject, null)
+                                    previousScreen = AppScreen.TEACHER_HOME
+                                    currentScreen = AppScreen.PDF_VIEWER
+                                },
+                                onSeeAllRecentClick = {
+                                    currentScreen = AppScreen.TEACHER_UPLOADS
+                                },
+                                onSwitchToStudentView = {
+                                    currentScreen = AppScreen.PROFILE
+                                }
+                            )
+                        }
+                        AppScreen.TEACHER_MY_SUBJECTS -> {
+                            val activeTeacherSubjects = resolveTeacherSubjectItems(teacherSubjectsTaught)
+                            TeacherSubjectsScreen(
+                                teacherName = teacherName,
+                                subjects = activeTeacherSubjects.map { subjectItem ->
+                                    val subjectUploads = teacherUploadsList.filter { it.subject.equals(subjectItem.name, ignoreCase = true) }
+                                    subjectItem.copy(
+                                        noteCount = subjectUploads.count { it.type.equals("Notes", ignoreCase = true) },
+                                        assignmentCount = subjectUploads.count { it.type.equals("Assignment", ignoreCase = true) }
+                                    )
+                                },
+                                onNavigateToHome = { currentScreen = AppScreen.TEACHER_HOME },
+                                onNavigateToMySubjects = { /* Already on My Subjects */ },
+                                onNavigateToUploads = { currentScreen = AppScreen.TEACHER_UPLOADS },
+                                onNavigateToTeacherProfile = { currentScreen = AppScreen.TEACHER_PROFILE },
+                                onSubjectClick = { subjectItem ->
+                                    selectedTeacherSubjectItem = subjectItem
+                                    currentScreen = AppScreen.TEACHER_SUBJECT_CONFIG
+                                }
+                            )
+                        }
                         AppScreen.TEACHER_SUBJECT_CONFIG -> TeacherSubjectConfigScreen(
                             subject = selectedTeacherSubjectItem,
                             initialUploads = teacherUploadsList.filter { it.subject.equals(selectedTeacherSubjectItem.name, ignoreCase = true) }.map {
@@ -932,6 +1124,7 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                         AppScreen.TEACHER_UPLOAD_NOTES -> {
+                            val activeTeacherSubjects = resolveTeacherSubjectItems(teacherSubjectsTaught)
                             val assignedClasses = if (selectedTeacherSubjectItem.name.equals("Math", ignoreCase = true)) {
                                 listOf("S.3 Blue", "S.3 Green", "S.4 Green", "S.4 Blue")
                             } else {
@@ -940,7 +1133,7 @@ class MainActivity : ComponentActivity() {
                             TeacherUploadNotesScreen(
                                 subjectName = selectedTeacherSubjectItem.name,
                                 subjectIcon = selectedTeacherSubjectItem.icon,
-                                availableSubjects = DefaultTeacherSubjects,
+                                availableSubjects = activeTeacherSubjects,
                                 assignedClasses = assignedClasses,
                                 existingNote = teacherNoteToEdit,
                                 onNavigateBack = {
@@ -948,6 +1141,12 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onSaveSuccess = { savedItem ->
                                     val nowStr = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date())
+                                    val resolvedDate = if (savedItem.dateUploaded.isBlank() || savedItem.dateUploaded.equals("Today", ignoreCase = true)) {
+                                        nowStr
+                                    } else {
+                                        savedItem.dateUploaded
+                                    }
+                                    val resolvedSize = savedItem.fileSize.ifBlank { "2.4 MB" }
                                     val newUpload = TeacherUploadItem(
                                         id = savedItem.id.ifBlank { "upload-${System.currentTimeMillis()}" },
                                         title = savedItem.title,
@@ -955,8 +1154,8 @@ class MainActivity : ComponentActivity() {
                                         targetClass = savedItem.targetClass,
                                         term = "Term 3",
                                         type = savedItem.type,
-                                        dateUploaded = savedItem.dateUploaded.ifBlank { nowStr },
-                                        fileSize = "2.4 MB",
+                                        dateUploaded = resolvedDate,
+                                        fileSize = resolvedSize,
                                         downloadCount = 0,
                                         viewCount = 0,
                                         dueDate = savedItem.dueDate,
@@ -967,6 +1166,29 @@ class MainActivity : ComponentActivity() {
                                         teacherUploadsList.toMutableList().apply { set(existingIdx, newUpload) }
                                     } else {
                                         listOf(newUpload) + teacherUploadsList
+                                    }
+                                    val editingSnapshot = teacherNoteToEdit
+                                    coroutineScope.launch {
+                                        if (editingSnapshot != null) {
+                                            SupabaseRepository.updateNoteUploadInSupabase(
+                                                noteId = editingSnapshot.id,
+                                                originalTitle = editingSnapshot.title,
+                                                subjectName = editingSnapshot.subject,
+                                                updatedTitle = savedItem.title,
+                                                updatedTargetClass = savedItem.targetClass,
+                                                updatedType = savedItem.type,
+                                                updatedDueDate = savedItem.dueDate
+                                            )
+                                        } else {
+                                            SupabaseRepository.uploadNoteAndFileToSupabase(
+                                                uploadItem = savedItem.copy(
+                                                    dateUploaded = resolvedDate,
+                                                    fileSize = resolvedSize
+                                                ),
+                                                teacherIdCode = teacherIdCode,
+                                                teacherName = teacherName
+                                            )
+                                        }
                                     }
                                     currentScreen = previousScreen
                                 }
@@ -1021,6 +1243,7 @@ class MainActivity : ComponentActivity() {
                             onSwitchToStudentView = { currentScreen = AppScreen.PROFILE },
                             onLogout = {
                                 prefs.edit().putBoolean("is_logged_in", false).apply()
+                                coroutineScope.launch { SupabaseRepository.revokeCurrentSession() }
                                 currentScreen = AppScreen.WELCOME
                             }
                         )
@@ -1033,12 +1256,12 @@ class MainActivity : ComponentActivity() {
                             onSwitchToStudentView = { currentScreen = AppScreen.PROFILE }
                         )
                         AppScreen.ADMIN_HOME -> AdminHomeScreen(
-                            revenueBalance = "UGX 5,867,000",
-                            studentsCount = "1,000",
-                            teachersCount = "50",
-                            notesCount = "300",
-                            assignmentsCount = "170",
-                            affiliatesCount = "100",
+                            revenueBalance = "0",
+                            studentsCount = "0",
+                            teachersCount = "0",
+                            notesCount = "0",
+                            assignmentsCount = "0",
+                            affiliatesCount = "0",
                             onNavigateToPlans = {
                                 currentScreen = AppScreen.ADMIN_PLANS
                             },
@@ -1104,6 +1327,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onLogout = {
                                 prefs.edit().putBoolean("is_logged_in", false).apply()
+                                coroutineScope.launch { SupabaseRepository.revokeCurrentSession() }
                                 currentScreen = AppScreen.WELCOME
                             }
                         )
@@ -1129,9 +1353,9 @@ class MainActivity : ComponentActivity() {
                             onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
                         )
                         AppScreen.ADMIN_ACCOUNT -> AdminAccountScreen(
-                            initialBalance = "UGX 5,867,000",
-                            initialTax = "UGX 293,350",
-                            initialDb = "UGX 300,000",
+                            initialBalance = "0",
+                            initialTax = "0",
+                            initialDb = "0",
                             onNavigateBack = { currentScreen = adminAccountPreviousScreen },
                             onNavigateToTransactions = {
                                 adminTransactionsPreviousScreen = AppScreen.ADMIN_ACCOUNT

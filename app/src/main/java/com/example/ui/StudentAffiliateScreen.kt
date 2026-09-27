@@ -341,7 +341,7 @@ fun StudentAffiliateScreen(
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "CATCH UP WALLET",
+                                        text = "CACHAP WALLET",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = LightLavender,

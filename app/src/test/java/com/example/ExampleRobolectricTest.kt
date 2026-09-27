@@ -22,6 +22,8 @@ import com.example.ui.AnalysisTimeRange
 import com.example.ui.DefaultRevenueChartData
 import com.example.ui.DefaultStudentsList
 import com.example.ui.DefaultTeachersList
+import com.example.ui.mergeSignedUpAndDefaultUsers
+import com.example.ui.toAdminUserItem
 import com.example.ui.DefaultTopAffiliates
 import com.example.ui.DefaultUsersChartData
 import com.example.ui.MonthUsersChartData
@@ -60,7 +62,7 @@ class ExampleRobolectricTest {
   fun `read string from context`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val appName = context.getString(R.string.app_name)
-    assertEquals("Catch Up", appName)
+    assertEquals("Cachap", appName)
   }
 
   @Test
@@ -125,19 +127,11 @@ class ExampleRobolectricTest {
   @Test
   fun `verify account plan tiers match specification`() {
     val plans = com.example.ui.DefaultPlanTiers
-    assertEquals(3, plans.size)
+    assertEquals(1, plans.size)
 
     assertEquals("1 Month", plans[0].duration)
     assertEquals("Billed monthly", plans[0].caption)
     assertEquals("UGX 1,000", plans[0].price)
-
-    assertEquals("1 Term", plans[1].duration)
-    assertEquals("Billed per term", plans[1].caption)
-    assertEquals("UGX 3,000", plans[1].price)
-
-    assertEquals("1 Year", plans[2].duration)
-    assertEquals("Billed annually — best value", plans[2].caption)
-    assertEquals("UGX 10,000", plans[2].price)
   }
 
   @Test
@@ -164,7 +158,7 @@ class ExampleRobolectricTest {
     assertTrue(ABOUT_STORY_TEXT.contains("Our Story"))
     assertTrue(ABOUT_STORY_TEXT.contains("I am a teacher."))
     assertTrue(ABOUT_STORY_TEXT.contains("Less time copying. More time learning."))
-    assertTrue(ABOUT_STORY_TEXT.contains("That is where Catch Up began."))
+    assertTrue(ABOUT_STORY_TEXT.contains("That is where Cachap began."))
   }
 
   @Test
@@ -223,20 +217,13 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify admin users default students list contains requested users`() {
-    val studentNames = DefaultStudentsList.map { it.name }
-    assertEquals(4, DefaultStudentsList.size)
-    assertTrue(studentNames.contains("Ezekiel Joseph"))
-    assertTrue(studentNames.contains("Nifemi Moses"))
-    assertTrue(studentNames.contains("Sarah Seruwama"))
-    assertTrue(studentNames.contains("Apollo kenh"))
-    assertTrue(DefaultStudentsList.all { it.role == UserRoleFilter.STUDENTS })
+  fun `verify admin users default students list starts empty for production`() {
+    assertTrue(DefaultStudentsList.isEmpty())
   }
 
   @Test
-  fun `verify admin users default teachers list contains teachers`() {
-    assertEquals(4, DefaultTeachersList.size)
-    assertTrue(DefaultTeachersList.all { it.role == UserRoleFilter.TEACHERS })
+  fun `verify admin users default teachers list starts empty for production`() {
+    assertTrue(DefaultTeachersList.isEmpty())
   }
 
   @Test
@@ -363,13 +350,9 @@ class ExampleRobolectricTest {
 
   @Test
   fun `verify default admin plans list and pricing formatting`() {
-    assertEquals(3, DefaultAdminPlans.size)
+    assertEquals(1, DefaultAdminPlans.size)
     assertEquals("1 Month", DefaultAdminPlans[0].duration)
     assertEquals("UGX 1,000", DefaultAdminPlans[0].price)
-    assertEquals("1 Term", DefaultAdminPlans[1].duration)
-    assertEquals("UGX 3,000", DefaultAdminPlans[1].price)
-    assertEquals("1 Year", DefaultAdminPlans[2].duration)
-    assertEquals("UGX 10,000", DefaultAdminPlans[2].price)
 
     assertEquals("UGX 5,000", formatUgxPrice(5000))
     assertEquals("UGX 100,000", formatUgxPrice(100000))
@@ -384,7 +367,7 @@ class ExampleRobolectricTest {
     // Add
     val newPlan = AdminPlanItem("plan_custom", "6 Months", "UGX 6,000", 6000)
     plans = plans + newPlan
-    assertEquals(4, plans.size)
+    assertEquals(2, plans.size)
     assertTrue(plans.any { it.duration == "6 Months" })
 
     // Edit
@@ -394,9 +377,9 @@ class ExampleRobolectricTest {
     assertEquals("UGX 1,500", plans.first { it.id == "plan_1_month" }.price)
 
     // Delete
-    plans = plans.filterNot { it.id == "plan_1_term" }
-    assertEquals(3, plans.size)
-    assertFalse(plans.any { it.id == "plan_1_term" })
+    plans = plans.filterNot { it.id == "plan_custom" }
+    assertEquals(1, plans.size)
+    assertFalse(plans.any { it.id == "plan_custom" })
   }
 
   @Test
@@ -540,18 +523,10 @@ class ExampleRobolectricTest {
 
   @Test
   fun `verify payment subscription plan tiers configuration`() {
-    assertEquals(3, DefaultPlanTiers.size)
+    assertEquals(1, DefaultPlanTiers.size)
     assertEquals("1 Month", DefaultPlanTiers[0].duration)
     assertEquals("UGX 1,000", DefaultPlanTiers[0].price)
     assertEquals(1000, DefaultPlanTiers[0].priceUgx)
-
-    assertEquals("1 Term", DefaultPlanTiers[1].duration)
-    assertEquals("UGX 3,000", DefaultPlanTiers[1].price)
-    assertEquals(3000, DefaultPlanTiers[1].priceUgx)
-
-    assertEquals("1 Year", DefaultPlanTiers[2].duration)
-    assertEquals("UGX 10,000", DefaultPlanTiers[2].price)
-    assertEquals(10000, DefaultPlanTiers[2].priceUgx)
   }
 
   @Test
@@ -668,13 +643,13 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify user entity stores phone number role password and individual class stream`() {
-    val studentUser = com.example.data.UserEntity(
+  fun `verify supabase user dto stores phone number role password hash and individual class stream`() {
+    val studentUser = com.example.data.SupabaseUserDto(
       id = "usr-1",
       phoneNumber = "0772123456",
       fullName = "Mukasa David",
       role = "student",
-      password = "secret",
+      passwordHash = com.example.data.SupabaseSecurityVault.hashPassword("secret"),
       academicClass = "S.4",
       stream = "Green"
     )
@@ -767,5 +742,176 @@ class ExampleRobolectricTest {
       "payment_reminder",
       paymentIntent.getStringExtra(com.example.notifications.NotificationHelper.EXTRA_NOTIFICATION_TYPE)
     )
+  }
+
+  @Test
+  fun `verify teacher id code is 6 characters of capital letters and numbers only`() {
+    val defaultCode = com.example.ui.DEFAULT_TEACHER_ID_CODE
+    assertEquals(6, defaultCode.length)
+    assertTrue(com.example.ui.isValidTeacherIdCode(defaultCode))
+
+    val generated = com.example.ui.generateTeacherIdCode("Tr. Okello Peter")
+    assertEquals(6, generated.length)
+    assertTrue(com.example.ui.isValidTeacherIdCode(generated))
+    assertTrue(generated.all { it in 'A'..'Z' || it in '0'..'9' })
+
+    assertFalse(com.example.ui.isValidTeacherIdCode("ABC12")) // Too short
+    assertFalse(com.example.ui.isValidTeacherIdCode("abc123")) // Lowercase not valid
+  }
+
+  @Test
+  fun `verify connected students serialization and deserialization`() {
+    val students = listOf(
+      com.example.ui.ConnectedStudent(
+        id = "sarah_math_K7M4P9",
+        studentName = "Sarah Seruwama",
+        studentClass = "S.4 Green",
+        subjectName = "Math",
+        teacherIdCode = "K7M4P9",
+        connectedDate = "Sep 27, 2026"
+      )
+    )
+    val serialized = com.example.ui.serializeConnectedStudents(students)
+    val restored = com.example.ui.deserializeConnectedStudents(serialized)
+    assertEquals(1, restored.size)
+    assertEquals("Sarah Seruwama", restored[0].studentName)
+    assertEquals("S.4 Green", restored[0].studentClass)
+    assertEquals("Math", restored[0].subjectName)
+    assertEquals("K7M4P9", restored[0].teacherIdCode)
+  }
+
+  @Test
+  fun `verify quick access subjects match default curriculum subjects and prioritize linked subjects`() {
+    val allSubjects = com.example.ui.DefaultCurriculumSubjects
+    assertTrue(allSubjects.size >= 4)
+    assertEquals(listOf("Math", "English", "Physics", "Chemistry"), allSubjects.take(4).map { it.name })
+
+    val linkedSubjectTeachers = mapOf("Geography" to "K7M4P9", "Biology" to "M2N8Q4")
+    val linkedItems = linkedSubjectTeachers.keys.mapNotNull { linkedName ->
+      allSubjects.find { it.name.equals(linkedName, ignoreCase = true) }
+    }
+    val remainingItems = allSubjects.filterNot { candidate ->
+      linkedItems.any { it.name.equals(candidate.name, ignoreCase = true) }
+    }
+    val quickAccess = (linkedItems + remainingItems).take(4)
+    assertEquals(listOf("Geography", "Biology", "Math", "English"), quickAccess.map { it.name })
+    assertEquals(com.example.ui.getSubjectThemeColor("Geography"), quickAccess[0].color)
+    assertEquals(com.example.ui.getSubjectThemeColor("Biology"), quickAccess[1].color)
+  }
+
+  @Test
+  fun `verify supabase security vault key obfuscation redaction and password hashing`() {
+    val sampleKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sample_payload.signature1234"
+    com.example.data.SupabaseSecurityVault.storeObfuscatedKey(sampleKey)
+    assertEquals(sampleKey, com.example.data.SupabaseSecurityVault.retrieveAnonKey())
+
+    val redacted = com.example.data.SupabaseSecurityVault.redactKey(sampleKey)
+    assertTrue(redacted.contains("[REDACTED]"))
+    assertFalse(redacted.contains("sample_payload"))
+
+    val hash1 = com.example.data.SupabaseSecurityVault.hashPassword("MySecret123")
+    val hash2 = com.example.data.SupabaseSecurityVault.hashPassword("MySecret123")
+    assertEquals(hash1, hash2)
+    assertEquals(64, hash1.length)
+    assertTrue(com.example.data.SupabaseSecurityVault.verifyPassword("MySecret123", hash1))
+    assertFalse(com.example.data.SupabaseSecurityVault.verifyPassword("WrongPass", hash1))
+
+    assertEquals(
+      "https://xzutgxiwexxhmpqtybaf.supabase.co",
+      com.example.data.SupabaseConfig.DEFAULT_PUBLIC_PROJECT_URL
+    )
+
+    // Verify custom table-based auth session token obfuscation & clearing
+    com.example.data.SupabaseSecurityVault.storeSessionToken("tok_9f8e7d6c5b4a3210")
+    assertEquals("tok_9f8e7d6c5b4a3210", com.example.data.SupabaseSecurityVault.retrieveSessionToken())
+    com.example.data.SupabaseSecurityVault.clearSessionToken()
+    assertEquals("", com.example.data.SupabaseSecurityVault.retrieveSessionToken())
+  }
+
+  @Test
+  fun `verify teacher signup subject selection maps curriculum subjects to teacher subjects`() {
+    val selectedSubjects = "Physics, Chemistry, Biology"
+    val resolved = com.example.ui.resolveTeacherSubjectItems(selectedSubjects)
+    assertEquals(3, resolved.size)
+    assertEquals(listOf("Physics", "Chemistry", "Biology"), resolved.map { it.name })
+    assertEquals(com.example.ui.getSubjectThemeColor("Physics"), resolved[0].color)
+    assertEquals(com.example.ui.getSubjectThemeColor("Chemistry"), resolved[1].color)
+    assertEquals(com.example.ui.getSubjectThemeColor("Biology"), resolved[2].color)
+
+    // Fallback when blank
+    val fallback = com.example.ui.resolveTeacherSubjectItems("")
+    assertEquals(com.example.ui.DefaultTeacherSubjects.map { it.name }, fallback.map { it.name })
+  }
+
+  @Test
+  fun `verify newly signed up students and teachers appear in admin panel users page`() {
+    val newStudentDto = com.example.data.SupabaseUserDto(
+      id = "user_0772889900",
+      email = "0772889900",
+      phoneNumber = "0772889900",
+      fullName = "Kato Brian",
+      role = "student",
+      academicClass = "S.4",
+      stream = "Green",
+      planDuration = "1 Month Plan"
+    )
+    val newTeacherDto = com.example.data.SupabaseUserDto(
+      id = "user_0752112233",
+      email = "0752112233",
+      phoneNumber = "0752112233",
+      fullName = "Tr. Namugenyi Alice",
+      role = "teacher",
+      subjectsTaught = "Biology, Chemistry",
+      planDuration = "Teacher"
+    )
+
+    val studentItem = newStudentDto.toAdminUserItem()
+    val teacherItem = newTeacherDto.toAdminUserItem()
+
+    org.junit.Assert.assertNotNull(studentItem)
+    org.junit.Assert.assertNotNull(teacherItem)
+    assertEquals("Kato Brian", studentItem!!.name)
+    assertEquals("S.4 Green", studentItem.detailTag)
+    assertEquals("0772889900", studentItem.email)
+    assertEquals(UserRoleFilter.STUDENTS, studentItem.role)
+
+    assertEquals("Tr. Namugenyi Alice", teacherItem!!.name)
+    assertEquals("Biology, Chemistry", teacherItem.detailTag)
+    assertEquals("0752112233", teacherItem.email)
+    assertEquals(UserRoleFilter.TEACHERS, teacherItem.role)
+
+    val mergedStudents = mergeSignedUpAndDefaultUsers(
+      signedUpUsers = listOf(studentItem, teacherItem),
+      defaultUsers = DefaultStudentsList,
+      targetRole = UserRoleFilter.STUDENTS
+    )
+    assertEquals(DefaultStudentsList.size + 1, mergedStudents.size)
+    assertEquals("Kato Brian", mergedStudents.first().name)
+
+    val mergedTeachers = mergeSignedUpAndDefaultUsers(
+      signedUpUsers = listOf(studentItem, teacherItem),
+      defaultUsers = DefaultTeachersList,
+      targetRole = UserRoleFilter.TEACHERS
+    )
+    assertEquals(DefaultTeachersList.size + 1, mergedTeachers.size)
+    assertEquals("Tr. Namugenyi Alice", mergedTeachers.first().name)
+  }
+
+  @Test
+  fun `verify supabase free plan 1gb storage and upload size calculations`() {
+    assertEquals(1024.0, com.example.data.SUPABASE_FREE_PLAN_STORAGE_MB, 0.001)
+    assertEquals(0.0, com.example.data.SupabaseRepository.parseFileSizeToMb(""), 0.001)
+    assertEquals(2.4, com.example.data.SupabaseRepository.parseFileSizeToMb("2.4 MB"), 0.001)
+    assertEquals(0.5, com.example.data.SupabaseRepository.parseFileSizeToMb("512 KB"), 0.001)
+    assertEquals(1024.0, com.example.data.SupabaseRepository.parseFileSizeToMb("1 GB"), 0.001)
+
+    assertEquals("0 MB", com.example.data.SupabaseRepository.formatStorageMb(0.0))
+    assertEquals("2.4 MB", com.example.data.SupabaseRepository.formatStorageMb(2.4))
+    assertEquals("1,021.6 MB", com.example.data.SupabaseRepository.formatStorageMb(1024.0 - 2.4))
+    assertEquals("1 GB", com.example.data.SupabaseRepository.formatStorageMb(1024.0))
+
+    assertEquals("0%", com.example.data.SupabaseRepository.formatStoragePercent(0.0, 1024.0))
+    assertEquals("0.23%", com.example.data.SupabaseRepository.formatStoragePercent(2.4, 1024.0))
+    assertEquals("50%", com.example.data.SupabaseRepository.formatStoragePercent(512.0, 1024.0))
   }
 }

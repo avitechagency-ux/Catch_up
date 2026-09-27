@@ -161,13 +161,17 @@ fun TeacherUploadNotesScreen(
     }
     var selectedFileName by remember {
         mutableStateOf(
-            if (existingNote != null) "${existingNote.title.lowercase().replace(" ", "_")}.pdf" else null
+            if (existingNote != null) existingNote.fileName.ifBlank { "${existingNote.title.lowercase().replace(" ", "_")}.pdf" } else null
         )
+    }
+    var selectedFileSize by remember {
+        mutableStateOf(existingNote?.fileSize?.ifBlank { "2.4 MB" } ?: "2.4 MB")
     }
 
     var showClassPickerSheet by remember { mutableStateOf(false) }
     var showSubjectPicker by remember { mutableStateOf(false) }
     var showSampleFilePicker by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     val pdfPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -176,6 +180,20 @@ fun TeacherUploadNotesScreen(
             val path = uri.lastPathSegment ?: "document.pdf"
             val cleanName = if (path.contains("/")) path.substringAfterLast("/") else path
             selectedFileName = if (cleanName.endsWith(".pdf", ignoreCase = true)) cleanName else "$cleanName.pdf"
+            val lengthBytes = runCatching {
+                context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+            }.getOrDefault(-1L)
+            if (lengthBytes > 0L) {
+                val mb = lengthBytes.toDouble() / (1024.0 * 1024.0)
+                selectedFileSize = if (mb >= 0.1) {
+                    String.format(java.util.Locale.US, "%.2f MB", mb)
+                } else {
+                    val kb = (lengthBytes.toDouble() / 1024.0).coerceAtLeast(1.0)
+                    String.format(java.util.Locale.US, "%.1f KB", kb)
+                }
+            } else {
+                selectedFileSize = "2.4 MB"
+            }
         } else {
             showSampleFilePicker = true
         }
@@ -710,7 +728,7 @@ fun TeacherUploadNotesScreen(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
-                                            text = "PDF Document • Ready to upload",
+                                            text = "PDF Document ($selectedFileSize) • Ready to upload",
                                             fontSize = 11.sp,
                                             color = TealTile,
                                             fontWeight = FontWeight.Medium
@@ -746,7 +764,9 @@ fun TeacherUploadNotesScreen(
                                 targetClass = selectedClass,
                                 dateUploaded = existingNote?.dateUploaded ?: "Today",
                                 subject = currentSubjectItem.name,
-                                type = selectedType
+                                type = selectedType,
+                                fileName = selectedFileName ?: "document.pdf",
+                                fileSize = selectedFileSize
                             )
                             onSaveSuccess(newItem)
                         } else {

@@ -243,12 +243,12 @@ fun AdminBottomNavigationBar(
 @Composable
 fun AdminHomeScreen(
     modifier: Modifier = Modifier,
-    revenueBalance: String = "UGX 5,867,000",
-    studentsCount: String = "1,000",
-    teachersCount: String = "50",
-    notesCount: String = "300",
-    assignmentsCount: String = "170",
-    affiliatesCount: String = "100",
+    revenueBalance: String = "0",
+    studentsCount: String = "0",
+    teachersCount: String = "0",
+    notesCount: String = "0",
+    assignmentsCount: String = "0",
+    affiliatesCount: String = "0",
     onNavigateToPlans: () -> Unit = {},
     onNavigateToAccount: () -> Unit = {},
     onNavigateToAffiliate: () -> Unit = {},
@@ -265,6 +265,25 @@ fun AdminHomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     var showRoleMenu by remember { mutableStateOf(false) }
+
+    var liveRevenueBalance by remember(revenueBalance) { mutableStateOf(revenueBalance) }
+    var liveStudentsCount by remember(studentsCount) { mutableStateOf(studentsCount) }
+    var liveTeachersCount by remember(teachersCount) { mutableStateOf(teachersCount) }
+    var liveNotesCount by remember(notesCount) { mutableStateOf(notesCount) }
+    var liveAssignmentsCount by remember(assignmentsCount) { mutableStateOf(assignmentsCount) }
+    var liveAffiliatesCount by remember(affiliatesCount) { mutableStateOf(affiliatesCount) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val stats = com.example.data.SupabaseRepository.fetchAdminOverviewStats()
+        if (stats != null) {
+            liveRevenueBalance = stats.formattedRevenue
+            liveStudentsCount = stats.studentsCount.toString()
+            liveTeachersCount = stats.teachersCount.toString()
+            liveNotesCount = stats.notesCount.toString()
+            liveAssignmentsCount = stats.assignmentsCount.toString()
+            liveAffiliatesCount = stats.affiliatesCount.toString()
+        }
+    }
 
     Scaffold(
         modifier = modifier
@@ -470,7 +489,7 @@ fun AdminHomeScreen(
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
-                                                text = "+18.4%",
+                                                text = "0%",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White
@@ -482,7 +501,7 @@ fun AdminHomeScreen(
                                 Spacer(modifier = Modifier.height(14.dp))
 
                                 Text(
-                                    text = revenueBalance,
+                                    text = liveRevenueBalance,
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -541,7 +560,7 @@ fun AdminHomeScreen(
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = studentsCount,
+                                    text = liveStudentsCount,
                                     fontSize = 24.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -595,7 +614,7 @@ fun AdminHomeScreen(
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = teachersCount,
+                                    text = liveTeachersCount,
                                     fontSize = 24.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -661,7 +680,7 @@ fun AdminHomeScreen(
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = notesCount,
+                                    text = liveNotesCount,
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -715,7 +734,7 @@ fun AdminHomeScreen(
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = assignmentsCount,
+                                    text = liveAssignmentsCount,
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
@@ -770,7 +789,7 @@ fun AdminHomeScreen(
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = affiliatesCount,
+                                    text = liveAffiliatesCount,
                                     fontSize = 22.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,

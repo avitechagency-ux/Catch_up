@@ -130,8 +130,11 @@ enum class NotesContentType {
 fun SubjectNotesScreen(
     subjectName: String = "Math",
     modifier: Modifier = Modifier,
+    initialNotes: List<TopicItem> = emptyList(),
+    initialAssignments: List<TopicItem> = emptyList(),
     onNavigateBack: () -> Unit = {},
     onNavigateToHome: () -> Unit = {},
+    onNavigateToSubjects: () -> Unit = onNavigateBack,
     onNavigateToDownloads: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToTab: (Int) -> Unit = {},
@@ -144,155 +147,14 @@ fun SubjectNotesScreen(
 
     val headerColor = remember(subjectName) { getSubjectThemeColor(subjectName) }
 
-    // Handle Android system back gesture to return to subjects list
+    // Handle Android system back gesture to return to previous screen
     BackHandler {
         onNavigateBack()
     }
 
-    // Curated topics according to Ugandan Secondary Curriculum (NCDC / UNEB)
-    val notesMap = remember {
-        mapOf(
-            "Math" to listOf(
-                TopicItem("1", "Algebra", "18/10/26"),
-                TopicItem("2", "Sets", "15/10/26"),
-                TopicItem("3", "Construction", "12/10/26"),
-                TopicItem("4", "Matrices & Transformations", "08/10/26"),
-                TopicItem("5", "Trigonometry", "03/10/26"),
-                TopicItem("6", "Vectors & Bearings", "28/09/26"),
-                TopicItem("7", "Quadratic Equations", "22/09/26"),
-                TopicItem("8", "Commercial Arithmetic", "17/09/26"),
-                TopicItem("9", "Statistics & Probability", "10/09/26"),
-                TopicItem("10", "Coordinate Geometry", "04/09/26")
-            ),
-            "Physics" to listOf(
-                TopicItem("p1", "Mechanics & Motion", "17/10/26"),
-                TopicItem("p2", "Heat & Thermodynamics", "14/10/26"),
-                TopicItem("p3", "Light & Optics", "10/10/26"),
-                TopicItem("p4", "Current Electricity", "05/10/26"),
-                TopicItem("p5", "Magnetism & Electromagnetism", "29/09/26"),
-                TopicItem("p6", "Waves & Sound", "21/09/26"),
-                TopicItem("p7", "Modern Physics & Radioactivity", "14/09/26")
-            ),
-            "Biology" to listOf(
-                TopicItem("b1", "Cell Biology & Microscopy", "18/10/26"),
-                TopicItem("b2", "Nutrition in Plants & Animals", "16/10/26"),
-                TopicItem("b3", "Transport in Plants & Animals", "11/10/26"),
-                TopicItem("b4", "Respiration & Gas Exchange", "07/10/26"),
-                TopicItem("b5", "Excretion & Homeostasis", "30/09/26"),
-                TopicItem("b6", "Reproduction in Organisms", "24/09/26"),
-                TopicItem("b7", "Genetics & Evolution", "18/09/26"),
-                TopicItem("b8", "Ecology & Ecosystems", "09/09/26")
-            ),
-            "Chemistry" to listOf(
-                TopicItem("c1", "Atomic Structure & Periodic Table", "17/10/26"),
-                TopicItem("c2", "Chemical Bonding & Structure", "13/10/26"),
-                TopicItem("c3", "Acids, Bases & Salts", "09/10/26"),
-                TopicItem("c4", "Mole Concept & Stoichiometry", "04/10/26"),
-                TopicItem("c5", "Carbon and its Compounds", "27/09/26"),
-                TopicItem("c6", "Electrochemistry", "20/09/26"),
-                TopicItem("c7", "Extraction of Metals", "12/09/26")
-            ),
-            "Geography" to listOf(
-                TopicItem("g1", "Map Reading & Photographic Interpretation", "18/10/26"),
-                TopicItem("g2", "Physical Geography of East Africa", "14/10/26"),
-                TopicItem("g3", "Climate, Vegetation & Soils", "10/10/26"),
-                TopicItem("g4", "Population & Settlement Patterns", "06/10/26"),
-                TopicItem("g5", "Agriculture & Mining in East Africa", "28/09/26"),
-                TopicItem("g6", "World Geography & Development Studies", "20/09/26")
-            ),
-            "History" to listOf(
-                TopicItem("h1", "Pre-colonial African Societies", "16/10/26"),
-                TopicItem("h2", "European Scramble & Partition of Africa", "12/10/26"),
-                TopicItem("h3", "Colonial Rule & African Responses", "08/10/26"),
-                TopicItem("h4", "Nationalism & Struggle for Independence", "02/10/26"),
-                TopicItem("h5", "Post-Independence Uganda & Political Systems", "25/09/26"),
-                TopicItem("h6", "East African Integration & EAC", "17/09/26")
-            ),
-            "English" to listOf(
-                TopicItem("e1", "Comprehension & Summary Writing", "18/10/26"),
-                TopicItem("e2", "Grammar: Tenses & Active/Passive Voice", "15/10/26"),
-                TopicItem("e3", "Formal & Informal Letter Writing", "11/10/26"),
-                TopicItem("e4", "Report Writing & Minutes", "05/10/26"),
-                TopicItem("e5", "Composition & Creative Writing", "29/09/26"),
-                TopicItem("e6", "Speech Writing & Public Speaking", "21/09/26")
-            ),
-            "Agriculture" to listOf(
-                TopicItem("ag1", "Soil Science & Fertility Management", "17/10/26"),
-                TopicItem("ag2", "Crop Production & Pest Control", "13/10/26"),
-                TopicItem("ag3", "Animal Husbandry & Nutrition", "09/10/26"),
-                TopicItem("ag4", "Agricultural Economics & Marketing", "03/10/26"),
-                TopicItem("ag5", "Farm Tools, Machinery & Structures", "26/09/26")
-            ),
-            "ICT" to listOf(
-                TopicItem("ict1", "Computer Systems & Hardware", "18/10/26"),
-                TopicItem("ict2", "Word Processing & Documentation", "14/10/26"),
-                TopicItem("ict3", "Electronic Spreadsheets (Excel)", "10/10/26"),
-                TopicItem("ict4", "Database Management Systems (Access)", "04/10/26"),
-                TopicItem("ict5", "Web Design & HTML Basics", "28/09/26"),
-                TopicItem("ict6", "Internet, Networking & Cyber Security", "20/09/26")
-            ),
-            "Entrepreneurship" to listOf(
-                TopicItem("ent1", "Business Planning & Feasibility", "17/10/26"),
-                TopicItem("ent2", "Financial Record Keeping & Bookkeeping", "12/10/26"),
-                TopicItem("ent3", "Marketing Strategies & Customer Care", "07/10/26"),
-                TopicItem("ent4", "Business Ethics & Social Responsibility", "01/10/26"),
-                TopicItem("ent5", "Taxation & Legal Forms of Business in Uganda", "24/09/26")
-            ),
-            "C.R.E" to listOf(
-                TopicItem("cre1", "Creation & The Nature of God", "18/10/26"),
-                TopicItem("cre2", "Covenants & The Ten Commandments", "14/10/26"),
-                TopicItem("cre3", "The Life & Teachings of Jesus Christ", "09/10/26"),
-                TopicItem("cre4", "Christian Living & Moral Ethics in Society", "03/10/26")
-            ),
-            "I.R.E" to listOf(
-                TopicItem("ire1", "Tawheed & The Articles of Faith", "18/10/26"),
-                TopicItem("ire2", "The Holy Quran & Hadith Studies", "14/10/26"),
-                TopicItem("ire3", "Pillars of Islam & Practical Worship", "09/10/26"),
-                TopicItem("ire4", "Islamic History & The Caliphate", "03/10/26")
-            )
-        )
-    }
-
-    val assignmentsMap = remember {
-        mapOf(
-            "Math" to listOf(
-                TopicItem("a1", "Algebraic Expressions & Factorization Sheet", "20/10/26"),
-                TopicItem("a2", "Venn Diagrams & Set Operations Practice", "16/10/26"),
-                TopicItem("a3", "Geometrical Construction Assignment 3", "11/10/26"),
-                TopicItem("a4", "Matrix Determinants & Inverse Test Prep", "06/10/26"),
-                TopicItem("a5", "Trigonometric Ratios Homework", "01/10/26")
-            ),
-            "Physics" to listOf(
-                TopicItem("pa1", "Forces & Newton's Laws Problem Set", "19/10/26"),
-                TopicItem("pa2", "Optics Ray Diagrams & Focal Length Lab", "15/10/26"),
-                TopicItem("pa3", "Ohm's Law & Circuit Calculations", "09/10/26")
-            ),
-            "Biology" to listOf(
-                TopicItem("ba1", "Plant vs Animal Cell Drawing Lab Work", "19/10/26"),
-                TopicItem("ba2", "Enzyme Activity Experiment Report", "13/10/26"),
-                TopicItem("ba3", "Genetics Monohybrid Cross Assignment", "08/10/26")
-            ),
-            "Chemistry" to listOf(
-                TopicItem("ca1", "Volumetric Analysis Titration Calculations", "18/10/26"),
-                TopicItem("ca2", "Qualitative Analysis Salt Identification", "12/10/26"),
-                TopicItem("ca3", "Balancing Redox Equations Practice", "06/10/26")
-            )
-        )
-    }
-
     val rawTopics = when (selectedContentType) {
-        NotesContentType.NOTES -> notesMap[subjectName] ?: listOf(
-            TopicItem("def1", "Introduction to $subjectName", "18/10/26"),
-            TopicItem("def2", "Core Concepts & Fundamentals", "14/10/26"),
-            TopicItem("def3", "Practical Applications", "10/10/26"),
-            TopicItem("def4", "Advanced Topics & Examples", "05/10/26"),
-            TopicItem("def5", "Exam Review & Summary Notes", "28/09/26")
-        )
-        NotesContentType.ASSIGNMENTS -> assignmentsMap[subjectName] ?: listOf(
-            TopicItem("defa1", "$subjectName Practice Assignment 1", "20/10/26"),
-            TopicItem("defa2", "$subjectName Mid-term Coursework", "15/10/26"),
-            TopicItem("defa3", "$subjectName Practical Assessment", "10/10/26")
-        )
+        NotesContentType.NOTES -> initialNotes
+        NotesContentType.ASSIGNMENTS -> initialAssignments
     }
 
     val filteredTopics = remember(searchQuery, rawTopics) {
@@ -323,7 +185,7 @@ fun SubjectNotesScreen(
                 onItemSelected = { index ->
                     when (index) {
                         0 -> onNavigateToHome()
-                        1 -> onNavigateBack()
+                        1 -> onNavigateToSubjects()
                         2 -> onNavigateToDownloads()
                         3 -> onNavigateToProfile()
                         else -> {

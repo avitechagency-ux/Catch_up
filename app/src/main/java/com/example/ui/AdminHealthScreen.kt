@@ -40,12 +40,12 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,6 +64,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.SupabasePlatformHealthStats
+import com.example.data.SupabaseRepository
 import com.example.ui.theme.BlueTile
 import com.example.ui.theme.BorderGrey
 import com.example.ui.theme.CoralTile
@@ -76,14 +78,13 @@ import com.example.ui.theme.SoftLavenderGrey
 import com.example.ui.theme.TealTile
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
  * Clean, card-based Platform Health monitoring screen for Administrators.
- * Displays essential numeric metrics only:
+ * Synced with Supabase Free Plan (1 GB = 1,024 MB Storage) and live database tables:
  * 1. Platform Health
- * 2. Storage Used
+ * 2. Storage Used & Live Uploads Breakdown (1 GB / 1,024 MB Free Plan)
  * 3. API Connection Status
  * 4. Database Connection
  */
@@ -98,23 +99,13 @@ fun AdminHealthScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var isRefreshing by remember { mutableStateOf(false) }
+    var healthStats by remember { mutableStateOf(SupabasePlatformHealthStats()) }
 
-    // Essential live monitoring numbers
-    var platformUptime by remember { mutableStateOf("99.9%") }
-    var storageUsedGb by remember { mutableFloatStateOf(42.6f) }
-    val storageTotalGb = 100f
-    val storageFreeGb = ((storageTotalGb - storageUsedGb) * 10).toInt() / 10f
-    val storagePercent = (storageUsedGb / storageTotalGb * 100).toInt()
-
-    var apiActiveCount by remember { mutableStateOf("4 / 4") }
-    var apiLatencyMs by remember { mutableIntStateOf(38) }
-    var apiSuccessRate by remember { mutableStateOf("99.9%") }
-    var apiErrorsCount by remember { mutableIntStateOf(0) }
-
-    var dbConnections by remember { mutableIntStateOf(18) }
-    var dbLatencyMs by remember { mutableIntStateOf(12) }
-    var dbRecordsCount by remember { mutableStateOf("4,190") }
-    var dbSyncRate by remember { mutableStateOf("100%") }
+    LaunchedEffect(Unit) {
+        isRefreshing = true
+        healthStats = SupabaseRepository.fetchPlatformHealthStats()
+        isRefreshing = false
+    }
 
     Scaffold(
         modifier = modifier
@@ -179,12 +170,9 @@ fun AdminHealthScreen(
                         if (!isRefreshing) {
                             isRefreshing = true
                             coroutineScope.launch {
-                                delay(600)
-                                apiLatencyMs = (32..44).random()
-                                dbLatencyMs = (10..15).random()
-                                dbConnections = (16..22).random()
+                                healthStats = SupabaseRepository.fetchPlatformHealthStats()
                                 isRefreshing = false
-                                snackbarHostState.showSnackbar("Metrics updated")
+                                snackbarHostState.showSnackbar("Synced live health & storage from Supabase")
                             }
                         }
                     },
@@ -278,7 +266,7 @@ fun AdminHealthScreen(
                                             }
                                         }
                                         Text(
-                                            text = "Platform Uptime",
+                                            text = "Platform Uptime • Free Plan",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = LightLavender
@@ -288,7 +276,7 @@ fun AdminHealthScreen(
                                     Spacer(modifier = Modifier.height(12.dp))
 
                                     Text(
-                                        text = platformUptime,
+                                        text = healthStats.platformUptime,
                                         fontSize = 30.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = Color.White
@@ -297,7 +285,7 @@ fun AdminHealthScreen(
 
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = NoteCountGreen
+                                    color = if (healthStats.isHealthy) NoteCountGreen else CoralTile
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -311,7 +299,7 @@ fun AdminHealthScreen(
                                                 .background(Color.White)
                                         )
                                         Text(
-                                            text = "HEALTHY",
+                                            text = if (healthStats.isHealthy) "HEALTHY" else "OFFLINE",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = Color.White
@@ -323,10 +311,10 @@ fun AdminHealthScreen(
                     }
 
                     // ------------------------------------------
-                    // 2. STORAGE USED SECTION
+                    // 2. STORAGE USED SECTION (Supabase Free Plan: 1 GB = 1,024 MB)
                     // ------------------------------------------
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionTitle(title = "Storage Used")
+                        SectionTitle(title = "Storage Used (Supabase Free Plan • 1 GB)")
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -334,7 +322,7 @@ fun AdminHealthScreen(
                         ) {
                             SolidMetricCard(
                                 modifier = Modifier.weight(1f),
-                                value = "${storageUsedGb} GB",
+                                value = healthStats.storageUsedFormatted,
                                 label = "Used",
                                 icon = Icons.Outlined.CloudQueue,
                                 color = CoralTile,
@@ -342,7 +330,7 @@ fun AdminHealthScreen(
                             )
                             SolidMetricCard(
                                 modifier = Modifier.weight(1f),
-                                value = "${storageFreeGb} GB",
+                                value = healthStats.storageFreeFormatted,
                                 label = "Available",
                                 icon = Icons.Outlined.Storage,
                                 color = TealTile,
@@ -350,15 +338,15 @@ fun AdminHealthScreen(
                             )
                             SolidMetricCard(
                                 modifier = Modifier.weight(1f),
-                                value = "${storageTotalGb.toInt()} GB",
-                                label = "Total",
+                                value = healthStats.storageTotalFormatted,
+                                label = "Total (1,024 MB)",
                                 icon = Icons.Outlined.Folder,
                                 color = PurpleTile,
                                 testTag = "tile_storage_total"
                             )
                         }
 
-                        // Compact Storage % Bar Card
+                        // Compact Storage % & Uploads Breakdown Card
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
@@ -375,20 +363,24 @@ fun AdminHealthScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "Capacity Used",
+                                        text = "Capacity Used (${healthStats.storageUsedFormatted} / 1,024 MB)",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = TextMuted
                                     )
                                     Text(
-                                        text = "$storagePercent%",
+                                        text = healthStats.storagePercentFormatted,
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = IndigoPurple
                                     )
                                 }
                                 LinearProgressIndicator(
-                                    progress = { storageUsedGb / storageTotalGb },
+                                    progress = {
+                                        (healthStats.storageUsedMb / healthStats.storageTotalMb)
+                                            .toFloat()
+                                            .coerceIn(0f, 1f)
+                                    },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(8.dp)
@@ -397,6 +389,24 @@ fun AdminHealthScreen(
                                     trackColor = Color.White,
                                     strokeCap = StrokeCap.Round
                                 )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Total Uploads: ${healthStats.totalUploadsCount} files",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextDark
+                                    )
+                                    Text(
+                                        text = "${healthStats.notesUploadsCount} Notes • ${healthStats.assignmentsUploadsCount} Assignments",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextMuted
+                                    )
+                                }
                             }
                         }
                     }
@@ -413,18 +423,18 @@ fun AdminHealthScreen(
                         ) {
                             NumberStatusCard(
                                 modifier = Modifier.weight(1f),
-                                value = apiActiveCount,
+                                value = healthStats.apiActiveCount,
                                 label = "APIs Online",
-                                badge = "ONLINE",
+                                badge = if (healthStats.isHealthy) "ONLINE" else "OFFLINE",
                                 icon = Icons.Outlined.CloudDone,
                                 accentColor = NoteCountGreen,
                                 testTag = "card_api_online"
                             )
                             NumberStatusCard(
                                 modifier = Modifier.weight(1f),
-                                value = "${apiLatencyMs} ms",
+                                value = "${healthStats.apiLatencyMs} ms",
                                 label = "Latency",
-                                badge = "FAST",
+                                badge = if (healthStats.apiLatencyMs in 1..250) "FAST" else "LIVE",
                                 icon = Icons.Outlined.Speed,
                                 accentColor = BlueTile,
                                 testTag = "card_api_latency"
@@ -437,18 +447,18 @@ fun AdminHealthScreen(
                         ) {
                             NumberStatusCard(
                                 modifier = Modifier.weight(1f),
-                                value = apiSuccessRate,
+                                value = healthStats.apiSuccessRate,
                                 label = "Success Rate",
-                                badge = "STABLE",
+                                badge = if (healthStats.apiErrorsCount == 0) "STABLE" else "PARTIAL",
                                 icon = Icons.Outlined.NetworkCheck,
                                 accentColor = TealTile,
                                 testTag = "card_api_success"
                             )
                             NumberStatusCard(
                                 modifier = Modifier.weight(1f),
-                                value = "$apiErrorsCount",
+                                value = "${healthStats.apiErrorsCount}",
                                 label = "Failed Calls",
-                                badge = "0 ERRORS",
+                                badge = "${healthStats.apiErrorsCount} ERRORS",
                                 icon = Icons.Outlined.CheckCircle,
                                 accentColor = PurpleTile,
                                 testTag = "card_api_errors"
@@ -468,16 +478,16 @@ fun AdminHealthScreen(
                         ) {
                             NumberStatusCard(
                                 modifier = Modifier.weight(1f),
-                                value = "$dbConnections",
+                                value = "${healthStats.dbConnections}",
                                 label = "Connections",
-                                badge = "CONNECTED",
+                                badge = if (healthStats.isHealthy) "CONNECTED" else "DISCONNECTED",
                                 icon = Icons.Outlined.Dns,
                                 accentColor = TealTile,
                                 testTag = "tile_db_health"
                             )
                             NumberStatusCard(
                                 modifier = Modifier.weight(1f),
-                                value = "${dbLatencyMs} ms",
+                                value = "${healthStats.dbLatencyMs} ms",
                                 label = "Query Time",
                                 badge = "OPTIMAL",
                                 icon = Icons.Outlined.Speed,
@@ -492,7 +502,7 @@ fun AdminHealthScreen(
                         ) {
                             NumberStatusCard(
                                 modifier = Modifier.weight(1f),
-                                value = dbRecordsCount,
+                                value = healthStats.dbRecordsCount,
                                 label = "Total Records",
                                 badge = "ACTIVE",
                                 icon = Icons.Outlined.Storage,
@@ -501,13 +511,46 @@ fun AdminHealthScreen(
                             )
                             NumberStatusCard(
                                 modifier = Modifier.weight(1f),
-                                value = dbSyncRate,
+                                value = healthStats.dbSyncRate,
                                 label = "Sync Status",
-                                badge = "SYNCED",
+                                badge = if (healthStats.isHealthy) "SYNCED" else "OFFLINE",
                                 icon = Icons.Outlined.Sync,
                                 accentColor = BlueTile,
                                 testTag = "tile_compute_health"
                             )
+                        }
+
+                        // Quick Navigation to Live System Audit Logs
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { onNavigateToLogs() }
+                                .testTag("health_view_logs_button"),
+                            shape = RoundedCornerShape(14.dp),
+                            color = IndigoPurple.copy(alpha = 0.08f),
+                            border = BorderStroke(1.dp, IndigoPurple.copy(alpha = 0.25f))
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "View Live System & Storage Audit Logs",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = IndigoPurple
+                                )
+                                Text(
+                                    text = "Open →",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = IndigoPurple
+                                )
+                            }
                         }
                     }
                 }

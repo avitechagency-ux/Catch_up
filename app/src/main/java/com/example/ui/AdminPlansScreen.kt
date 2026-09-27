@@ -90,18 +90,6 @@ val DefaultAdminPlans = listOf(
         duration = "1 Month",
         price = "UGX 1,000",
         priceUgx = 1000
-    ),
-    AdminPlanItem(
-        id = "plan_1_term",
-        duration = "1 Term",
-        price = "UGX 3,000",
-        priceUgx = 3000
-    ),
-    AdminPlanItem(
-        id = "plan_1_year",
-        duration = "1 Year",
-        price = "UGX 10,000",
-        priceUgx = 10000
     )
 )
 

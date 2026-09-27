@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Catch Up"
+rootProject.name = "Cachap"
 
 include(":app")

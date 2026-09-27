@@ -175,7 +175,7 @@ fun AboutScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.School,
-                            contentDescription = "Catch Up Logo",
+                            contentDescription = "Cachap Logo",
                             tint = Color.White,
                             modifier = Modifier.size(32.dp)
                         )
@@ -184,9 +184,9 @@ fun AboutScreen(
                     // 12dp spacing below icon
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // App name: "Catch Up" — font 20sp, weight Bold, color #1A1A1A, centered
+                    // App name: "Cachap" — font 20sp, weight Bold, color #1A1A1A, centered
                     Text(
-                        text = "Catch Up",
+                        text = "Cachap",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1A1A1A),
@@ -234,9 +234,9 @@ fun AboutScreen(
                         .padding(horizontal = 20.dp)
                         .testTag("about_section_story")
                 ) {
-                    // Section label: "About Catch Up" (13sp, weight Medium, color #8A8A8A)
+                    // Section label: "About Cachap" (13sp, weight Medium, color #8A8A8A)
                     Text(
-                        text = "About Catch Up",
+                        text = "About Cachap",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFF8A8A8A),
@@ -357,9 +357,9 @@ Can we do this differently?
 
 What if I could prepare my notes and share them with my students before or after the lesson, so that they could access them directly instead of spending so much of our classroom time copying?
 
-That is where Catch Up began.
+That is where Cachap began.
 
-Catch Up allows teachers to share their prepared notes directly with their students. Students can open the app, find their class and subject, and access the notes they need.
+Cachap allows teachers to share their prepared notes directly with their students. Students can open the app, find their class and subject, and access the notes they need.
 
 For me, this isn't about replacing what happens in the classroom.
 
@@ -367,11 +367,11 @@ The teacher still teaches. The students still learn.
 
 It is about giving us more time to do the things that matter most—explaining concepts, asking questions, discussing ideas, doing practical work and making sure students actually understand.
 
-I started Catch Up because I know what it feels like to look at the syllabus and know there is still so much to cover, while valuable lesson time is being spent on copying.
+I started Cachap because I know what it feels like to look at the syllabus and know there is still so much to cover, while valuable lesson time is being spent on copying.
 
 I believe our students deserve more time to learn. And our teachers deserve more time to teach.
 
-That's why We built the idea of Catch Up.
+That's why We built the idea of Cachap.
 
 Less time copying. More time learning.
 """.trimIndent()

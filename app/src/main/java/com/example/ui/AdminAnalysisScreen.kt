@@ -302,12 +302,105 @@ val DefaultTopAffiliates = listOf(
  * interactive Revenue curve, Students vs Teachers breakdown tiles & stacked bars,
  * and ranked Top Affiliates leaderboard.
  */
+private fun buildLiveRevenueChartData(
+    range: AnalysisTimeRange,
+    totalRevenueUgx: Long
+): AnalysisChartData {
+    val totalFloat = totalRevenueUgx.toFloat()
+    val yMax = if (totalFloat > 0f) (totalFloat * 1.25f).coerceAtLeast(1000f) else 4000f
+    val yStep = (yMax / 4f).roundToInt()
+    val yAxisLabels = listOf(
+        formatUgxShort(yStep * 4L),
+        formatUgxShort(yStep * 3L),
+        formatUgxShort(yStep * 2L),
+        formatUgxShort(yStep * 1L),
+        "0"
+    )
+    val formattedTotal = if (totalRevenueUgx > 0L) formatUgxPrice(totalRevenueUgx.toInt()) else "UGX 0"
+    val growth = if (totalRevenueUgx > 0L) "+100%" else "0%"
+
+    val labels = when (range) {
+        AnalysisTimeRange.WEEK -> listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today")
+        AnalysisTimeRange.MONTH -> listOf("May", "Jun", "Jul", "Aug", "Sep")
+        AnalysisTimeRange.YEAR -> listOf("2023", "2024", "2025", "2026")
+    }
+    val points = labels.mapIndexed { idx, label ->
+        val pointVal = if (idx == labels.lastIndex) totalFloat else 0f
+        val pointFormatted = if (pointVal > 0f) formatUgxPrice(pointVal.roundToInt()) else "UGX 0"
+        AnalysisDataPoint(label = label, value = pointVal, formattedValue = pointFormatted)
+    }
+
+    return AnalysisChartData(
+        title = when (range) {
+            AnalysisTimeRange.WEEK -> "Weekly Revenue"
+            AnalysisTimeRange.MONTH -> "Total Revenue"
+            AnalysisTimeRange.YEAR -> "Annual Revenue"
+        },
+        subtitle = "Live Database Revenue",
+        currentFormattedValue = formattedTotal,
+        growthRate = growth,
+        points = points,
+        yMin = 0f,
+        yMax = yMax,
+        yAxisLabels = yAxisLabels
+    )
+}
+
+private fun formatUgxShort(amount: Long): String {
+    return when {
+        amount >= 1_000_000L -> "${(amount / 1_000_000f).let { "%.1f".format(it).removeSuffix(".0") }}M"
+        amount >= 1_000L -> "${amount / 1_000L}k"
+        else -> "$amount"
+    }
+}
+
+private fun buildLiveUsersChartData(
+    range: AnalysisTimeRange,
+    studentsCount: Int,
+    teachersCount: Int
+): StackedUsersChartData {
+    val totalUsers = studentsCount + teachersCount
+    val yMax = if (totalUsers > 0) ((totalUsers + 3) / 4 * 4).coerceAtLeast(4) else 4
+    val step = yMax / 4
+    val yAxisLabels = listOf(
+        "${step * 4}",
+        "${step * 3}",
+        "${step * 2}",
+        "${step * 1}",
+        "0"
+    )
+    val growth = if (totalUsers > 0) "+100%" else "0%"
+
+    val labels = when (range) {
+        AnalysisTimeRange.WEEK -> listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today")
+        AnalysisTimeRange.MONTH -> listOf("Jun", "Jul", "Aug", "Sep")
+        AnalysisTimeRange.YEAR -> listOf("2023", "2024", "2025", "2026")
+    }
+    val points = labels.mapIndexed { idx, label ->
+        if (idx == labels.lastIndex) {
+            StackedUserBarDataPoint(label = label, students = studentsCount, teachers = teachersCount)
+        } else {
+            StackedUserBarDataPoint(label = label, students = 0, teachers = 0)
+        }
+    }
+
+    return StackedUsersChartData(
+        title = "Active Users",
+        subtitle = "Live Students & Teachers in Database",
+        totalUsersFormatted = "$totalUsers Users",
+        growthRate = growth,
+        points = points,
+        yMax = yMax,
+        yAxisLabels = yAxisLabels
+    )
+}
+
 @Composable
 fun AdminAnalysisScreen(
     modifier: Modifier = Modifier,
-    revenueData: AnalysisChartData = DefaultRevenueChartData,
+    revenueData: AnalysisChartData = buildLiveRevenueChartData(AnalysisTimeRange.MONTH, 0L),
     usersData: AnalysisChartData = DefaultUsersChartData,
-    affiliatesList: List<AffiliateRankingItem> = DefaultTopAffiliates,
+    affiliatesList: List<AffiliateRankingItem> = emptyList(),
     onNavigateBack: () -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onNavigateToAnalysis: () -> Unit = {},
@@ -322,20 +415,43 @@ fun AdminAnalysisScreen(
     // Independent time-range state for Section 2 (Users)
     var usersTimeRange by remember { mutableStateOf(AnalysisTimeRange.MONTH) }
 
-    val activeRevenueData = when (revenueTimeRange) {
-        AnalysisTimeRange.WEEK -> WeekRevenueChartData
-        AnalysisTimeRange.MONTH -> revenueData
-        AnalysisTimeRange.YEAR -> YearRevenueChartData
+    var liveRevenueUgx by remember { mutableStateOf(0L) }
+    var liveStudentsCount by remember { mutableIntStateOf(0) }
+    var liveTeachersCount by remember { mutableIntStateOf(0) }
+    var liveAffiliatesList by remember(affiliatesList) { mutableStateOf(affiliatesList) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val stats = com.example.data.SupabaseRepository.fetchAdminOverviewStats()
+        if (stats != null) {
+            liveRevenueUgx = stats.revenueBalanceUgx
+            liveStudentsCount = stats.studentsCount
+            liveTeachersCount = stats.teachersCount
+        }
+        val remoteAffiliates = com.example.data.SupabaseRepository.fetchAllAffiliates()
+        liveAffiliatesList = remoteAffiliates
+            .sortedByDescending { it.referralCount }
+            .take(5)
+            .mapIndexed { idx, aff ->
+                AffiliateRankingItem(
+                    id = aff.id,
+                    rank = idx + 1,
+                    name = aff.name,
+                    referralCount = aff.referralCount,
+                    earningsFormatted = formatUgxPrice(aff.totalEarnedUgx)
+                )
+            }
     }
 
-    val activeUsersData = when (usersTimeRange) {
-        AnalysisTimeRange.WEEK -> WeekUsersChartData
-        AnalysisTimeRange.MONTH -> MonthUsersChartData
-        AnalysisTimeRange.YEAR -> YearUsersChartData
+    val activeRevenueData = remember(revenueTimeRange, liveRevenueUgx) {
+        buildLiveRevenueChartData(revenueTimeRange, liveRevenueUgx)
     }
 
-    val totalReferrals = remember(affiliatesList) {
-        affiliatesList.sumOf { it.referralCount }
+    val activeUsersData = remember(usersTimeRange, liveStudentsCount, liveTeachersCount) {
+        buildLiveUsersChartData(usersTimeRange, liveStudentsCount, liveTeachersCount)
+    }
+
+    val totalReferrals = remember(liveAffiliatesList) {
+        liveAffiliatesList.sumOf { it.referralCount }
     }
 
     Scaffold(
@@ -707,7 +823,7 @@ fun AdminAnalysisScreen(
 
                 // Top Affiliates Ranked Horizontal Bar Chart Card
                 AffiliatesHorizontalBarChartCard(
-                    affiliates = affiliatesList,
+                    affiliates = liveAffiliatesList,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -1703,11 +1819,21 @@ fun AffiliatesHorizontalBarChartCard(
                     .testTag("admin_analysis_affiliates_list"),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                affiliates.forEach { affiliate ->
-                    AffiliateRankRow(
-                        item = affiliate,
-                        maxReferrals = maxReferrals
+                if (affiliates.isEmpty()) {
+                    Text(
+                        text = "No affiliate referrals recorded yet.",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextMuted,
+                        modifier = Modifier.padding(vertical = 8.dp)
                     )
+                } else {
+                    affiliates.forEach { affiliate ->
+                        AffiliateRankRow(
+                            item = affiliate,
+                            maxReferrals = maxReferrals
+                        )
+                    }
                 }
             }
         }

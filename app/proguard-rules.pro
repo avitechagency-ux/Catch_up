@@ -18,4 +18,17 @@
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-renamesourcefileattribute SourceFile
+
+# Preserve Moshi Supabase DTO classes for JSON serialization
+-keep class com.example.data.Supabase*Dto { *; }
+-keep interface com.example.data.SupabasePostgrestApi { *; }
+
+# Strip debug/verbose logs in release builds so headers or keys are never logged
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+}
+
