@@ -260,13 +260,14 @@ fun TeacherAccountScreen(
                                 .testTag("teacher_account_subject_chips"),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            DefaultSubjects.chunked(2).forEach { rowSubjects ->
+                            DefaultCurriculumSubjects.chunked(2).forEach { rowSubjects ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     rowSubjects.forEach { subject ->
                                         val isSelected = activeSubjectSet.any { it.equals(subject.name, ignoreCase = true) }
+                                        val chipId = subject.name.lowercase().replace(" ", "_")
                                         Surface(
                                             modifier = Modifier
                                                 .weight(1f)
@@ -280,7 +281,7 @@ fun TeacherAccountScreen(
                                                     }
                                                     editSubjects = updatedList.joinToString(", ")
                                                 }
-                                                .testTag("teacher_account_subject_chip_${subject.id}"),
+                                                .testTag("teacher_account_subject_chip_$chipId"),
                                             shape = RoundedCornerShape(10.dp),
                                             color = if (isSelected) IndigoPurple else SoftLavenderGrey,
                                             border = BorderStroke(

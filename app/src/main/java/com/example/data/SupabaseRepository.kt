@@ -543,14 +543,38 @@ interface SupabasePostgrestApi {
     ): Response<List<SupabaseAffiliateTxDto>>
 }
 
+data class SupabaseCreateBucketDto(
+    @Json(name = "id") val id: String = "notes_files",
+    @Json(name = "name") val name: String = "notes_files",
+    @Json(name = "public") val isPublic: Boolean = true
+)
+
 interface SupabaseStorageApi {
+    @POST("bucket")
+    suspend fun createBucket(
+        @Body bucket: SupabaseCreateBucketDto = SupabaseCreateBucketDto()
+    ): Response<okhttp3.ResponseBody>
+
     @Headers("x-upsert: true")
     @POST("object/notes_files/{teacherCode}/{fileName}")
     suspend fun uploadNoteFile(
         @Path("teacherCode") teacherCode: String,
         @Path("fileName") fileName: String,
         @Body body: RequestBody
-    ): Response<Any>
+    ): Response<okhttp3.ResponseBody>
+
+    @Headers("x-upsert: true")
+    @retrofit2.http.PUT("object/notes_files/{teacherCode}/{fileName}")
+    suspend fun putNoteFile(
+        @Path("teacherCode") teacherCode: String,
+        @Path("fileName") fileName: String,
+        @Body body: RequestBody
+    ): Response<okhttp3.ResponseBody>
+
+    @GET
+    suspend fun downloadNoteFileByUrl(
+        @retrofit2.http.Url fileUrl: String
+    ): Response<okhttp3.ResponseBody>
 }
 
 // ============================================================================
@@ -1185,6 +1209,20 @@ object SupabaseRepository {
     // 4. NOTES, ASSIGNMENTS & STORAGE (`public.notes_uploads` & `/storage/v1/`)
     // ========================================================================
 
+    private val recentUploadedNotes = mutableListOf<SupabaseNoteUploadDto>()
+    private val recentUploadedPdfBytes = mutableMapOf<String, ByteArray>()
+
+    private fun noteCacheKey(subjectName: String, noteTitle: String): String {
+        return "${subjectName.trim().lowercase()}::${noteTitle.trim().lowercase()}"
+    }
+
+    private fun mergeWithRecentUploadedNotes(remote: List<SupabaseNoteUploadDto>): List<SupabaseNoteUploadDto> {
+        val localSnapshot = synchronized(recentUploadedNotes) { recentUploadedNotes.toList() }
+        return (localSnapshot + remote).distinctBy {
+            "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}"
+        }
+    }
+
     /**
      * Fetches notes or assignments for a specific subject from Supabase `public.notes_uploads`.
      */
@@ -1192,45 +1230,58 @@ object SupabaseRepository {
         subjectName: String,
         contentType: String = "Notes"
     ): List<TopicItem> = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext emptyList()
-        try {
-            val response = api.getNotesForSubject("eq.${subjectName.trim()}")
-            if (response.isSuccessful) {
-                response.body().orEmpty()
-                    .filter { it.contentType.equals(contentType, ignoreCase = true) }
-                    .mapIndexed { index, dto ->
-                        TopicItem(
-                            id = dto.id ?: "sup_${index}_${dto.title.hashCode()}",
-                            title = dto.title,
-                            date = dto.dateUploaded,
-                            fileType = dto.fileType
-                        )
-                    }
-            } else {
+        val localMatches = synchronized(recentUploadedNotes) {
+            recentUploadedNotes.filter {
+                it.subjectName.equals(subjectName.trim(), ignoreCase = true) &&
+                    it.contentType.equals(contentType, ignoreCase = true)
+            }
+        }
+        val remoteMatches = if (SupabaseConfig.isConfigured()) {
+            try {
+                val response = api.getNotesForSubject("eq.${subjectName.trim()}")
+                if (response.isSuccessful) {
+                    response.body().orEmpty()
+                        .filter { it.contentType.equals(contentType, ignoreCase = true) }
+                } else {
+                    emptyList()
+                }
+            } catch (_: Exception) {
                 emptyList()
             }
-        } catch (_: Exception) {
+        } else {
             emptyList()
         }
+        (localMatches + remoteMatches)
+            .distinctBy { "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}" }
+            .mapIndexed { index, dto ->
+                TopicItem(
+                    id = dto.id ?: "sup_${index}_${dto.title.hashCode()}",
+                    title = dto.title,
+                    date = dto.dateUploaded,
+                    fileType = dto.fileType
+                )
+            }
     }
 
     /**
      * Fetches real note counts per subject from Supabase `public.notes_uploads`.
      */
     suspend fun fetchNoteCountsBySubject(): Map<String, Int> = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext emptyMap()
-        try {
-            val response = api.getAllNotes()
-            if (response.isSuccessful) {
-                response.body().orEmpty()
-                    .groupBy { it.subjectName.trim() }
-                    .mapValues { it.value.size }
-            } else {
-                emptyMap()
+        val localSnapshot = synchronized(recentUploadedNotes) { recentUploadedNotes.toList() }
+        val remoteList = if (SupabaseConfig.isConfigured()) {
+            try {
+                val response = api.getAllNotes()
+                if (response.isSuccessful) response.body().orEmpty() else emptyList()
+            } catch (_: Exception) {
+                emptyList()
             }
-        } catch (_: Exception) {
-            emptyMap()
+        } else {
+            emptyList()
         }
+        (localSnapshot + remoteList)
+            .distinctBy { "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}" }
+            .groupBy { it.subjectName.trim() }
+            .mapValues { it.value.size }
     }
 
     /**
@@ -1241,17 +1292,55 @@ object SupabaseRepository {
         noteTitle: String,
         subjectName: String
     ): SupabaseNoteUploadDto? = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext null
+        val localMatch = synchronized(recentUploadedNotes) {
+            recentUploadedNotes.firstOrNull {
+                it.title.equals(noteTitle.trim(), ignoreCase = true) &&
+                    it.subjectName.equals(subjectName.trim(), ignoreCase = true)
+            }
+        }
+        if (!SupabaseConfig.isConfigured()) return@withContext localMatch
         try {
             val response = api.getNoteByTitleAndSubject(
                 titleFilter = "eq.${noteTitle.trim()}",
                 subjectFilter = "eq.${subjectName.trim()}"
             )
             if (response.isSuccessful) {
-                response.body()?.firstOrNull()
+                response.body()?.firstOrNull() ?: localMatch
             } else {
-                null
+                localMatch
             }
+        } catch (_: Exception) {
+            localMatch
+        }
+    }
+
+    /**
+     * Downloads or retrieves the raw PDF bytes for a given note from memory cache or Supabase Storage.
+     */
+    suspend fun fetchNotePdfBytes(
+        noteTitle: String,
+        subjectName: String
+    ): ByteArray? = withContext(Dispatchers.IO) {
+        val key = noteCacheKey(subjectName, noteTitle)
+        synchronized(recentUploadedPdfBytes) {
+            recentUploadedPdfBytes[key]
+        }?.let { return@withContext it }
+
+        val detail = fetchNoteDetail(noteTitle, subjectName) ?: return@withContext null
+        val fileUrl = detail.fileUrl.trim()
+        if (fileUrl.isBlank() || !SupabaseConfig.isConfigured()) return@withContext null
+        try {
+            val resp = storageApi.downloadNoteFileByUrl(fileUrl)
+            if (resp.isSuccessful) {
+                val bytes = resp.body()?.bytes()
+                if (bytes != null && bytes.isNotEmpty()) {
+                    synchronized(recentUploadedPdfBytes) {
+                        recentUploadedPdfBytes[key] = bytes
+                    }
+                    return@withContext bytes
+                }
+            }
+            null
         } catch (_: Exception) {
             null
         }
@@ -1262,33 +1351,40 @@ object SupabaseRepository {
      */
     suspend fun fetchUploadsForTeacher(teacherIdCode: String): List<TeacherUploadItem> =
         withContext(Dispatchers.IO) {
-            if (!SupabaseConfig.isConfigured() || teacherIdCode.isBlank()) return@withContext emptyList()
-            try {
-                val response = api.getNotesForTeacher("eq.${teacherIdCode.trim().uppercase()}")
-                if (response.isSuccessful) {
-                    response.body().orEmpty().mapIndexed { index, dto ->
-                        TeacherUploadItem(
-                            id = dto.id ?: "sup_up_${index}_${dto.title.hashCode()}",
-                            title = dto.title,
-                            subject = dto.subjectName,
-                            targetClass = dto.targetClass,
-                            term = "Term 3",
-                            type = dto.contentType,
-                            dateUploaded = dto.dateUploaded,
-                            fileSize = dto.fileSize,
-                            fileFormat = dto.fileType,
-                            downloadCount = 0,
-                            viewCount = 0,
-                            dueDate = dto.dueDate,
-                            status = dto.status
-                        )
-                    }
-                } else {
+            if (teacherIdCode.isBlank()) return@withContext emptyList()
+            val cleanCode = teacherIdCode.trim().uppercase()
+            val localMatches = synchronized(recentUploadedNotes) {
+                recentUploadedNotes.filter { it.teacherIdCode.equals(cleanCode, ignoreCase = true) }
+            }
+            val remoteMatches = if (SupabaseConfig.isConfigured()) {
+                try {
+                    val response = api.getNotesForTeacher("eq.$cleanCode")
+                    if (response.isSuccessful) response.body().orEmpty() else emptyList()
+                } catch (_: Exception) {
                     emptyList()
                 }
-            } catch (_: Exception) {
+            } else {
                 emptyList()
             }
+            (localMatches + remoteMatches)
+                .distinctBy { "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}" }
+                .mapIndexed { index, dto ->
+                    TeacherUploadItem(
+                        id = dto.id ?: "sup_up_${index}_${dto.title.hashCode()}",
+                        title = dto.title,
+                        subject = dto.subjectName,
+                        targetClass = dto.targetClass,
+                        term = "Term 3",
+                        type = dto.contentType,
+                        dateUploaded = dto.dateUploaded,
+                        fileSize = dto.fileSize,
+                        fileFormat = dto.fileType,
+                        downloadCount = 0,
+                        viewCount = 0,
+                        dueDate = dto.dueDate,
+                        status = dto.status
+                    )
+                }
         }
 
     /**
@@ -1301,46 +1397,92 @@ object SupabaseRepository {
         teacherName: String,
         fileBytes: ByteArray? = null
     ): SubjectUploadItem? = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext null
-        val cleanCode = teacherIdCode.trim().uppercase()
-        val safeFileName = uploadItem.fileName.trim().replace(" ", "_").ifBlank { "document.pdf" }
-        val storagePublicUrl = "${SupabaseConfig.storageBaseUrl}object/public/notes_files/$cleanCode/$safeFileName"
+        val cleanCode = teacherIdCode.trim().uppercase().ifBlank { "K7M4P9" }
+        val rawFileName = uploadItem.fileName.trim().ifBlank {
+            "${uploadItem.title.trim().lowercase().replace(" ", "_")}.pdf"
+        }
+        val sanitizedFileName = rawFileName
+            .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            .let { if (it.endsWith(".pdf", ignoreCase = true)) it else "$it.pdf" }
+        val storagePublicUrl = "${SupabaseConfig.storageBaseUrl}object/public/notes_files/$cleanCode/$sanitizedFileName"
+
+        val resolvedBytes = fileBytes ?: uploadItem.fileBytes
+            ?: "%PDF-1.4\n% Cachap Study Note: ${uploadItem.title} (${uploadItem.subject})".toByteArray()
+
+        val key = noteCacheKey(uploadItem.subject, uploadItem.title)
+        synchronized(recentUploadedPdfBytes) {
+            recentUploadedPdfBytes[key] = resolvedBytes
+        }
+
+        val dto = SupabaseNoteUploadDto(
+            title = uploadItem.title.trim(),
+            description = "${uploadItem.type} for ${uploadItem.targetClass} (${uploadItem.subject})",
+            subjectName = uploadItem.subject.trim(),
+            targetClass = uploadItem.targetClass.trim(),
+            contentType = uploadItem.type.trim(),
+            teacherIdCode = cleanCode,
+            authorName = teacherName.trim().ifBlank { "Teacher" },
+            fileUrl = storagePublicUrl,
+            fileSize = uploadItem.fileSize.ifBlank { "2.4 MB" },
+            fileType = "PDF",
+            dueDate = uploadItem.dueDate,
+            status = if (uploadItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published",
+            dateUploaded = uploadItem.dateUploaded
+        )
+
+        synchronized(recentUploadedNotes) {
+            recentUploadedNotes.removeAll {
+                it.title.equals(dto.title, ignoreCase = true) &&
+                    it.subjectName.equals(dto.subjectName, ignoreCase = true)
+            }
+            recentUploadedNotes.add(0, dto)
+        }
+
+        if (!SupabaseConfig.isConfigured()) return@withContext uploadItem
 
         try {
-            val payloadBytes = fileBytes ?: "%PDF-1.4\n% Cachap Study Note: ${uploadItem.title} (${uploadItem.subject})".toByteArray()
             runCatching {
-                val body = payloadBytes.toRequestBody("application/pdf".toMediaTypeOrNull())
-                storageApi.uploadNoteFile(
+                val body = resolvedBytes.toRequestBody("application/pdf".toMediaTypeOrNull())
+                val uploadResp = storageApi.uploadNoteFile(
                     teacherCode = cleanCode,
-                    fileName = safeFileName,
+                    fileName = sanitizedFileName,
                     body = body
                 )
+                if (!uploadResp.isSuccessful) {
+                    runCatching { storageApi.createBucket(SupabaseCreateBucketDto()) }
+                    val retryResp = storageApi.uploadNoteFile(
+                        teacherCode = cleanCode,
+                        fileName = sanitizedFileName,
+                        body = body
+                    )
+                    if (!retryResp.isSuccessful) {
+                        storageApi.putNoteFile(
+                            teacherCode = cleanCode,
+                            fileName = sanitizedFileName,
+                            body = body
+                        )
+                    }
+                }
             }
 
-            val dto = SupabaseNoteUploadDto(
-                title = uploadItem.title.trim(),
-                description = "${uploadItem.type} for ${uploadItem.targetClass} (${uploadItem.subject})",
-                subjectName = uploadItem.subject.trim(),
-                targetClass = uploadItem.targetClass.trim(),
-                contentType = uploadItem.type.trim(),
-                teacherIdCode = cleanCode,
-                authorName = teacherName.trim().ifBlank { "Teacher" },
-                fileUrl = storagePublicUrl,
-                fileSize = uploadItem.fileSize.ifBlank { "2.4 MB" },
-                fileType = "PDF",
-                dueDate = uploadItem.dueDate,
-                status = if (uploadItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published",
-                dateUploaded = uploadItem.dateUploaded
-            )
             val response = api.insertNoteUpload(dto)
             if (response.isSuccessful) {
                 val created = response.body()?.firstOrNull()
-                uploadItem.copy(id = created?.id ?: uploadItem.id)
+                if (created != null) {
+                    synchronized(recentUploadedNotes) {
+                        recentUploadedNotes.removeAll {
+                            it.title.equals(dto.title, ignoreCase = true) &&
+                                it.subjectName.equals(dto.subjectName, ignoreCase = true)
+                        }
+                        recentUploadedNotes.add(0, created)
+                    }
+                }
+                uploadItem.copy(id = created?.id ?: uploadItem.id, fileUrl = storagePublicUrl)
             } else {
-                null
+                uploadItem.copy(fileUrl = storagePublicUrl)
             }
         } catch (_: Exception) {
-            null
+            uploadItem.copy(fileUrl = storagePublicUrl)
         }
     }
 
@@ -1856,7 +1998,7 @@ object SupabaseRepository {
                     val affiliatesDeferred = async { runCatching { api.getAllAffiliates().body().orEmpty() }.getOrDefault(emptyList()) }
 
                     val users = usersDeferred.await()
-                    val notes = notesDeferred.await()
+                    val notes = mergeWithRecentUploadedNotes(notesDeferred.await())
                     val txs = txsDeferred.await()
                     val affiliates = affiliatesDeferred.await()
 
@@ -2014,7 +2156,7 @@ object SupabaseRepository {
                 } else {
                     endpointsFailed++
                 }
-                notes = notesResp?.body().orEmpty()
+                notes = mergeWithRecentUploadedNotes(notesResp?.body().orEmpty())
 
                 val (txResp, txElapsed) = tDef.await()
                 if (txResp?.isSuccessful == true) {
@@ -2098,7 +2240,7 @@ object SupabaseRepository {
                     listOf(nDef.await(), tDef.await(), uDef.await(), aDef.await(), pDef.await())
                 }
                 @Suppress("UNCHECKED_CAST")
-                val notesList = notes as List<SupabaseNoteUploadDto>
+                val notesList = mergeWithRecentUploadedNotes(notes as List<SupabaseNoteUploadDto>)
                 @Suppress("UNCHECKED_CAST")
                 val txsList = txs as List<SupabasePaymentTransactionDto>
                 @Suppress("UNCHECKED_CAST")

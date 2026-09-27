@@ -914,4 +914,26 @@ class ExampleRobolectricTest {
     assertEquals("0.23%", com.example.data.SupabaseRepository.formatStoragePercent(2.4, 1024.0))
     assertEquals("50%", com.example.data.SupabaseRepository.formatStoragePercent(512.0, 1024.0))
   }
+
+  @Test
+  fun `verify teacher pdf upload item retains pdf bytes and caches locally`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val samplePdfBytes = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF".toByteArray()
+    val uploadItem = com.example.ui.SubjectUploadItem(
+      id = "note-test-1",
+      title = "Quadratic Equations",
+      subject = "Math",
+      targetClass = "S.4 Green",
+      type = "Notes",
+      dateUploaded = "Sep 27, 2026",
+      fileName = "quadratic_equations.pdf",
+      fileSize = "1.2 MB",
+      fileBytes = samplePdfBytes
+    )
+
+    com.example.ui.savePdfBytesLocally(context, uploadItem.subject, uploadItem.title, samplePdfBytes)
+    val loadedBytes = com.example.ui.loadPdfBytesLocally(context, "Math", "Quadratic Equations")
+    org.junit.Assert.assertNotNull(loadedBytes)
+    org.junit.Assert.assertArrayEquals(samplePdfBytes, loadedBytes)
+  }
 }

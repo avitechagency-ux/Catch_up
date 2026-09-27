@@ -118,7 +118,9 @@ data class SubjectUploadItem(
     val isOwnUpload: Boolean = true,
     val uploaderName: String = "Teacher",
     val fileName: String = "document.pdf",
-    val fileSize: String = "2.4 MB"
+    val fileSize: String = "2.4 MB",
+    val fileBytes: ByteArray? = null,
+    val fileUrl: String = ""
 )
 
 /**

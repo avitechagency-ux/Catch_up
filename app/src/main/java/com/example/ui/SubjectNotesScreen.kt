@@ -144,6 +144,15 @@ fun SubjectNotesScreen(
     var selectedContentType by remember { mutableStateOf(NotesContentType.NOTES) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    var liveNotes by remember(subjectName, initialNotes) { mutableStateOf(initialNotes) }
+    var liveAssignments by remember(subjectName, initialAssignments) { mutableStateOf(initialAssignments) }
+
+    androidx.compose.runtime.LaunchedEffect(subjectName, initialNotes, initialAssignments) {
+        val fetchedNotes = com.example.data.SupabaseRepository.fetchNotesForSubject(subjectName, "Notes")
+        val fetchedAssignments = com.example.data.SupabaseRepository.fetchNotesForSubject(subjectName, "Assignment")
+        liveNotes = (initialNotes + fetchedNotes).distinctBy { it.title.trim().lowercase() }
+        liveAssignments = (initialAssignments + fetchedAssignments).distinctBy { it.title.trim().lowercase() }
+    }
 
     val headerColor = remember(subjectName) { getSubjectThemeColor(subjectName) }
 
@@ -153,8 +162,8 @@ fun SubjectNotesScreen(
     }
 
     val rawTopics = when (selectedContentType) {
-        NotesContentType.NOTES -> initialNotes
-        NotesContentType.ASSIGNMENTS -> initialAssignments
+        NotesContentType.NOTES -> liveNotes
+        NotesContentType.ASSIGNMENTS -> liveAssignments
     }
 
     val filteredTopics = remember(searchQuery, rawTopics) {

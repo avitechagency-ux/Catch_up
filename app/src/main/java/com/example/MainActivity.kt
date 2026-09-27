@@ -803,31 +803,41 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.SUBJECT_NOTES
                             }
                         )
-                        AppScreen.SUBJECT_NOTES -> SubjectNotesScreen(
-                            subjectName = selectedSubjectName,
-                            onNavigateBack = {
-                                currentScreen = subjectNotesPreviousScreen
-                            },
-                            onNavigateToHome = {
-                                currentScreen = AppScreen.HOME
-                            },
-                            onNavigateToSubjects = {
-                                currentScreen = AppScreen.SUBJECTS
-                            },
-                            onNavigateToDownloads = {
-                                currentScreen = AppScreen.DOWNLOADS
-                            },
-                            onNavigateToProfile = {
-                                currentScreen = AppScreen.PROFILE
-                            },
-                            onTopicClick = { topic ->
-                                selectedPdfTitle = topic.title
-                                selectedPdfSubject = selectedSubjectName
-                                recordRecentTopic(topic.title, selectedSubjectName, topic.date)
-                                previousScreen = AppScreen.SUBJECT_NOTES
-                                currentScreen = AppScreen.PDF_VIEWER
-                            }
-                        )
+                        AppScreen.SUBJECT_NOTES -> {
+                            val subjectNotesInitial = teacherUploadsList
+                                .filter { it.subject.equals(selectedSubjectName, ignoreCase = true) && !it.type.equals("Assignment", ignoreCase = true) }
+                                .map { com.example.ui.TopicItem(id = it.id, title = it.title, date = it.dateUploaded) }
+                            val subjectAssignmentsInitial = teacherUploadsList
+                                .filter { it.subject.equals(selectedSubjectName, ignoreCase = true) && it.type.equals("Assignment", ignoreCase = true) }
+                                .map { com.example.ui.TopicItem(id = it.id, title = it.title, date = it.dateUploaded) }
+                            SubjectNotesScreen(
+                                subjectName = selectedSubjectName,
+                                initialNotes = subjectNotesInitial,
+                                initialAssignments = subjectAssignmentsInitial,
+                                onNavigateBack = {
+                                    currentScreen = subjectNotesPreviousScreen
+                                },
+                                onNavigateToHome = {
+                                    currentScreen = AppScreen.HOME
+                                },
+                                onNavigateToSubjects = {
+                                    currentScreen = AppScreen.SUBJECTS
+                                },
+                                onNavigateToDownloads = {
+                                    currentScreen = AppScreen.DOWNLOADS
+                                },
+                                onNavigateToProfile = {
+                                    currentScreen = AppScreen.PROFILE
+                                },
+                                onTopicClick = { topic ->
+                                    selectedPdfTitle = topic.title
+                                    selectedPdfSubject = selectedSubjectName
+                                    recordRecentTopic(topic.title, selectedSubjectName, topic.date)
+                                    previousScreen = AppScreen.SUBJECT_NOTES
+                                    currentScreen = AppScreen.PDF_VIEWER
+                                }
+                            )
+                        }
                         AppScreen.PDF_VIEWER -> {
                             val isCurrentlySaved = downloadsList.any {
                                 it.title.equals(selectedPdfTitle, ignoreCase = true) &&
@@ -1186,7 +1196,8 @@ class MainActivity : ComponentActivity() {
                                                     fileSize = resolvedSize
                                                 ),
                                                 teacherIdCode = teacherIdCode,
-                                                teacherName = teacherName
+                                                teacherName = teacherName,
+                                                fileBytes = savedItem.fileBytes
                                             )
                                         }
                                     }

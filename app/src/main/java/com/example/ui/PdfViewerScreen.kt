@@ -1,8 +1,11 @@
 package com.example.ui
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
+import android.os.ParcelFileDescriptor
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +22,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -44,31 +46,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.SupabaseRepository
 import com.example.ui.theme.IndigoPurple
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * In-App Study Notes Viewer Screen (Pure Jetpack Compose).
+ * In-App Study Notes & PDF Viewer Screen (Pure Jetpack Compose).
  *
- * 100% native Compose architecture — eliminates WebView/Chromium/MESA GPU
- * crashes in headless and virtualized cloud runtime environments.
- *
- * Provides complete offline caching to app internal cache storage
- * (zero external storage permission requirements).
+ * Renders an unbordered, clean document page layout without boxes or borders around the work,
+ * and supports rendering uploaded PDF files synced with Supabase Storage.
  */
 @Composable
 fun PdfViewerScreen(
@@ -85,10 +87,22 @@ fun PdfViewerScreen(
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    var renderedPdfPages by remember(noteTitle, subjectName) {
+        mutableStateOf<List<ImageBitmap>>(emptyList())
+    }
 
-    // Trigger onNoteOpened on launch (used to update last-accessed timestamp and daily goal streak)
-    LaunchedEffect(noteTitle) {
+    // Trigger onNoteOpened on launch and check for uploaded PDF binary in local cache or Supabase Storage
+    LaunchedEffect(noteTitle, subjectName) {
         onNoteOpened()
+        val pdfBytes = withContext(Dispatchers.IO) {
+            loadPdfBytesLocally(context, subjectName, noteTitle)
+                ?: SupabaseRepository.fetchNotePdfBytes(noteTitle, subjectName)?.also { fetched ->
+                    savePdfBytesLocally(context, subjectName, noteTitle, fetched)
+                }
+        }
+        if (pdfBytes != null && pdfBytes.size > 100) {
+            renderedPdfPages = renderPdfPagesFromBytes(context, subjectName, noteTitle, pdfBytes)
+        }
     }
 
     val themeColor = remember(subjectName) {
@@ -99,13 +113,14 @@ fun PdfViewerScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("pdf_viewer_screen"),
-        containerColor = Color(0xFFF8F9FA),
+        containerColor = Color.White,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.White)
                 .padding(bottom = innerPadding.calculateBottomPadding())
         ) {
             // TOP BAR: Subject color background, 56dp height, zero bottom border
@@ -208,254 +223,201 @@ fun PdfViewerScreen(
                 }
             }
 
-            // BODY: Native Compose Note Reader (rock-solid, zero chromium crashes)
+            // BODY: Clean, Unbordered Document View (pure white page, zero borders around work)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFFF8F9FA))
+                    .background(Color.White)
                     .testTag("pdf_content_area")
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .background(Color.White)
                         .verticalScroll(scrollState)
-                        .padding(horizontal = 16.dp, vertical = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .padding(horizontal = 20.dp, vertical = 24.dp),
+                    horizontalAlignment = Alignment.Start
                 ) {
-                    // Document Card Container
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .shadow(
-                                elevation = 2.dp,
-                                shape = RoundedCornerShape(14.dp),
-                                ambientColor = Color(0x0A000000),
-                                spotColor = Color(0x0A000000)
-                            )
-                            .border(1.dp, Color(0xFFEBE9F2), RoundedCornerShape(14.dp)),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color.White
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp)
-                        ) {
-                            // Subject Badge
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(themeColor.copy(alpha = 0.12f))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = "$subjectName Study Module".uppercase(),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = themeColor,
-                                    letterSpacing = 0.5.sp
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Note Title Heading
-                            Text(
-                                text = noteTitle,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1A1A1A),
-                                lineHeight = 28.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            // Syllabus Subtitle
-                            Text(
-                                text = "Uganda National Curriculum Development Centre (NCDC) Syllabus • O-Level",
-                                fontSize = 12.sp,
-                                color = Color(0xFF8A8A8A)
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Box(
+                    if (renderedPdfPages.isNotEmpty()) {
+                        // Render actual uploaded PDF pages cleanly with zero borders
+                        renderedPdfPages.forEachIndexed { index, pageBitmap ->
+                            Image(
+                                bitmap = pageBitmap,
+                                contentDescription = "$noteTitle Page ${index + 1}",
+                                contentScale = ContentScale.FillWidth,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(Color(0xFFF0F0F0))
+                                    .background(Color.White)
                             )
-
-                            Spacer(modifier = Modifier.height(18.dp))
-
-                            // Section 1: Overview & Learning Objectives
-                            NoteSectionHeading(
-                                title = "1. Overview & Learning Objectives",
-                                accentColor = themeColor
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = "This module provides comprehensive revision notes for $noteTitle under the $subjectName secondary school syllabus. By mastering this unit, learners will be able to demonstrate conceptual mastery and solve UNEB exam problems accurately.",
-                                fontSize = 14.5.sp,
-                                color = Color(0xFF333333),
-                                lineHeight = 22.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // Core Definition Callout
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, Color(0xFFE8E5F5), RoundedCornerShape(10.dp)),
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFFF7F6FB)
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.MenuBook,
-                                            contentDescription = "Definition",
-                                            tint = IndigoPurple,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "Core Definition",
-                                            fontSize = 13.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = IndigoPurple
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "$noteTitle: A fundamental topic in $subjectName dealing with analytical properties, core principles, standard relationships, and practical field applications.",
-                                        fontSize = 13.5.sp,
-                                        color = Color(0xFF2A2A2A),
-                                        lineHeight = 20.sp
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(20.dp))
-
-                            // Section 2: Key Principles & Analysis
-                            NoteSectionHeading(
-                                title = "2. Key Principles & Analysis",
-                                accentColor = themeColor
-                            )
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            BulletPoint(
-                                title = "Fundamental Theory",
-                                description = "Understanding primary interactions, structural foundations, and key definitions."
-                            )
-                            BulletPoint(
-                                title = "Analytical Framework",
-                                description = "Applying systematic step-by-step methods to evaluate core question formats."
-                            )
-                            BulletPoint(
-                                title = "Real-world Context",
-                                description = "Connecting classroom theory to East African and global real-world scenarios."
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            // Formula Card
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, Color(0xFFDDD6FE), RoundedCornerShape(8.dp)),
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFFFAF5FF)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "★ Key Formula / Rule: Total Result = Σ (Factor × Weight) / Standard Unit",
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFF5B21B6)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(20.dp))
-
-                            // Section 3: Step-by-Step Practical Application
-                            NoteSectionHeading(
-                                title = "3. Step-by-Step Practical Application",
-                                accentColor = themeColor
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = "When solving examination questions regarding $noteTitle, follow this structured procedure:",
-                                fontSize = 14.5.sp,
-                                color = Color(0xFF333333),
-                                lineHeight = 22.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            BulletPoint(
-                                title = "Step 1",
-                                description = "Identify the given variables and specific requirements."
-                            )
-                            BulletPoint(
-                                title = "Step 2",
-                                description = "State all relevant principles, laws, or algebraic relations clearly."
-                            )
-                            BulletPoint(
-                                title = "Step 3",
-                                description = "Perform calculations or arguments methodically showing all working steps."
-                            )
-
-                            Spacer(modifier = Modifier.height(18.dp))
-
-                            // UNEB Exam Tip Card
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, Color(0xFFA7F3D0), RoundedCornerShape(10.dp)),
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color(0xFFECFDF5)
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Lightbulb,
-                                            contentDescription = "Exam Tip",
-                                            tint = Color(0xFF065F46),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = "UNEB Examination Tip",
-                                            fontSize = 13.5.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF065F46)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Always define key terms in full before presenting calculations or illustrative diagrams to maximize your marks.",
-                                        fontSize = 13.sp,
-                                        color = Color(0xFF047857),
-                                        lineHeight = 19.sp
-                                    )
-                                }
+                            if (index < renderedPdfPages.lastIndex) {
+                                Spacer(modifier = Modifier.height(16.dp))
                             }
                         }
+                    } else {
+                        // Clean, unbordered document layout
+                        Text(
+                            text = "$subjectName Study Module".uppercase(),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = themeColor,
+                            letterSpacing = 0.5.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Note Title Heading
+                        Text(
+                            text = noteTitle,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1A1A1A),
+                            lineHeight = 28.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Syllabus Subtitle
+                        Text(
+                            text = "Uganda National Curriculum Development Centre (NCDC) Syllabus • O-Level",
+                            fontSize = 12.sp,
+                            color = Color(0xFF8A8A8A)
+                        )
+
+                        Spacer(modifier = Modifier.height(22.dp))
+
+                        // Section 1: Overview & Learning Objectives
+                        NoteSectionHeading(
+                            title = "1. Overview & Learning Objectives",
+                            accentColor = themeColor
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "This module provides comprehensive revision notes for $noteTitle under the $subjectName secondary school syllabus. By mastering this unit, learners will be able to demonstrate conceptual mastery and solve UNEB exam problems accurately.",
+                            fontSize = 14.5.sp,
+                            color = Color(0xFF333333),
+                            lineHeight = 22.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Core Definition (Unbordered clean document section)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Outlined.MenuBook,
+                                contentDescription = "Definition",
+                                tint = IndigoPurple,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Core Definition",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = IndigoPurple
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "$noteTitle: A fundamental topic in $subjectName dealing with analytical properties, core principles, standard relationships, and practical field applications.",
+                            fontSize = 14.sp,
+                            color = Color(0xFF2A2A2A),
+                            lineHeight = 21.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(22.dp))
+
+                        // Section 2: Key Principles & Analysis
+                        NoteSectionHeading(
+                            title = "2. Key Principles & Analysis",
+                            accentColor = themeColor
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        BulletPoint(
+                            title = "Fundamental Theory",
+                            description = "Understanding primary interactions, structural foundations, and key definitions."
+                        )
+                        BulletPoint(
+                            title = "Analytical Framework",
+                            description = "Applying systematic step-by-step methods to evaluate core question formats."
+                        )
+                        BulletPoint(
+                            title = "Real-world Context",
+                            description = "Connecting classroom theory to East African and global real-world scenarios."
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Key Formula / Rule (Unbordered clean document line)
+                        Text(
+                            text = "★ Key Formula / Rule: Total Result = Σ (Factor × Weight) / Standard Unit",
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF5B21B6),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+
+                        Spacer(modifier = Modifier.height(22.dp))
+
+                        // Section 3: Step-by-Step Practical Application
+                        NoteSectionHeading(
+                            title = "3. Step-by-Step Practical Application",
+                            accentColor = themeColor
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "When solving examination questions regarding $noteTitle, follow this structured procedure:",
+                            fontSize = 14.5.sp,
+                            color = Color(0xFF333333),
+                            lineHeight = 22.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        BulletPoint(
+                            title = "Step 1",
+                            description = "Identify the given variables and specific requirements."
+                        )
+                        BulletPoint(
+                            title = "Step 2",
+                            description = "State all relevant principles, laws, or algebraic relations clearly."
+                        )
+                        BulletPoint(
+                            title = "Step 3",
+                            description = "Perform calculations or arguments methodically showing all working steps."
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // UNEB Exam Tip (Unbordered clean document section)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Outlined.Lightbulb,
+                                contentDescription = "Exam Tip",
+                                tint = Color(0xFF065F46),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "UNEB Examination Tip",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF065F46)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Always define key terms in full before presenting calculations or illustrative diagrams to maximize your marks.",
+                            fontSize = 13.5.sp,
+                            color = Color(0xFF047857),
+                            lineHeight = 20.sp
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(30.dp))
@@ -470,25 +432,13 @@ private fun NoteSectionHeading(
     title: String,
     accentColor: Color
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
+    Text(
+        text = title,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Bold,
+        color = accentColor.copy(alpha = 0.95f),
         modifier = Modifier.fillMaxWidth()
-    ) {
-        Box(
-            modifier = Modifier
-                .width(4.dp)
-                .height(16.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(accentColor)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = title,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF2D3748)
-        )
-    }
+    )
 }
 
 @Composable
@@ -519,6 +469,80 @@ private fun BulletPoint(
             color = Color(0xFF444444),
             lineHeight = 20.sp
         )
+    }
+}
+
+/**
+ * Saves uploaded or downloaded PDF binary bytes into the app's private cache directory.
+ */
+fun savePdfBytesLocally(context: Context, subjectName: String, noteTitle: String, bytes: ByteArray) {
+    try {
+        val dir = File(context.cacheDir, "catchup_pdfs")
+        if (!dir.exists()) dir.mkdirs()
+        val safeName = "${subjectName.trim().lowercase()}_${noteTitle.trim().lowercase()}"
+            .replace(Regex("[^a-z0-9._-]"), "_") + ".pdf"
+        File(dir, safeName).writeBytes(bytes)
+    } catch (_: Exception) {
+        // Ignore local cache error
+    }
+}
+
+/**
+ * Loads cached PDF binary bytes for a note if present in the app's private cache directory.
+ */
+fun loadPdfBytesLocally(context: Context, subjectName: String, noteTitle: String): ByteArray? {
+    return try {
+        val dir = File(context.cacheDir, "catchup_pdfs")
+        val safeName = "${subjectName.trim().lowercase()}_${noteTitle.trim().lowercase()}"
+            .replace(Regex("[^a-z0-9._-]"), "_") + ".pdf"
+        val file = File(dir, safeName)
+        if (file.exists() && file.length() > 0L) file.readBytes() else null
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/**
+ * Renders pages of an uploaded PDF file into clean, unbordered white [ImageBitmap]s using Android's [PdfRenderer].
+ */
+private suspend fun renderPdfPagesFromBytes(
+    context: Context,
+    subjectName: String,
+    noteTitle: String,
+    bytes: ByteArray
+): List<ImageBitmap> = withContext(Dispatchers.IO) {
+    try {
+        val header = String(bytes.take(5).toByteArray(), Charsets.US_ASCII)
+        if (!header.startsWith("%PDF")) return@withContext emptyList()
+
+        val dir = File(context.cacheDir, "catchup_pdfs")
+        if (!dir.exists()) dir.mkdirs()
+        val safeName = "${subjectName.trim().lowercase()}_${noteTitle.trim().lowercase()}"
+            .replace(Regex("[^a-z0-9._-]"), "_") + ".pdf"
+        val pdfFile = File(dir, safeName)
+        if (!pdfFile.exists() || pdfFile.length() != bytes.size.toLong()) {
+            pdfFile.writeBytes(bytes)
+        }
+
+        val pfd = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
+        val renderer = PdfRenderer(pfd)
+        val pages = mutableListOf<ImageBitmap>()
+        val count = renderer.pageCount.coerceAtMost(20)
+        for (i in 0 until count) {
+            val page = renderer.openPage(i)
+            val width = (page.width * 2).coerceIn(600, 1600)
+            val height = (page.height * 2).coerceIn(800, 2400)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            bitmap.eraseColor(android.graphics.Color.WHITE)
+            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            page.close()
+            pages.add(bitmap.asImageBitmap())
+        }
+        renderer.close()
+        pfd.close()
+        pages
+    } catch (_: Exception) {
+        emptyList()
     }
 }
 

@@ -167,6 +167,9 @@ fun TeacherUploadNotesScreen(
     var selectedFileSize by remember {
         mutableStateOf(existingNote?.fileSize?.ifBlank { "2.4 MB" } ?: "2.4 MB")
     }
+    var selectedFileBytes by remember {
+        mutableStateOf<ByteArray?>(existingNote?.fileBytes)
+    }
 
     var showClassPickerSheet by remember { mutableStateOf(false) }
     var showSubjectPicker by remember { mutableStateOf(false) }
@@ -177,12 +180,36 @@ fun TeacherUploadNotesScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         if (uri != null) {
-            val path = uri.lastPathSegment ?: "document.pdf"
-            val cleanName = if (path.contains("/")) path.substringAfterLast("/") else path
+            var queriedName: String? = null
+            var queriedSize: Long = -1L
+            runCatching {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIdx >= 0) queriedName = cursor.getString(nameIdx)
+                        val sizeIdx = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                        if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) queriedSize = cursor.getLong(sizeIdx)
+                    }
+                }
+            }
+            val rawBytes = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            }.getOrNull()
+            selectedFileBytes = rawBytes
+
+            val fallbackPath = uri.lastPathSegment ?: "document.pdf"
+            val rawName = queriedName?.takeIf { it.isNotBlank() }
+                ?: if (fallbackPath.contains("/")) fallbackPath.substringAfterLast("/") else fallbackPath
+            val cleanName = rawName.substringAfterLast(":")
             selectedFileName = if (cleanName.endsWith(".pdf", ignoreCase = true)) cleanName else "$cleanName.pdf"
-            val lengthBytes = runCatching {
-                context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
-            }.getOrDefault(-1L)
+
+            val lengthBytes = when {
+                rawBytes != null && rawBytes.isNotEmpty() -> rawBytes.size.toLong()
+                queriedSize > 0L -> queriedSize
+                else -> runCatching {
+                    context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
+                }.getOrDefault(-1L)
+            }
             if (lengthBytes > 0L) {
                 val mb = lengthBytes.toDouble() / (1024.0 * 1024.0)
                 selectedFileSize = if (mb >= 0.1) {
@@ -737,7 +764,10 @@ fun TeacherUploadNotesScreen(
                                 }
 
                                 IconButton(
-                                    onClick = { selectedFileName = null },
+                                    onClick = {
+                                        selectedFileName = null
+                                        selectedFileBytes = null
+                                    },
                                     modifier = Modifier.size(28.dp)
                                 ) {
                                     Icon(
@@ -766,8 +796,12 @@ fun TeacherUploadNotesScreen(
                                 subject = currentSubjectItem.name,
                                 type = selectedType,
                                 fileName = selectedFileName ?: "document.pdf",
-                                fileSize = selectedFileSize
+                                fileSize = selectedFileSize,
+                                fileBytes = selectedFileBytes
                             )
+                            if (selectedFileBytes != null && selectedFileBytes!!.isNotEmpty()) {
+                                savePdfBytesLocally(context, currentSubjectItem.name, title.trim(), selectedFileBytes!!)
+                            }
                             onSaveSuccess(newItem)
                         } else {
                             coroutineScope.launch {
