@@ -318,9 +318,30 @@ interface SupabasePostgrestApi {
         @Body fields: Map<String, @JvmSuppressWildcards Any?>
     ): Response<List<SupabaseUserDto>>
 
+    @Headers("Prefer: return=representation")
+    @PATCH("users")
+    suspend fun updateUserByEmail(
+        @Query("email") emailFilter: String,
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<List<SupabaseUserDto>>
+
+    @Headers("Prefer: return=representation")
+    @PATCH("users")
+    suspend fun updateUserByFullName(
+        @Query("full_name") nameFilter: String,
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<List<SupabaseUserDto>>
+
     @GET("users")
     suspend fun getUserByPhoneAndPasswordHash(
         @Query("phone_number") phoneFilter: String,
+        @Query("password_hash") passwordHashFilter: String,
+        @Query("select") select: String = "*"
+    ): Response<List<SupabaseUserDto>>
+
+    @GET("users")
+    suspend fun getUserByEmailAndPasswordHash(
+        @Query("email") emailFilter: String,
         @Query("password_hash") passwordHashFilter: String,
         @Query("select") select: String = "*"
     ): Response<List<SupabaseUserDto>>
@@ -335,6 +356,12 @@ interface SupabasePostgrestApi {
     @GET("users")
     suspend fun getUserByPhone(
         @Query("phone_number") phoneFilter: String,
+        @Query("select") select: String = "*"
+    ): Response<List<SupabaseUserDto>>
+
+    @GET("users")
+    suspend fun getUserByEmail(
+        @Query("email") emailFilter: String,
         @Query("select") select: String = "*"
     ): Response<List<SupabaseUserDto>>
 
@@ -466,6 +493,13 @@ interface SupabasePostgrestApi {
     @GET("notes_uploads")
     suspend fun getNotesForTeacher(
         @Query("teacher_id_code") teacherCodeFilter: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<SupabaseNoteUploadDto>>
+
+    @GET("notes_uploads")
+    suspend fun getNotesByAuthorName(
+        @Query("author_name") authorNameFilter: String,
         @Query("select") select: String = "*",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<SupabaseNoteUploadDto>>
@@ -640,6 +674,19 @@ object SupabaseRepository {
         moshi.adapter<List<SupabaseUserDto>>(type)
     }
 
+    private val noteUploadListAdapter by lazy {
+        val type = com.squareup.moshi.Types.newParameterizedType(List::class.java, SupabaseNoteUploadDto::class.java)
+        moshi.adapter<List<SupabaseNoteUploadDto>>(type)
+    }
+
+    private fun persistRecentUploadedNotes() {
+        val snapshot = synchronized(recentUploadedNotes) { recentUploadedNotes.toList() }
+        runCatching {
+            val json = noteUploadListAdapter.toJson(snapshot)
+            appPrefs?.edit()?.putString("uploaded_notes_json", json)?.apply()
+        }
+    }
+
     /**
      * Initializes persistent on-device account registry so users who sign up on the device
      * can always log back in (online or offline, and across GitHub Actions APK builds).
@@ -656,6 +703,23 @@ object SupabaseRepository {
                     parsed.forEach { user ->
                         if (recentSyncedUsers.none { phonesMatch(it.phoneNumber, user.phoneNumber) && it.fullName.equals(user.fullName, ignoreCase = true) }) {
                             recentSyncedUsers.add(user)
+                        }
+                    }
+                }
+            }
+        }
+        val savedNotesJson = registryPrefs.getString("uploaded_notes_json", null)
+        if (!savedNotesJson.isNullOrBlank()) {
+            runCatching {
+                val parsedNotes = noteUploadListAdapter.fromJson(savedNotesJson).orEmpty()
+                synchronized(recentUploadedNotes) {
+                    parsedNotes.forEach { note ->
+                        if (recentUploadedNotes.none {
+                                it.title.equals(note.title, ignoreCase = true) &&
+                                    it.subjectName.equals(note.subjectName, ignoreCase = true) &&
+                                    it.teacherIdCode.equals(note.teacherIdCode, ignoreCase = true)
+                            }) {
+                            recentUploadedNotes.add(note)
                         }
                     }
                 }
@@ -947,6 +1011,18 @@ object SupabaseRepository {
 
             // 2. Direct PostgREST queries on `public.users`
             try {
+                val byEmailResp = api.getUserByEmailAndPasswordHash(
+                    emailFilter = "ilike.$cleanIdentifier",
+                    passwordHashFilter = "eq.$hashedPassword"
+                )
+                if (byEmailResp.isSuccessful) {
+                    val found = byEmailResp.body()?.firstOrNull()
+                    if (found != null) {
+                        recordRecentSyncedUser(found)
+                        return@withContext found
+                    }
+                }
+
                 val byPhoneResp = api.getUserByPhoneAndPasswordHash(
                     phoneFilter = "ilike.$cleanIdentifier",
                     passwordHashFilter = "eq.$hashedPassword"
@@ -971,8 +1047,11 @@ object SupabaseRepository {
                     }
                 }
 
-                // 3. Broader lookup by phone, full_name, or all users to handle normalized phone formats (+256 vs 07...)
+                // 3. Broader lookup by email, phone, full_name, or all users
                 val candidatePool = mutableListOf<SupabaseUserDto>()
+                runCatching {
+                    api.getUserByEmail("ilike.$cleanIdentifier").body()?.let { candidatePool.addAll(it) }
+                }
                 runCatching {
                     api.getUserByPhone("ilike.$cleanIdentifier").body()?.let { candidatePool.addAll(it) }
                 }
@@ -1050,14 +1129,19 @@ object SupabaseRepository {
     }
 
     /**
-     * Fetches a user's full profile from Supabase `public.users` by phone number.
+     * Fetches a user's full profile from Supabase `public.users` by email or phone number.
      */
     suspend fun fetchUserByPhone(phoneNumber: String): SupabaseUserDto? = withContext(Dispatchers.IO) {
         if (phoneNumber.isBlank()) return@withContext null
-        val cleanPhone = phoneNumber.trim()
+        val cleanId = phoneNumber.trim()
         if (SupabaseConfig.isConfigured()) {
             try {
-                val response = api.getUserByPhone("eq.$cleanPhone")
+                val byEmail = api.getUserByEmail("ilike.$cleanId")
+                if (byEmail.isSuccessful) {
+                    val foundEmail = byEmail.body()?.firstOrNull()
+                    if (foundEmail != null) return@withContext foundEmail
+                }
+                val response = api.getUserByPhone("ilike.$cleanId")
                 if (response.isSuccessful) {
                     val found = response.body()?.firstOrNull()
                     if (found != null) return@withContext found
@@ -1067,7 +1151,10 @@ object SupabaseRepository {
             }
         }
         synchronized(recentSyncedUsers) {
-            recentSyncedUsers.firstOrNull { it.phoneNumber.equals(cleanPhone, ignoreCase = true) }
+            recentSyncedUsers.firstOrNull {
+                it.email.equals(cleanId, ignoreCase = true) ||
+                    it.phoneNumber.equals(cleanId, ignoreCase = true)
+            }
         }
     }
 
@@ -1084,7 +1171,7 @@ object SupabaseRepository {
         val cleanPhone = phoneNumber.trim()
         val existingLocal = synchronized(recentSyncedUsers) {
             recentSyncedUsers.firstOrNull {
-                (cleanPhone.isNotBlank() && phonesMatch(it.phoneNumber, cleanPhone)) ||
+                (cleanPhone.isNotBlank() && (phonesMatch(it.phoneNumber, cleanPhone) || phonesMatch(it.email, cleanPhone))) ||
                     (fullName.isNotBlank() && it.fullName.equals(fullName.trim(), ignoreCase = true))
             }
         }
@@ -1115,7 +1202,10 @@ object SupabaseRepository {
             } else {
                 fields["academic_class"] = academicClassOrSubjects.trim()
             }
-            api.updateUserByPhone("eq.$cleanPhone", fields).isSuccessful
+            val byEmail = runCatching { api.updateUserByEmail("ilike.$cleanPhone", fields) }.getOrNull()
+            val byPhone = runCatching { api.updateUserByPhone("ilike.$cleanPhone", fields) }.getOrNull()
+            (byEmail?.isSuccessful == true && !byEmail.body().isNullOrEmpty()) ||
+                (byPhone?.isSuccessful == true)
         } catch (_: Exception) {
             false
         }
@@ -1129,6 +1219,7 @@ object SupabaseRepository {
         streak: StreakData
     ): Boolean = withContext(Dispatchers.IO) {
         if (!SupabaseConfig.isConfigured() || phoneNumber.isBlank()) return@withContext false
+        val cleanId = phoneNumber.trim()
         try {
             val fields = mapOf<String, Any?>(
                 "streak_days" to streak.streakDays,
@@ -1136,7 +1227,10 @@ object SupabaseRepository {
                 "streak_last_active_date" to streak.lastActiveDate,
                 "streak_today_completed" to streak.isTodayCompleted
             )
-            api.updateUserByPhone("eq.${phoneNumber.trim()}", fields).isSuccessful
+            val byEmail = runCatching { api.updateUserByEmail("ilike.$cleanId", fields) }.getOrNull()
+            val byPhone = runCatching { api.updateUserByPhone("ilike.$cleanId", fields) }.getOrNull()
+            (byEmail?.isSuccessful == true && !byEmail.body().isNullOrEmpty()) ||
+                (byPhone?.isSuccessful == true)
         } catch (_: Exception) {
             false
         }
@@ -1169,6 +1263,7 @@ object SupabaseRepository {
         settings: SupabaseUserSettings
     ): Boolean = withContext(Dispatchers.IO) {
         if (!SupabaseConfig.isConfigured() || phoneNumber.isBlank()) return@withContext false
+        val cleanId = phoneNumber.trim()
         try {
             val fields = mapOf<String, Any?>(
                 "notify_new_notes" to settings.notifyNewNotes,
@@ -1178,7 +1273,10 @@ object SupabaseRepository {
                 "wifi_only_downloads" to settings.wifiOnlyDownloads,
                 "preferred_language" to settings.preferredLanguage
             )
-            api.updateUserByPhone("eq.${phoneNumber.trim()}", fields).isSuccessful
+            val byEmail = runCatching { api.updateUserByEmail("ilike.$cleanId", fields) }.getOrNull()
+            val byPhone = runCatching { api.updateUserByPhone("ilike.$cleanId", fields) }.getOrNull()
+            (byEmail?.isSuccessful == true && !byEmail.body().isNullOrEmpty()) ||
+                (byPhone?.isSuccessful == true)
         } catch (_: Exception) {
             false
         }
@@ -1607,19 +1705,37 @@ object SupabaseRepository {
     }
 
     /**
-     * Fetches all uploads created by the logged-in teacher (scoped by `teacher_id_code`).
+     * Fetches all uploads created by the logged-in teacher (scoped by `teacher_id_code` or `author_name`).
      */
-    suspend fun fetchUploadsForTeacher(teacherIdCode: String): List<TeacherUploadItem> =
+    suspend fun fetchUploadsForTeacher(
+        teacherIdCode: String,
+        teacherName: String = ""
+    ): List<TeacherUploadItem> =
         withContext(Dispatchers.IO) {
-            if (teacherIdCode.isBlank()) return@withContext emptyList()
             val cleanCode = teacherIdCode.trim().uppercase()
+            val cleanName = teacherName.trim()
+            val hasSpecificName = cleanName.isNotBlank() && !cleanName.equals("Teacher", ignoreCase = true)
+            if (cleanCode.isBlank() && !hasSpecificName) return@withContext emptyList()
+
             val localMatches = synchronized(recentUploadedNotes) {
-                recentUploadedNotes.filter { it.teacherIdCode.equals(cleanCode, ignoreCase = true) }
+                recentUploadedNotes.filter {
+                    (cleanCode.isNotBlank() && it.teacherIdCode.equals(cleanCode, ignoreCase = true)) ||
+                        (hasSpecificName && it.authorName.trim().equals(cleanName, ignoreCase = true))
+                }
             }
             val remoteMatches = if (SupabaseConfig.isConfigured()) {
                 try {
-                    val response = api.getNotesForTeacher("eq.$cleanCode")
-                    if (response.isSuccessful) response.body().orEmpty() else emptyList()
+                    val byCode = if (cleanCode.isNotBlank()) {
+                        val response = api.getNotesForTeacher("eq.$cleanCode")
+                        if (response.isSuccessful) response.body().orEmpty() else emptyList()
+                    } else emptyList()
+
+                    val byAuthor = if (hasSpecificName) {
+                        val response = api.getNotesByAuthorName("ilike.$cleanName")
+                        if (response.isSuccessful) response.body().orEmpty() else emptyList()
+                    } else emptyList()
+
+                    (byCode + byAuthor)
                 } catch (_: Exception) {
                     emptyList()
                 }
@@ -1697,6 +1813,7 @@ object SupabaseRepository {
             }
             recentUploadedNotes.add(0, dto)
         }
+        persistRecentUploadedNotes()
 
         if (!SupabaseConfig.isConfigured()) return@withContext uploadItem
 
@@ -1736,6 +1853,7 @@ object SupabaseRepository {
                         }
                         recentUploadedNotes.add(0, created)
                     }
+                    persistRecentUploadedNotes()
                 }
                 uploadItem.copy(id = created?.id ?: uploadItem.id, fileUrl = storagePublicUrl)
             } else {
@@ -1758,7 +1876,25 @@ object SupabaseRepository {
         updatedType: String,
         updatedDueDate: String?
     ): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext false
+        synchronized(recentUploadedNotes) {
+            val idx = recentUploadedNotes.indexOfFirst {
+                (noteId.isNotBlank() && it.id == noteId) ||
+                    (it.title.equals(originalTitle.trim(), ignoreCase = true) &&
+                        it.subjectName.equals(subjectName.trim(), ignoreCase = true))
+            }
+            if (idx >= 0) {
+                val current = recentUploadedNotes[idx]
+                recentUploadedNotes[idx] = current.copy(
+                    title = updatedTitle.trim(),
+                    targetClass = updatedTargetClass.trim(),
+                    contentType = updatedType.trim(),
+                    dueDate = updatedDueDate
+                )
+            }
+        }
+        persistRecentUploadedNotes()
+
+        if (!SupabaseConfig.isConfigured()) return@withContext true
         val fields = mapOf<String, Any?>(
             "title" to updatedTitle.trim(),
             "target_class" to updatedTargetClass.trim(),
@@ -1790,7 +1926,16 @@ object SupabaseRepository {
         title: String,
         subjectName: String
     ): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext false
+        synchronized(recentUploadedNotes) {
+            recentUploadedNotes.removeAll {
+                (noteId.isNotBlank() && it.id == noteId) ||
+                    (it.title.equals(title.trim(), ignoreCase = true) &&
+                        it.subjectName.equals(subjectName.trim(), ignoreCase = true))
+            }
+        }
+        persistRecentUploadedNotes()
+
+        if (!SupabaseConfig.isConfigured()) return@withContext true
         try {
             val byId = if (noteId.isNotBlank() && !noteId.startsWith("upload-")) {
                 api.deleteNoteUploadById("eq.${noteId.trim()}").isSuccessful
@@ -1912,12 +2057,15 @@ object SupabaseRepository {
         phoneNumber: String,
         planDuration: String,
         amountUgx: Long,
-        transactionDate: String
+        transactionDate: String,
+        accountEmail: String = ""
     ): Boolean = withContext(Dispatchers.IO) {
         val cleanPhone = phoneNumber.trim()
+        val cleanEmail = accountEmail.trim()
         val existingLocal = synchronized(recentSyncedUsers) {
             recentSyncedUsers.firstOrNull {
-                (cleanPhone.isNotBlank() && phonesMatch(it.phoneNumber, cleanPhone)) ||
+                (cleanEmail.isNotBlank() && (phonesMatch(it.email, cleanEmail) || phonesMatch(it.phoneNumber, cleanEmail))) ||
+                    (cleanPhone.isNotBlank() && (phonesMatch(it.phoneNumber, cleanPhone) || phonesMatch(it.email, cleanPhone))) ||
                     (studentName.isNotBlank() && it.fullName.equals(studentName.trim(), ignoreCase = true))
             }
         }
@@ -1962,15 +2110,20 @@ object SupabaseRepository {
                 transactionDate = transactionDate
             )
             val txSuccess = api.insertPaymentTransaction(dto).isSuccessful
-            runCatching {
-                api.updateUserByPhone(
-                    phoneFilter = "eq.${phoneNumber.trim()}",
-                    fields = mapOf(
-                        "is_plan_active" to true,
-                        "plan_duration" to planDuration,
-                        "plan_expiry_date" to "Valid for 30 days"
-                    )
-                )
+            val planFields = mapOf(
+                "is_plan_active" to true,
+                "plan_duration" to planDuration,
+                "plan_expiry_date" to "Valid for 30 days"
+            )
+            if (cleanEmail.isNotBlank()) {
+                runCatching { api.updateUserByEmail("ilike.$cleanEmail", planFields) }
+                runCatching { api.updateUserByPhone("ilike.$cleanEmail", planFields) }
+            }
+            if (cleanPhone.isNotBlank()) {
+                runCatching { api.updateUserByPhone("eq.$cleanPhone", planFields) }
+            }
+            if (studentName.isNotBlank()) {
+                runCatching { api.updateUserByFullName("ilike.${studentName.trim()}", planFields) }
             }
             txSuccess
         } catch (_: Exception) {

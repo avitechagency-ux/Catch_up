@@ -1,0 +1,113 @@
+name: Build Signed Release APK
+
+# Triggers on push to main, version tags ("v*"), or manual trigger via workflow_dispatch
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Opt in to Node 24 for JavaScript-based GitHub Actions to prevent Node 20 deprecation warnings
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-release:
+    name: Build & Sign Release APK and AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      # Step 1: Checkout repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up JDK 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # Step 3: Set up Gradle caching
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Step 4: Prepare & verify the Release Keystore (alias: "upload") expected by app/build.gradle.kts
+      - name: Prepare Release Keystore (my-upload-key.jks)
+        env:
+          SECRET_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.RELEASE_KEYSTORE_PASSWORD || 'CatchUpRel2026!Key' }}
+        run: |
+          DEFAULT_KEYSTORE_B64="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"
+          if [ -n "$SECRET_KEYSTORE_B64" ]; then
+            echo "$SECRET_KEYSTORE_B64" | tr -d '\r\n ' | base64 -d > "${{ github.workspace }}/my-upload-key.jks"
+          elif [ -f "${{ github.workspace }}/release.keystore.base64" ]; then
+            tr -d '\r\n ' < "${{ github.workspace }}/release.keystore.base64" | base64 -d > "${{ github.workspace }}/my-upload-key.jks"
+          else
+            echo "$DEFAULT_KEYSTORE_B64" | tr -d '\r\n ' | base64 -d > "${{ github.workspace }}/my-upload-key.jks"
+          fi
+          cp "${{ github.workspace }}/my-upload-key.jks" "${{ github.workspace }}/app/my-upload-key.jks"
+          keytool -list -v -keystore "${{ github.workspace }}/my-upload-key.jks" -alias upload -storepass "$STORE_PASSWORD"
+
+      # Step 5: Grant execute permission for gradlew
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # Step 6: Configure .env for the Secrets Gradle Plugin
+      - name: Configure environment (.env)
+        env:
+          SUPABASE_URL_SECRET: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY_SECRET: ${{ secrets.SUPABASE_ANON_KEY }}
+          GOOGLE_WEB_CLIENT_ID_SECRET: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          URL_VAL="${SUPABASE_URL_SECRET:-https://xzutgxiwexxhmpqtybaf.supabase.co}"
+          KEY_VAL="${SUPABASE_ANON_KEY_SECRET:-your-anon-key}"
+          GOOGLE_CLIENT_VAL="${GOOGLE_WEB_CLIENT_ID_SECRET:-your-google-web-client-id.apps.googleusercontent.com}"
+          printf "SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\nGOOGLE_WEB_CLIENT_ID=%s\n" "$URL_VAL" "$KEY_VAL" "$GOOGLE_CLIENT_VAL" > .env
+
+      # Step 7: Build signed Release APK and Release AAB using app/build.gradle.kts signingConfig
+      - name: Build signed Release APK and AAB
+        env:
+          KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD || secrets.RELEASE_KEYSTORE_PASSWORD || 'CatchUpRel2026!Key' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.RELEASE_KEY_PASSWORD || 'CatchUpRel2026!Key' }}
+        run: ./gradlew assembleRelease bundleRelease --stacktrace
+
+      # Step 8: Verify signed Release APK output
+      - name: Verify Signed Release APK
+        run: |
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            echo "Signed Release APK successfully created at app/build/outputs/apk/release/app-release.apk"
+            ls -lh app/build/outputs/apk/release/app-release.apk
+          else
+            echo "Error: app/build/outputs/apk/release/app-release.apk not found!"
+            exit 1
+          fi
+
+      # Step 9a: Upload signed Release APK artifact
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: catchup-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # Step 9b: Upload signed Release AAB artifact
+      - name: Upload Release AAB Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: catchup-release-aab
+          path: app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      # Step 10: Clean up temporary keystore copy in app/
+      - name: Clean up temporary keystore copy
+        if: always()
+        run: rm -f app/my-upload-key.jks
+

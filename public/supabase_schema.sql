@@ -38,22 +38,32 @@ CREATE TABLE IF NOT EXISTS public.users (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ensure column exists if table was created before teacher subject selection was added
+-- Ensure columns and email index exist if table was created before email & password auth migration
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
+ALTER TABLE public.users ALTER COLUMN phone_number SET DEFAULT '';
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS subjects_taught TEXT DEFAULT '';
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS account_status TEXT DEFAULT 'Active';
 
+-- Backfill email for existing accounts where email was blank
+UPDATE public.users
+SET email = lower(trim(phone_number))
+WHERE (email IS NULL OR trim(email) = '')
+  AND phone_number IS NOT NULL
+  AND trim(phone_number) <> '';
+
 CREATE INDEX IF NOT EXISTS idx_users_phone ON public.users(phone_number);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(lower(email));
 CREATE INDEX IF NOT EXISTS idx_users_role ON public.users(role);
 CREATE INDEX IF NOT EXISTS idx_users_teacher_id_code ON public.users(teacher_id_code);
 
 -- ============================================================================
--- 1B. CUSTOM AUTH SESSIONS TABLE (Zero-SMS Table-Based Authentication)
--- Replaces Supabase Auth (auth.users) so you never pay for SMS OTPs.
+-- 1B. CUSTOM AUTH SESSIONS TABLE (Zero-SMS Email & Password Table-Based Auth)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.auth_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    phone_number TEXT NOT NULL,
+    phone_number TEXT NOT NULL DEFAULT '',
+    email TEXT DEFAULT '',
     role TEXT NOT NULL DEFAULT 'student',
     session_token TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
     device_info TEXT DEFAULT 'Cachap Android',
@@ -62,8 +72,11 @@ CREATE TABLE IF NOT EXISTS public.auth_sessions (
     expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '90 days')
 );
 
+ALTER TABLE public.auth_sessions ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
+
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON public.auth_sessions(session_token);
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_phone ON public.auth_sessions(phone_number);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_email ON public.auth_sessions(lower(email));
 
 -- ============================================================================
 -- 2. CURRICULUM SUBJECTS TABLE (25 NCDC / UNEB Ugandan Secondary Subjects)
@@ -330,7 +343,7 @@ DROP FUNCTION IF EXISTS public.register_user_account(TEXT, TEXT, TEXT, TEXT, TEX
 DROP FUNCTION IF EXISTS public.register_user_account(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT);
 DROP FUNCTION IF EXISTS public.authenticate_user_account(TEXT, TEXT, TEXT);
 
--- RPC 1: Register a user in public.users, sync teacher_subjects, log to admin_audit_logs, and issue session_token
+-- RPC 1: Register a user by Email & Password in public.users, sync teacher_subjects, log to admin_audit_logs, and issue session_token
 CREATE OR REPLACE FUNCTION public.register_user_account(
     p_phone_number TEXT,
     p_full_name TEXT,
@@ -360,27 +373,54 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_user public.users%ROWTYPE;
+    v_identifier TEXT;
     v_token TEXT;
     v_subj TEXT;
 BEGIN
-    INSERT INTO public.users (
-        phone_number, email, full_name, role, password_hash,
-        academic_class, stream, teacher_id_code, subjects_taught, referral_code, updated_at
-    )
-    VALUES (
-        trim(p_phone_number), trim(p_phone_number), trim(p_full_name), lower(trim(p_role)), p_password_hash,
-        COALESCE(p_academic_class, ''), COALESCE(p_stream, ''), p_teacher_id_code, COALESCE(p_subjects_taught, ''), p_referral_code, NOW()
-    )
-    ON CONFLICT ON CONSTRAINT users_phone_number_key DO UPDATE SET
-        full_name = EXCLUDED.full_name,
-        role = EXCLUDED.role,
-        password_hash = EXCLUDED.password_hash,
-        academic_class = EXCLUDED.academic_class,
-        stream = EXCLUDED.stream,
-        teacher_id_code = COALESCE(public.users.teacher_id_code, EXCLUDED.teacher_id_code),
-        subjects_taught = CASE WHEN EXCLUDED.subjects_taught <> '' THEN EXCLUDED.subjects_taught ELSE public.users.subjects_taught END,
-        updated_at = NOW()
-    RETURNING * INTO v_user;
+    v_identifier := lower(trim(p_phone_number));
+
+    -- Check if an account already exists with this email or phone_number
+    SELECT * INTO v_user
+    FROM public.users u
+    WHERE (u.email IS NOT NULL AND u.email <> '' AND lower(trim(u.email)) = v_identifier)
+       OR lower(trim(u.phone_number)) = v_identifier
+    LIMIT 1;
+
+    IF FOUND THEN
+        UPDATE public.users
+        SET email = v_identifier,
+            full_name = trim(p_full_name),
+            role = lower(trim(p_role)),
+            password_hash = p_password_hash,
+            academic_class = COALESCE(p_academic_class, ''),
+            stream = COALESCE(p_stream, ''),
+            teacher_id_code = COALESCE(public.users.teacher_id_code, p_teacher_id_code),
+            subjects_taught = CASE WHEN COALESCE(p_subjects_taught, '') <> '' THEN p_subjects_taught ELSE public.users.subjects_taught END,
+            referral_code = COALESCE(public.users.referral_code, p_referral_code),
+            updated_at = NOW()
+        WHERE id = v_user.id
+        RETURNING * INTO v_user;
+    ELSE
+        INSERT INTO public.users (
+            phone_number, email, full_name, role, password_hash,
+            academic_class, stream, teacher_id_code, subjects_taught, referral_code, updated_at
+        )
+        VALUES (
+            v_identifier, v_identifier, trim(p_full_name), lower(trim(p_role)), p_password_hash,
+            COALESCE(p_academic_class, ''), COALESCE(p_stream, ''), p_teacher_id_code, COALESCE(p_subjects_taught, ''), p_referral_code, NOW()
+        )
+        ON CONFLICT ON CONSTRAINT users_phone_number_key DO UPDATE SET
+            email = EXCLUDED.email,
+            full_name = EXCLUDED.full_name,
+            role = EXCLUDED.role,
+            password_hash = EXCLUDED.password_hash,
+            academic_class = EXCLUDED.academic_class,
+            stream = EXCLUDED.stream,
+            teacher_id_code = COALESCE(public.users.teacher_id_code, EXCLUDED.teacher_id_code),
+            subjects_taught = CASE WHEN EXCLUDED.subjects_taught <> '' THEN EXCLUDED.subjects_taught ELSE public.users.subjects_taught END,
+            updated_at = NOW()
+        RETURNING * INTO v_user;
+    END IF;
 
     -- If teacher selected subjects during signup, populate public.teacher_subjects
     IF v_user.role = 'teacher' AND v_user.teacher_id_code IS NOT NULL AND COALESCE(p_subjects_taught, '') <> '' THEN
@@ -401,9 +441,9 @@ BEGIN
         CASE WHEN v_user.role = 'teacher' THEN 'New Teacher Registered' ELSE 'New Student Registered' END,
         CASE
             WHEN v_user.role = 'teacher' THEN
-                'Teacher ''' || v_user.full_name || ''' (ID: ' || COALESCE(v_user.teacher_id_code, 'N/A') || ') signed up for subjects: ' || COALESCE(NULLIF(v_user.subjects_taught, ''), 'General')
+                'Teacher ''' || v_user.full_name || ''' (ID: ' || COALESCE(v_user.teacher_id_code, 'N/A') || ') signed up with email ' || COALESCE(NULLIF(v_user.email, ''), v_user.phone_number) || ' for subjects: ' || COALESCE(NULLIF(v_user.subjects_taught, ''), 'General')
             ELSE
-                'Student ''' || v_user.full_name || ''' (' || trim(v_user.academic_class || ' ' || v_user.stream) || ') created an account with phone ' || v_user.phone_number
+                'Student ''' || v_user.full_name || ''' (' || trim(v_user.academic_class || ' ' || v_user.stream) || ') created an account with email ' || COALESCE(NULLIF(v_user.email, ''), v_user.phone_number)
         END,
         'SECURITY',
         'INFO',
@@ -413,12 +453,12 @@ BEGIN
 
     v_token := encode(gen_random_bytes(32), 'hex');
 
-    INSERT INTO public.auth_sessions (user_id, phone_number, role, session_token)
-    VALUES (v_user.id, v_user.phone_number, v_user.role, v_token);
+    INSERT INTO public.auth_sessions (user_id, phone_number, email, role, session_token)
+    VALUES (v_user.id, COALESCE(NULLIF(v_user.email, ''), v_user.phone_number), COALESCE(NULLIF(v_user.email, ''), v_user.phone_number), v_user.role, v_token);
 
     RETURN QUERY SELECT
         v_user.id,
-        v_user.phone_number,
+        COALESCE(NULLIF(v_user.email, ''), v_user.phone_number),
         v_user.full_name,
         v_user.role,
         v_user.academic_class,
@@ -431,7 +471,7 @@ BEGIN
 END;
 $$;
 
--- RPC 2: Authenticate a user by phone_number + SHA-256 password_hash and query teacher_subjects if needed
+-- RPC 2: Authenticate a user by Email (or legacy phone_number) + SHA-256 password_hash and query teacher_subjects if needed
 CREATE OR REPLACE FUNCTION public.authenticate_user_account(
     p_phone_number TEXT,
     p_password_hash TEXT,
@@ -455,17 +495,33 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_user public.users%ROWTYPE;
+    v_identifier TEXT;
     v_token TEXT;
     v_queried_subjects TEXT;
 BEGIN
+    v_identifier := lower(trim(p_phone_number));
+
     SELECT * INTO v_user
     FROM public.users u
-    WHERE u.phone_number = trim(p_phone_number)
+    WHERE (
+        (u.email IS NOT NULL AND u.email <> '' AND lower(trim(u.email)) = v_identifier)
+        OR lower(trim(u.phone_number)) = v_identifier
+    )
       AND (u.password_hash = p_password_hash OR u.password_hash = '')
     LIMIT 1;
 
     IF NOT FOUND THEN
         RETURN;
+    END IF;
+
+    -- Backfill password_hash or email if previously empty
+    IF v_user.password_hash = '' OR COALESCE(v_user.email, '') = '' THEN
+        UPDATE public.users
+        SET password_hash = CASE WHEN password_hash = '' THEN p_password_hash ELSE password_hash END,
+            email = CASE WHEN COALESCE(email, '') = '' THEN v_identifier ELSE email END,
+            updated_at = NOW()
+        WHERE id = v_user.id
+        RETURNING * INTO v_user;
     END IF;
 
     -- Query public.teacher_subjects for teachers so subjects_taught is always up to date from the DB
@@ -490,12 +546,19 @@ BEGIN
 
     v_token := encode(gen_random_bytes(32), 'hex');
 
-    INSERT INTO public.auth_sessions (user_id, phone_number, role, session_token, device_info)
-    VALUES (v_user.id, v_user.phone_number, v_user.role, v_token, COALESCE(p_device_info, 'Cachap Android'));
+    INSERT INTO public.auth_sessions (user_id, phone_number, email, role, session_token, device_info)
+    VALUES (
+        v_user.id,
+        COALESCE(NULLIF(v_user.email, ''), v_user.phone_number),
+        COALESCE(NULLIF(v_user.email, ''), v_user.phone_number),
+        v_user.role,
+        v_token,
+        COALESCE(p_device_info, 'Cachap Android')
+    );
 
     RETURN QUERY SELECT
         v_user.id,
-        v_user.phone_number,
+        COALESCE(NULLIF(v_user.email, ''), v_user.phone_number),
         v_user.full_name,
         v_user.role,
         v_user.academic_class,
@@ -716,7 +779,9 @@ BEGIN
             plan_duration = COALESCE(NULLIF(NEW.plan_duration, ''), '1 Month'),
             plan_expiry_date = 'Valid for 30 days',
             updated_at = NOW()
-        WHERE phone_number = NEW.phone_number;
+        WHERE phone_number = NEW.phone_number
+           OR lower(email) = lower(NEW.phone_number)
+           OR lower(full_name) = lower(NEW.user_name);
     END IF;
 
     INSERT INTO public.admin_audit_logs (title, description, category, level, actor, timestamp_label)

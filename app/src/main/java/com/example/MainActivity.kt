@@ -258,13 +258,13 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val initialScreen = remember {
-                    val hasResetForV6 = prefs.getBoolean("onboarding_v6_reinstall_reset", false)
-                    if (!hasResetForV6) {
+                    val hasResetForV7 = prefs.getBoolean("onboarding_v7_reinstall_reset", false)
+                    if (!hasResetForV7) {
                         prefs.edit()
-                            .putBoolean("onboarding_v6_reinstall_reset", true)
+                            .clear()
+                            .putBoolean("onboarding_v7_reinstall_reset", true)
                             .putBoolean("is_first_time", true)
                             .putBoolean("is_logged_in", false)
-                            .remove("last_active_screen")
                             .apply()
                     }
                     val isLoggedIn = prefs.getBoolean("is_logged_in", false)
@@ -392,28 +392,53 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Sync connected students for teacher from Supabase when entering TEACHER_HOME
-                LaunchedEffect(currentScreen, teacherIdCode) {
-                    if (currentScreen == AppScreen.TEACHER_HOME && SupabaseConfig.isConfigured()) {
-                        val remoteStudents = SupabaseRepository.fetchConnectedStudentsForTeacher(teacherIdCode)
-                        if (remoteStudents.isNotEmpty()) {
-                            val merged = (remoteStudents + connectedStudentsList)
-                                .distinctBy { "${it.studentName.lowercase()}_${it.subjectName.lowercase()}_${it.teacherIdCode.uppercase()}" }
-                            connectedStudentsList = merged
-                            prefs.edit().putString("teacher_connected_students", serializeConnectedStudents(merged)).apply()
-                        }
-                    }
+                // Live-sync teacher profile, subjects, uploads, and connected students with Supabase across all teacher screens
+                val isTeacherScreen = currentScreen == AppScreen.TEACHER_HOME ||
+                    currentScreen == AppScreen.TEACHER_MY_SUBJECTS ||
+                    currentScreen == AppScreen.TEACHER_SUBJECT_CONFIG ||
+                    currentScreen == AppScreen.TEACHER_UPLOADS ||
+                    currentScreen == AppScreen.TEACHER_PROFILE ||
+                    currentScreen == AppScreen.TEACHER_ACCOUNT
+
+                var selectedTeacherSubjectItem by remember {
+                    mutableStateOf(DefaultTeacherSubjects.first())
+                }
+                var teacherNoteToEdit by remember {
+                    mutableStateOf<SubjectUploadItem?>(null)
                 }
 
                 val onSaveTeacherProfile: (String, String, String) -> Unit = { newName, newSchool, newSubjects ->
                     teacherName = newName
                     teacherSchool = newSchool
                     teacherSubjectsTaught = newSubjects
+                    val resolvedItems = resolveTeacherSubjectItems(newSubjects)
+                    if (resolvedItems.isNotEmpty()) {
+                        selectedTeacherSubjectItem = resolvedItems.first()
+                    }
                     prefs.edit()
                         .putString("teacher_name", newName)
                         .putString("teacher_school", newSchool)
                         .putString("teacher_subjects", newSubjects)
                         .apply()
+                    val teacherAccountKey = (prefs.getString("user_email", null) ?: studentPhone).orEmpty().trim()
+                    coroutineScope.launch {
+                        SupabaseRepository.updateUserProfileInSupabase(
+                            phoneNumber = teacherAccountKey.ifBlank { newName },
+                            fullName = newName,
+                            schoolName = newSchool,
+                            academicClassOrSubjects = newSubjects,
+                            isTeacher = true
+                        )
+                        val subjectNamesList = newSubjects.split(",")
+                            .map { it.trim() }
+                            .filter { it.isNotBlank() && !it.equals("Secondary Curriculum", ignoreCase = true) }
+                        if (subjectNamesList.isNotEmpty()) {
+                            SupabaseRepository.syncTeacherSubjects(
+                                teacherIdCode = teacherIdCode,
+                                subjectNames = subjectNamesList
+                            )
+                        }
+                    }
                 }
 
                 var recentNotesList by remember {
@@ -425,7 +450,76 @@ class MainActivity : ComponentActivity() {
                 }
 
                 var teacherUploadsList by remember {
-                    mutableStateOf<List<TeacherUploadItem>>(DefaultTeacherAllUploads)
+                    mutableStateOf<List<TeacherUploadItem>>(emptyList())
+                }
+
+                LaunchedEffect(isTeacherScreen, currentScreen, teacherIdCode, teacherName) {
+                    if (isTeacherScreen) {
+                        val accountEmail = (prefs.getString("user_email", null) ?: studentPhone).orEmpty().trim()
+                        if (accountEmail.isNotBlank()) {
+                            val remoteUser = SupabaseRepository.fetchUserByPhone(accountEmail)
+                            if (remoteUser != null && remoteUser.role.equals("teacher", ignoreCase = true)) {
+                                if (remoteUser.fullName.isNotBlank() && remoteUser.fullName != teacherName) {
+                                    teacherName = remoteUser.fullName
+                                    prefs.edit().putString("teacher_name", remoteUser.fullName).apply()
+                                }
+                                val dbCode = remoteUser.teacherIdCode?.trim().orEmpty()
+                                if (dbCode.length == 6 && !dbCode.equals(teacherIdCode, ignoreCase = true)) {
+                                    teacherIdCode = dbCode.uppercase()
+                                    prefs.edit().putString("teacher_id_code", dbCode.uppercase()).apply()
+                                }
+                                if (remoteUser.subjectsTaught.isNotBlank() &&
+                                    !remoteUser.subjectsTaught.equals("Secondary Curriculum", ignoreCase = true) &&
+                                    remoteUser.subjectsTaught != teacherSubjectsTaught
+                                ) {
+                                    teacherSubjectsTaught = remoteUser.subjectsTaught
+                                    prefs.edit().putString("teacher_subjects", remoteUser.subjectsTaught).apply()
+                                }
+                                if (remoteUser.schoolName.isNotBlank() && remoteUser.schoolName != teacherSchool) {
+                                    teacherSchool = remoteUser.schoolName
+                                    prefs.edit().putString("teacher_school", remoteUser.schoolName).apply()
+                                }
+                            }
+                        }
+
+                        val remoteSubjectRows = SupabaseRepository.fetchTeacherSubjectsFromSupabase(teacherIdCode)
+                        if (remoteSubjectRows.isNotEmpty()) {
+                            val dbSubjectsStr = remoteSubjectRows.map { it.subjectName.trim() }
+                                .filter { it.isNotBlank() }
+                                .distinct()
+                                .joinToString(", ")
+                            if (dbSubjectsStr.isNotBlank() &&
+                                (teacherSubjectsTaught.isBlank() || teacherSubjectsTaught.equals("Secondary Curriculum", ignoreCase = true))
+                            ) {
+                                teacherSubjectsTaught = dbSubjectsStr
+                                prefs.edit().putString("teacher_subjects", dbSubjectsStr).apply()
+                            }
+                        } else {
+                            val localSubjectNames = teacherSubjectsTaught.split(",")
+                                .map { it.trim() }
+                                .filter { it.isNotBlank() && !it.equals("Secondary Curriculum", ignoreCase = true) }
+                            if (localSubjectNames.isNotEmpty()) {
+                                SupabaseRepository.syncTeacherSubjects(teacherIdCode, localSubjectNames)
+                            }
+                        }
+
+                        val liveUploads = SupabaseRepository.fetchUploadsForTeacher(
+                            teacherIdCode = teacherIdCode,
+                            teacherName = teacherName
+                        )
+                        teacherUploadsList = liveUploads
+
+                        if (SupabaseConfig.isConfigured()) {
+                            val remoteStudents = SupabaseRepository.fetchConnectedStudentsForTeacher(teacherIdCode)
+                            val localForThisTeacher = connectedStudentsList.filter {
+                                it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)
+                            }
+                            val merged = (remoteStudents + localForThisTeacher)
+                                .distinctBy { "${it.studentName.lowercase()}_${it.subjectName.lowercase()}_${it.teacherIdCode.uppercase()}" }
+                            connectedStudentsList = merged
+                            prefs.edit().putString("teacher_connected_students", serializeConnectedStudents(merged)).apply()
+                        }
+                    }
                 }
 
                 val recordRecentTopic: (String, String, String?) -> Unit = { title, subject, date ->
@@ -439,13 +533,6 @@ class MainActivity : ComponentActivity() {
                         it.title.equals(title, ignoreCase = true) && it.subject.equals(subject, ignoreCase = true)
                     }
                     recentNotesList = updated.take(3)
-                }
-
-                var selectedTeacherSubjectItem by remember {
-                    mutableStateOf(DefaultTeacherSubjects.first())
-                }
-                var teacherNoteToEdit by remember {
-                    mutableStateOf<SubjectUploadItem?>(null)
                 }
 
                 var settingsPreviousScreen by remember {
@@ -614,15 +701,16 @@ class MainActivity : ComponentActivity() {
                         AppScreen.LOGIN -> LoginScreen(
                             onNavigateBack = { currentScreen = AppScreen.WELCOME },
                             onNavigateToSignup = { currentScreen = AppScreen.SIGNUP },
-                            onLoginSuccess = { role, phoneOrIdentifier, fullName, savedClass, savedStream, savedSubjects ->
+                            onLoginSuccess = { role, emailOrIdentifier, fullName, savedClass, savedStream, savedSubjects ->
+                                val cleanEmail = emailOrIdentifier.trim()
                                 val editor = prefs.edit()
                                     .putBoolean("is_logged_in", true)
                                     .putString("user_role", role)
-                                    .putString("user_email", phoneOrIdentifier)
-                                    .putString("user_phone", phoneOrIdentifier)
+                                    .putString("user_email", cleanEmail)
+                                    .putString("user_phone", cleanEmail)
 
                                 if (role.equals("student", ignoreCase = true)) {
-                                    studentPhone = phoneOrIdentifier
+                                    studentPhone = cleanEmail
                                     if (!fullName.isNullOrBlank()) {
                                         studentName = fullName
                                         editor.putString("student_name", fullName)
@@ -642,11 +730,13 @@ class MainActivity : ComponentActivity() {
                                         editor.putString("student_stream_only", savedStream.trim())
                                     }
                                 } else if (role.equals("teacher", ignoreCase = true)) {
-                                    if (!fullName.isNullOrBlank()) {
-                                        teacherName = fullName
-                                        editor.putString("teacher_name", fullName)
-                                    }
-                                    val generatedId = generateTeacherIdCode(fullName ?: phoneOrIdentifier)
+                                    studentPhone = cleanEmail
+                                    teacherUploadsList = emptyList()
+                                    connectedStudentsList = emptyList()
+                                    val resolvedTeacherName = fullName?.takeIf { it.isNotBlank() } ?: teacherName
+                                    teacherName = resolvedTeacherName
+                                    editor.putString("teacher_name", resolvedTeacherName)
+                                    val generatedId = generateTeacherIdCode(resolvedTeacherName.ifBlank { cleanEmail })
                                     teacherIdCode = generatedId
                                     editor.putString("teacher_id_code", generatedId)
                                     if (!savedSubjects.isNullOrBlank()) {
@@ -656,6 +746,19 @@ class MainActivity : ComponentActivity() {
                                             selectedTeacherSubjectItem = resolvedItems.first()
                                         }
                                         editor.putString("teacher_subjects", savedSubjects)
+                                    }
+                                    coroutineScope.launch {
+                                        val dbUser = SupabaseRepository.fetchUserByPhone(cleanEmail)
+                                        val activeCode = dbUser?.teacherIdCode?.takeIf { it.length == 6 }?.uppercase() ?: generatedId
+                                        if (activeCode != teacherIdCode) {
+                                            teacherIdCode = activeCode
+                                            prefs.edit().putString("teacher_id_code", activeCode).apply()
+                                        }
+                                        teacherUploadsList = SupabaseRepository.fetchUploadsForTeacher(
+                                            teacherIdCode = activeCode,
+                                            teacherName = resolvedTeacherName
+                                        )
+                                        connectedStudentsList = SupabaseRepository.fetchConnectedStudentsForTeacher(activeCode)
                                     }
                                 }
                                 editor.apply()
@@ -670,16 +773,17 @@ class MainActivity : ComponentActivity() {
                         AppScreen.SIGNUP -> SignupScreen(
                             onNavigateBack = { currentScreen = AppScreen.WELCOME },
                             onNavigateToLogin = { currentScreen = AppScreen.LOGIN },
-                            onSignupSuccess = { role, phoneNumber, name, studentClass, studentStream, selectedTeacherSubjects ->
+                            onSignupSuccess = { role, emailAddress, name, studentClass, studentStream, selectedTeacherSubjects ->
+                                val cleanEmail = emailAddress.trim()
                                 val editor = prefs.edit()
                                     .putBoolean("is_logged_in", true)
                                     .putString("user_role", role)
-                                    .putString("user_email", phoneNumber)
-                                    .putString("user_phone", phoneNumber)
+                                    .putString("user_email", cleanEmail)
+                                    .putString("user_phone", cleanEmail)
 
                                 if (role.equals("student", ignoreCase = true)) {
                                     studentName = name
-                                    studentPhone = phoneNumber
+                                    studentPhone = cleanEmail
                                     activePlanDuration = ""
                                     activePlanExpiry = ""
                                     val combinedClassStream = listOf(studentClass.trim(), studentStream.trim())
@@ -697,8 +801,11 @@ class MainActivity : ComponentActivity() {
                                         .putString("student_linked_subject_teachers", "")
                                     linkedSubjectTeachers = emptyMap()
                                 } else if (role.equals("teacher", ignoreCase = true)) {
+                                    studentPhone = cleanEmail
                                     teacherName = name
-                                    val generatedId = generateTeacherIdCode(name.ifBlank { phoneNumber })
+                                    teacherUploadsList = emptyList()
+                                    connectedStudentsList = emptyList()
+                                    val generatedId = generateTeacherIdCode(name.ifBlank { cleanEmail })
                                     teacherIdCode = generatedId
                                     val cleanSubjects = selectedTeacherSubjects.trim().ifBlank { "Secondary Curriculum" }
                                     teacherSubjectsTaught = cleanSubjects
@@ -710,6 +817,7 @@ class MainActivity : ComponentActivity() {
                                         .putString("teacher_name", name)
                                         .putString("teacher_id_code", generatedId)
                                         .putString("teacher_subjects", cleanSubjects)
+                                        .putString("teacher_connected_students", "")
                                 }
                                 editor.apply()
 
@@ -728,11 +836,14 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.SIGNUP
                             },
                             onPaymentSuccess = { paidPlan, paidPhone ->
-                                studentPhone = paidPhone
+                                val savedEmail = prefs.getString("user_email", studentPhone)?.trim().orEmpty()
+                                val accountIdentifier = savedEmail.ifBlank { paidPhone }
+                                studentPhone = accountIdentifier
                                 activePlanDuration = paidPlan.duration
                                 activePlanExpiry = "Valid for 30 days"
                                 prefs.edit()
-                                    .putString("user_phone", paidPhone)
+                                    .putString("user_phone", accountIdentifier)
+                                    .putString("momo_phone", paidPhone)
                                     .putString("student_active_plan_duration", activePlanDuration)
                                     .putString("student_active_plan_expiry", activePlanExpiry)
                                     .apply()
@@ -743,7 +854,8 @@ class MainActivity : ComponentActivity() {
                                         phoneNumber = paidPhone,
                                         planDuration = paidPlan.duration,
                                         amountUgx = paidPlan.priceUgx.toLong(),
-                                        transactionDate = nowDate
+                                        transactionDate = nowDate,
+                                        accountEmail = accountIdentifier
                                     )
                                 }
                                 currentScreen = AppScreen.HOME
@@ -1136,6 +1248,46 @@ class MainActivity : ComponentActivity() {
                                 previousScreen = AppScreen.TEACHER_SUBJECT_CONFIG
                                 currentScreen = AppScreen.TEACHER_UPLOAD_NOTES
                             },
+                            onDeleteNote = { deletedNote ->
+                                teacherUploadsList = teacherUploadsList.filterNot {
+                                    it.id == deletedNote.id ||
+                                        (it.title.equals(deletedNote.title, ignoreCase = true) &&
+                                            it.subject.equals(deletedNote.subject, ignoreCase = true))
+                                }
+                                coroutineScope.launch {
+                                    SupabaseRepository.deleteNoteUploadFromSupabase(
+                                        noteId = deletedNote.id,
+                                        title = deletedNote.title,
+                                        subjectName = deletedNote.subject
+                                    )
+                                }
+                            },
+                            onQuickUpload = { quickItem ->
+                                val nowStr = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date())
+                                val newUpload = TeacherUploadItem(
+                                    id = quickItem.id.ifBlank { "upload-${System.currentTimeMillis()}" },
+                                    title = quickItem.title,
+                                    subject = quickItem.subject,
+                                    targetClass = quickItem.targetClass,
+                                    term = "Term 3",
+                                    type = quickItem.type,
+                                    dateUploaded = nowStr,
+                                    fileSize = quickItem.fileSize.ifBlank { "2.4 MB" },
+                                    downloadCount = 0,
+                                    viewCount = 0,
+                                    dueDate = quickItem.dueDate,
+                                    status = if (quickItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published"
+                                )
+                                teacherUploadsList = listOf(newUpload) + teacherUploadsList
+                                coroutineScope.launch {
+                                    SupabaseRepository.uploadNoteAndFileToSupabase(
+                                        uploadItem = quickItem.copy(dateUploaded = nowStr),
+                                        teacherIdCode = teacherIdCode,
+                                        teacherName = teacherName,
+                                        fileBytes = quickItem.fileBytes
+                                    )
+                                }
+                            },
                             onOpenNote = { title, subject ->
                                 selectedPdfTitle = title
                                 selectedPdfSubject = subject
@@ -1146,16 +1298,11 @@ class MainActivity : ComponentActivity() {
                         )
                         AppScreen.TEACHER_UPLOAD_NOTES -> {
                             val activeTeacherSubjects = resolveTeacherSubjectItems(teacherSubjectsTaught)
-                            val assignedClasses = if (selectedTeacherSubjectItem.name.equals("Math", ignoreCase = true)) {
-                                listOf("S.3 Blue", "S.3 Green", "S.4 Green", "S.4 Blue")
-                            } else {
-                                listOf("S.4 Green", "S.4 Blue", "S.5 Blue", "S.5 Arts")
-                            }
                             TeacherUploadNotesScreen(
                                 subjectName = selectedTeacherSubjectItem.name,
                                 subjectIcon = selectedTeacherSubjectItem.icon,
                                 availableSubjects = activeTeacherSubjects,
-                                assignedClasses = assignedClasses,
+                                assignedClasses = com.example.ui.UgandanSecondaryClasses,
                                 existingNote = teacherNoteToEdit,
                                 onNavigateBack = {
                                     currentScreen = previousScreen
@@ -1228,6 +1375,20 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.TEACHER_UPLOAD_NOTES
                             },
                             onNavigateToTeacherProfile = { currentScreen = AppScreen.TEACHER_PROFILE },
+                            onDeleteUpload = { deletedItem ->
+                                teacherUploadsList = teacherUploadsList.filterNot {
+                                    it.id == deletedItem.id ||
+                                        (it.title.equals(deletedItem.title, ignoreCase = true) &&
+                                            it.subject.equals(deletedItem.subject, ignoreCase = true))
+                                }
+                                coroutineScope.launch {
+                                    SupabaseRepository.deleteNoteUploadFromSupabase(
+                                        noteId = deletedItem.id,
+                                        title = deletedItem.title,
+                                        subjectName = deletedItem.subject
+                                    )
+                                }
+                            },
                             onOpenUpload = { title, subject ->
                                 selectedPdfTitle = title
                                 selectedPdfSubject = subject
@@ -1271,6 +1432,7 @@ class MainActivity : ComponentActivity() {
                         )
                         AppScreen.TEACHER_ACCOUNT -> TeacherAccountScreen(
                             teacherName = teacherName,
+                            teacherIdCode = teacherIdCode,
                             subjectsTaught = teacherSubjectsTaught,
                             schoolName = teacherSchool,
                             onNavigateBack = { currentScreen = AppScreen.TEACHER_PROFILE },

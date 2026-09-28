@@ -105,7 +105,7 @@ fun TeacherUploadNotesScreen(
     subjectName: String = "Geography",
     subjectIcon: ImageVector = Icons.Outlined.Public,
     availableSubjects: List<TeacherSubjectItem> = DefaultTeacherSubjects,
-    assignedClasses: List<String> = listOf("S.4 Green", "S.4 Blue", "S.5 Blue", "S.5 Arts"),
+    assignedClasses: List<String> = UgandanSecondaryClasses,
     existingNote: SubjectUploadItem? = null,
     modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit = {},
@@ -123,7 +123,7 @@ fun TeacherUploadNotesScreen(
                 ?: TeacherSubjectItem(
                     id = "geography",
                     name = subjectName,
-                    classes = "S.4, S.5",
+                    classes = "S.1 - S.6",
                     noteCount = 0,
                     assignmentCount = 0,
                     icon = subjectIcon,
@@ -132,15 +132,13 @@ fun TeacherUploadNotesScreen(
         )
     }
 
-    // Dynamic classes based on the active subject
-    val dynamicClasses = remember(currentSubjectItem) {
-        if (currentSubjectItem.name.equals("Math", ignoreCase = true)) {
-            listOf("S.3 Blue", "S.3 Green", "S.4 Green", "S.4 Blue")
-        } else if (currentSubjectItem.name.equals("Geography", ignoreCase = true)) {
-            listOf("S.4 Green", "S.4 Blue", "S.5 Blue", "S.5 Arts")
-        } else {
-            assignedClasses
-        }
+    // Classes based on Ugandan secondary school classes (S.1 - S.6)
+    val dynamicClasses = remember(currentSubjectItem, assignedClasses) {
+        val parsed = currentSubjectItem.classes
+            .split(",")
+            .map { it.trim() }
+            .filter { it in UgandanSecondaryClasses }
+        parsed.ifEmpty { assignedClasses.ifEmpty { UgandanSecondaryClasses } }
     }
 
     // Form states
@@ -173,7 +171,6 @@ fun TeacherUploadNotesScreen(
 
     var showClassPickerSheet by remember { mutableStateOf(false) }
     var showSubjectPicker by remember { mutableStateOf(false) }
-    var showSampleFilePicker by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     val pdfPickerLauncher = rememberLauncherForActivityResult(
@@ -221,8 +218,6 @@ fun TeacherUploadNotesScreen(
             } else {
                 selectedFileSize = "2.4 MB"
             }
-        } else {
-            showSampleFilePicker = true
         }
     }
 
@@ -667,10 +662,12 @@ fun TeacherUploadNotesScreen(
                                     )
                                 }
                                 .clickable {
-                                    try {
+                                    runCatching {
                                         pdfPickerLauncher.launch("application/pdf")
-                                    } catch (e: Exception) {
-                                        showSampleFilePicker = true
+                                    }.onFailure {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Unable to open device file picker.")
+                                        }
                                     }
                                 }
                                 .testTag("card_select_document_empty"),
@@ -903,71 +900,6 @@ fun TeacherUploadNotesScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(28.dp))
-            }
-        }
-    }
-
-    // Sample File Fallback Picker
-    if (showSampleFilePicker) {
-        ModalBottomSheet(
-            onDismissRequest = { showSampleFilePicker = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = Color.White,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-            ) {
-                Text(
-                    text = "Select Sample Document",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark
-                )
-                Spacer(modifier = Modifier.height(14.dp))
-
-                listOf(
-                    "${currentSubjectItem.name}_Comprehensive_Notes.pdf",
-                    "${currentSubjectItem.name}_Topical_Revision_PastPapers.pdf",
-                    "${currentSubjectItem.name}_Assessment_Questions.pdf"
-                ).forEach { sampleName ->
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                selectedFileName = sampleName
-                                showSampleFilePicker = false
-                            },
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF9F8FD)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.PictureAsPdf,
-                                contentDescription = null,
-                                tint = Color(0xFFE53935),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = sampleName,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = TextDark
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }

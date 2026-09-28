@@ -117,11 +117,8 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify teacher all uploads collection contains study notes and assignments`() {
-    assertTrue(DefaultTeacherAllUploads.isNotEmpty())
-    assertEquals(6, DefaultTeacherAllUploads.size)
-    assertTrue(DefaultTeacherAllUploads.any { it.subject == "Geography" })
-    assertTrue(DefaultTeacherAllUploads.any { it.subject == "Math" })
+  fun `verify teacher all uploads collection starts empty for new teachers`() {
+    assertTrue(DefaultTeacherAllUploads.isEmpty())
   }
 
   @Test
@@ -983,5 +980,50 @@ class ExampleRobolectricTest {
       plainPassword = "wrongPassword"
     )
     org.junit.Assert.assertNull(wrongPassword)
+
+    // Authenticate by Email and Password
+    val emailSyncSuccess = com.example.data.SupabaseRepository.syncUserToSupabase(
+      phoneNumber = "student@cachap.ug",
+      fullName = "Sarah Namukasa",
+      role = "student",
+      plainPassword = "emailPassword123",
+      academicClass = "S.5",
+      stream = "Blue"
+    )
+    assertTrue(emailSyncSuccess)
+
+    val byEmail = com.example.data.SupabaseRepository.authenticateWithTableAuth(
+      phoneOrIdentifier = "student@cachap.ug",
+      plainPassword = "emailPassword123"
+    )
+    org.junit.Assert.assertNotNull(byEmail)
+    assertEquals("Sarah Namukasa", byEmail?.fullName)
+    assertEquals("student@cachap.ug", byEmail?.email)
+  }
+
+  @Test
+  fun `verify signup student class dropdown options contain only six ugandan secondary classes`() {
+    assertEquals(6, com.example.ui.UgandanSecondaryClasses.size)
+    assertEquals(
+      listOf("S.1", "S.2", "S.3", "S.4", "S.5", "S.6"),
+      com.example.ui.UgandanSecondaryClasses
+    )
+  }
+
+  @Test
+  fun `verify release keystore base64 contains valid upload key alias`() {
+    val rootDir = java.io.File(System.getProperty("user.dir") ?: ".").let {
+      if (it.name == "app") it.parentFile ?: it else it
+    }
+    val b64File = java.io.File(rootDir, "release.keystore.base64")
+    assertTrue(b64File.exists())
+    val decodedBytes = java.util.Base64.getDecoder().decode(b64File.readText().trim())
+    assertTrue(decodedBytes.isNotEmpty())
+
+    val keyStore = java.security.KeyStore.getInstance("PKCS12")
+    keyStore.load(java.io.ByteArrayInputStream(decodedBytes), "CatchUpRel2026!Key".toCharArray())
+    assertTrue(keyStore.containsAlias("upload"))
+    val key = keyStore.getKey("upload", "CatchUpRel2026!Key".toCharArray())
+    org.junit.Assert.assertNotNull(key)
   }
 }

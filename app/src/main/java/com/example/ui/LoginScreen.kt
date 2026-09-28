@@ -24,8 +24,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
@@ -254,10 +254,10 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    // PHONE OR USERNAME INPUT
+                    // EMAIL INPUT
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "Phone or Username",
+                            text = "Email",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -271,13 +271,13 @@ fun LoginScreen(
                             },
                             placeholder = {
                                 Text(
-                                    "Enter phone or username",
+                                    "Enter your email",
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White.copy(alpha = 0.6f)
                                 )
                             },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                             textStyle = TextStyle(
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
@@ -285,7 +285,7 @@ fun LoginScreen(
                             ),
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Outlined.Person,
+                                    imageVector = Icons.Outlined.Email,
                                     contentDescription = null,
                                     tint = LoginBrightGold,
                                     modifier = Modifier.size(20.dp)
@@ -403,7 +403,7 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             if (identifierInput.isBlank()) {
-                                errorMessage = "Please enter your phone or username"
+                                errorMessage = "Please enter your email"
                                 return@Button
                             }
                             if (passwordInput.isBlank()) {
@@ -422,7 +422,7 @@ fun LoginScreen(
                                 )
                                 if (remoteUser == null) {
                                     isLoading = false
-                                    errorMessage = "Invalid username/phone or password. Please try again."
+                                    errorMessage = "Invalid email or password. Please try again."
                                     return@launch
                                 }
 

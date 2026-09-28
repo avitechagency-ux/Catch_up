@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -26,11 +28,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Visibility
@@ -38,6 +42,8 @@ import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -68,13 +74,18 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.SupabaseRepository
 import com.example.data.SupabaseSecurityVault
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
 import kotlinx.coroutines.launch
+
+val UgandanSecondaryClasses = listOf("S.1", "S.2", "S.3", "S.4", "S.5", "S.6")
 
 private val PaymentGold = Color(0xFFFFB300)
 private val PaymentBrightGold = Color(0xFFFFD54F)
@@ -90,7 +101,7 @@ fun SignupScreen(
     onNavigateToLogin: () -> Unit = {},
     onSignupSuccess: (
         role: String,
-        phoneNumber: String,
+        email: String,
         name: String,
         studentClass: String,
         studentStream: String,
@@ -101,19 +112,22 @@ fun SignupScreen(
 
     // Exact field order requested:
     // 1. Full Name
-    // 2. Phone Number
+    // 2. Email
     // 3. Role Selection (Student or Teacher)
     // 4. Password
     // 5a. If Student -> Class and Stream (written individually) + Selected Plan
     // 5b. If Teacher -> Select Subjects You Teach (from DefaultCurriculumSubjects)
     // 6. Submit / Sign Up
     var fullNameInput by remember { mutableStateOf("") }
-    var phoneNumberInput by remember { mutableStateOf("") }
+    var emailInput by remember { mutableStateOf("") }
     var selectedRole by remember { mutableStateOf(normalizedInitialRole) }
     var passwordInput by remember { mutableStateOf("") }
     var classInput by remember { mutableStateOf("") }
+    var classDropdownExpanded by remember { mutableStateOf(false) }
     var streamInput by remember { mutableStateOf("") }
     var selectedTeacherSubjects by remember { mutableStateOf(setOf<String>()) }
+    var showTeacherSubjectsDialog by remember { mutableStateOf(false) }
+    var tempTeacherSubjects by remember { mutableStateOf(setOf<String>()) }
     var subjectSearchQuery by remember { mutableStateOf("") }
 
     var passwordVisible by remember { mutableStateOf(false) }
@@ -250,31 +264,31 @@ fun SignupScreen(
             }
 
             // ==========================================================
-            // 2. PHONE NUMBER
+            // 2. EMAIL
             // ==========================================================
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "Phone Number",
+                    text = "Email",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )
 
                 OutlinedTextField(
-                    value = phoneNumberInput,
+                    value = emailInput,
                     onValueChange = {
-                        phoneNumberInput = it
+                        emailInput = it
                         errorMessage = null
                     },
                     placeholder = {
                         Text(
-                            "07XX XXXXXX",
+                            "Enter your email",
                             fontWeight = FontWeight.Bold,
                             color = Color.White.copy(alpha = 0.6f)
                         )
                     },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     textStyle = TextStyle(
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
@@ -282,7 +296,7 @@ fun SignupScreen(
                     ),
                     leadingIcon = {
                         Icon(
-                            imageVector = Icons.Outlined.PhoneAndroid,
+                            imageVector = Icons.Outlined.Email,
                             contentDescription = null,
                             tint = PaymentBrightGold,
                             modifier = Modifier.size(20.dp)
@@ -290,7 +304,7 @@ fun SignupScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("signup_phone_input"),
+                        .testTag("signup_email_input"),
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = Color.White.copy(alpha = 0.15f),
@@ -486,11 +500,11 @@ fun SignupScreen(
             }
 
             // ==========================================================
-            // 5. IF STUDENT -> CLASS & STREAM (WRITTEN INDIVIDUALLY)
+            // 5. IF STUDENT -> CLASS (DROPDOWN S.1 - S.6) & STREAM
             // ==========================================================
             AnimatedVisibility(visible = isStudentRole) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    // Individual Class Field
+                    // Class Dropdown Field (S.1 - S.6 only)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
                             text = "Class",
@@ -499,47 +513,128 @@ fun SignupScreen(
                             color = Color.White
                         )
 
-                        OutlinedTextField(
-                            value = classInput,
-                            onValueChange = {
-                                classInput = it
-                                errorMessage = null
-                            },
-                            placeholder = {
-                                Text(
-                                    "Write your class (e.g. S.4)",
+                        Box(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedTextField(
+                                value = classInput,
+                                onValueChange = {},
+                                readOnly = true,
+                                placeholder = {
+                                    Text(
+                                        "Select your class (S.1 - S.6)",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White.copy(alpha = 0.6f)
+                                    )
+                                },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White.copy(alpha = 0.6f)
+                                    color = Color.White
+                                ),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.School,
+                                        contentDescription = null,
+                                        tint = PaymentBrightGold,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                trailingIcon = {
+                                    IconButton(
+                                        onClick = { classDropdownExpanded = !classDropdownExpanded }
+                                    ) {
+                                        Icon(
+                                            imageVector = if (classDropdownExpanded) {
+                                                Icons.Default.KeyboardArrowUp
+                                            } else {
+                                                Icons.Default.KeyboardArrowDown
+                                            },
+                                            contentDescription = "Select class",
+                                            tint = PaymentBrightGold
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("signup_class_input"),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = Color.White.copy(alpha = 0.15f),
+                                    unfocusedContainerColor = Color.White.copy(alpha = 0.12f),
+                                    focusedBorderColor = if (classDropdownExpanded) PaymentBrightGold else Color.White.copy(alpha = 0.35f),
+                                    unfocusedBorderColor = if (classDropdownExpanded) PaymentBrightGold else Color.White.copy(alpha = 0.35f),
+                                    cursorColor = PaymentBrightGold,
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White
                                 )
-                            },
-                            singleLine = true,
-                            textStyle = TextStyle(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            ),
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.School,
-                                    contentDescription = null,
-                                    tint = PaymentBrightGold,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("signup_class_input"),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                                unfocusedContainerColor = Color.White.copy(alpha = 0.12f),
-                                focusedBorderColor = PaymentBrightGold,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.35f),
-                                cursorColor = PaymentBrightGold,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
                             )
-                        )
+
+                            // Transparent clickable overlay so tapping anywhere on the field opens the dropdown
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        classDropdownExpanded = !classDropdownExpanded
+                                    }
+                                    .testTag("signup_class_dropdown_trigger")
+                            )
+
+                            DropdownMenu(
+                                expanded = classDropdownExpanded,
+                                onDismissRequest = { classDropdownExpanded = false },
+                                modifier = Modifier
+                                    .fillMaxWidth(0.88f)
+                                    .background(Color(0xFF281549))
+                                    .border(
+                                        width = 1.5.dp,
+                                        color = PaymentBrightGold,
+                                        shape = RoundedCornerShape(14.dp)
+                                    )
+                                    .testTag("signup_class_dropdown_menu")
+                            ) {
+                                UgandanSecondaryClasses.forEach { classOption ->
+                                    val isSelected = classInput == classOption
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = classOption,
+                                                    fontSize = 15.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = if (isSelected) PaymentBrightGold else Color.White
+                                                )
+                                                if (isSelected) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        tint = PaymentBrightGold,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onClick = {
+                                            classInput = classOption
+                                            errorMessage = null
+                                            classDropdownExpanded = false
+                                        },
+                                        modifier = Modifier
+                                            .background(
+                                                if (isSelected) Color.White.copy(alpha = 0.14f)
+                                                else Color.Transparent
+                                            )
+                                            .testTag("signup_class_option_$classOption")
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     // Individual Stream Field
@@ -639,7 +734,7 @@ fun SignupScreen(
                                             color = Color.White
                                         )
                                         Text(
-                                            text = "Billed monthly • Paid via signup phone",
+                                            text = "Billed monthly • Paid via Mobile Money",
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = LightLavender
@@ -660,44 +755,35 @@ fun SignupScreen(
             }
 
             // ==========================================================
-            // 5B. IF TEACHER -> SELECT SUBJECTS TO TEACH (FROM SUBJECTS PAGE)
+            // 5B. IF TEACHER -> CLEAN SELECTOR FIELD + POPUP MODAL
             // ==========================================================
             AnimatedVisibility(visible = !isStudentRole) {
-                val filteredCurriculumSubjects = remember(subjectSearchQuery) {
-                    if (subjectSearchQuery.isBlank()) {
-                        DefaultCurriculumSubjects
-                    } else {
-                        DefaultCurriculumSubjects.filter {
-                            it.name.contains(subjectSearchQuery.trim(), ignoreCase = true)
-                        }
-                    }
+                val orderedSelectedList = remember(selectedTeacherSubjects) {
+                    DefaultCurriculumSubjects
+                        .filter { it.name in selectedTeacherSubjects }
+                        .map { it.name }
+                }
+                val selectedDisplayValue = remember(orderedSelectedList) {
+                    orderedSelectedList.joinToString(", ")
                 }
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("signup_teacher_subjects_section"),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Select Subjects You Teach",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "Choose all subjects you will upload notes & assignments for",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = LightLavender
-                            )
-                        }
+                        Text(
+                            text = "Subjects You Teach",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
 
                         Surface(
                             shape = RoundedCornerShape(10.dp),
@@ -713,172 +799,299 @@ fun SignupScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 color = if (selectedTeacherSubjects.isNotEmpty()) PaymentDarkText else Color.White,
                                 modifier = Modifier
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
                                     .testTag("signup_teacher_subjects_count")
                             )
                         }
                     }
 
-                    // Filter / search input for subjects
-                    OutlinedTextField(
-                        value = subjectSearchQuery,
-                        onValueChange = { subjectSearchQuery = it },
-                        placeholder = {
-                            Text(
-                                "Search subjects (e.g. Math, Physics, Biology)...",
-                                fontSize = 13.sp,
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = selectedDisplayValue,
+                            onValueChange = {},
+                            readOnly = true,
+                            placeholder = {
+                                Text(
+                                    "Tap to select subjects you teach",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White.copy(alpha = 0.6f)
+                                )
+                            },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White.copy(alpha = 0.6f)
+                                color = Color.White
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Book,
+                                    contentDescription = null,
+                                    tint = PaymentBrightGold,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        tempTeacherSubjects = selectedTeacherSubjects
+                                        showTeacherSubjectsDialog = true
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = if (showTeacherSubjectsDialog) {
+                                            Icons.Default.KeyboardArrowUp
+                                        } else {
+                                            Icons.Default.KeyboardArrowDown
+                                        },
+                                        contentDescription = "Select subjects",
+                                        tint = PaymentBrightGold
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("signup_teacher_subjects_input"),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White.copy(alpha = 0.15f),
+                                unfocusedContainerColor = Color.White.copy(alpha = 0.12f),
+                                focusedBorderColor = if (selectedTeacherSubjects.isNotEmpty() || showTeacherSubjectsDialog) PaymentBrightGold else Color.White.copy(alpha = 0.35f),
+                                unfocusedBorderColor = if (selectedTeacherSubjects.isNotEmpty() || showTeacherSubjectsDialog) PaymentBrightGold else Color.White.copy(alpha = 0.35f),
+                                cursorColor = PaymentBrightGold,
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
                             )
-                        },
-                        singleLine = true,
-                        textStyle = TextStyle(
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        ),
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.Search,
-                                contentDescription = "Search subjects",
-                                tint = PaymentBrightGold,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        trailingIcon = {
-                            if (subjectSearchQuery.isNotEmpty()) {
-                                IconButton(onClick = { subjectSearchQuery = "" }) {
+                        )
+
+                        // Full-field clickable trigger to open the Subjects Popup
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    tempTeacherSubjects = selectedTeacherSubjects
+                                    showTeacherSubjectsDialog = true
+                                }
+                                .testTag("signup_teacher_subjects_trigger")
+                        )
+                    }
+                }
+            }
+
+            // ==========================================================
+            // TEACHER SUBJECTS POPUP DIALOG
+            // ==========================================================
+            if (showTeacherSubjectsDialog) {
+                val popupScrollState = rememberScrollState()
+
+                Dialog(
+                    onDismissRequest = { showTeacherSubjectsDialog = false },
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth(0.92f)
+                            .heightIn(max = 560.dp)
+                            .testTag("signup_teacher_subjects_dialog"),
+                        shape = RoundedCornerShape(24.dp),
+                        color = Color(0xFF241142),
+                        border = BorderStroke(2.dp, PaymentBrightGold),
+                        tonalElevation = 12.dp
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            // Popup Header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Select Subjects You Teach",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Mark all subjects that you teach and click Save",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = LightLavender
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { showTeacherSubjectsDialog = false },
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.12f))
+                                ) {
                                     Icon(
                                         imageVector = Icons.Outlined.Close,
-                                        contentDescription = "Clear search",
-                                        tint = Color.White.copy(alpha = 0.8f),
-                                        modifier = Modifier.size(16.dp)
+                                        contentDescription = "Close popup",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("signup_teacher_subject_search"),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                            unfocusedContainerColor = Color.White.copy(alpha = 0.10f),
-                            focusedBorderColor = PaymentBrightGold,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.30f),
-                            cursorColor = PaymentBrightGold,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        )
-                    )
 
-                    // Selected subject pills summary (if any selected)
-                    if (selectedTeacherSubjects.isNotEmpty()) {
-                        val orderedSelected = DefaultCurriculumSubjects
-                            .filter { it.name in selectedTeacherSubjects }
-                            .joinToString(", ") { it.name }
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.White.copy(alpha = 0.14f),
-                            border = BorderStroke(1.dp, PaymentBrightGold.copy(alpha = 0.6f))
-                        ) {
-                            Text(
-                                text = "Teaching: $orderedSelected",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = PaymentBrightGold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                            )
-                        }
-                    }
-
-                    // 2-Column Grid of all Subjects from SubjectsScreen (DefaultCurriculumSubjects)
-                    val subjectPairs = filteredCurriculumSubjects.chunked(2)
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        subjectPairs.forEach { rowSubjects ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            // Scrollable 2-Column Subject Selection Grid
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f, fill = false)
+                                    .verticalScroll(popupScrollState),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                rowSubjects.forEach { subjectItem ->
-                                    val isSelected = subjectItem.name in selectedTeacherSubjects
-                                    val safeTag = subjectItem.name.lowercase().replace(" ", "_")
-                                    Surface(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(14.dp))
-                                            .clickable {
-                                                selectedTeacherSubjects = if (isSelected) {
-                                                    selectedTeacherSubjects - subjectItem.name
-                                                } else {
-                                                    selectedTeacherSubjects + subjectItem.name
-                                                }
-                                                errorMessage = null
-                                            }
-                                            .testTag("signup_teacher_subject_$safeTag"),
-                                        shape = RoundedCornerShape(14.dp),
-                                        color = if (isSelected) subjectItem.color else Color.White.copy(alpha = 0.12f),
-                                        border = BorderStroke(
-                                            width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) PaymentBrightGold else Color.White.copy(alpha = 0.28f)
-                                        )
+                                val subjectPairs = DefaultCurriculumSubjects.chunked(2)
+                                subjectPairs.forEach { rowSubjects ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                modifier = Modifier.weight(1f)
-                                            ) {
-                                                Icon(
-                                                    imageVector = subjectItem.icon,
-                                                    contentDescription = subjectItem.name,
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(22.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(
-                                                    text = subjectItem.name,
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = Color.White,
-                                                    maxLines = 2
-                                                )
-                                            }
-
-                                            Spacer(modifier = Modifier.width(6.dp))
-
-                                            Box(
+                                        rowSubjects.forEach { subjectItem ->
+                                            val isSelected = subjectItem.name in tempTeacherSubjects
+                                            val safeTag = subjectItem.name.lowercase().replace(" ", "_")
+                                            Surface(
                                                 modifier = Modifier
-                                                    .size(20.dp)
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        if (isSelected) PaymentGold else Color.White.copy(alpha = 0.18f)
-                                                    ),
-                                                contentAlignment = Alignment.Center
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(14.dp))
+                                                    .clickable {
+                                                        tempTeacherSubjects = if (isSelected) {
+                                                            tempTeacherSubjects - subjectItem.name
+                                                        } else {
+                                                            tempTeacherSubjects + subjectItem.name
+                                                        }
+                                                    }
+                                                    .testTag("signup_teacher_subject_$safeTag"),
+                                                shape = RoundedCornerShape(14.dp),
+                                                color = if (isSelected) subjectItem.color else Color.White.copy(alpha = 0.12f),
+                                                border = BorderStroke(
+                                                    width = if (isSelected) 2.dp else 1.dp,
+                                                    color = if (isSelected) PaymentBrightGold else Color.White.copy(alpha = 0.28f)
+                                                )
                                             ) {
-                                                if (isSelected) {
-                                                    Icon(
-                                                        imageVector = Icons.Default.Check,
-                                                        contentDescription = "Selected",
-                                                        tint = PaymentDarkText,
-                                                        modifier = Modifier.size(14.dp)
-                                                    )
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 10.dp, vertical = 12.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = subjectItem.icon,
+                                                            contentDescription = subjectItem.name,
+                                                            tint = Color.White,
+                                                            modifier = Modifier.size(20.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(
+                                                            text = subjectItem.name,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            color = Color.White,
+                                                            maxLines = 2,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.width(6.dp))
+
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(20.dp)
+                                                            .clip(CircleShape)
+                                                            .background(
+                                                                if (isSelected) PaymentGold else Color.White.copy(alpha = 0.18f)
+                                                            ),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        if (isSelected) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Check,
+                                                                contentDescription = "Selected",
+                                                                tint = PaymentDarkText,
+                                                                modifier = Modifier.size(14.dp)
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
+                                        if (rowSubjects.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
                                     }
                                 }
-                                if (rowSubjects.size == 1) {
-                                    Spacer(modifier = Modifier.weight(1f))
+                            }
+
+                            // Popup Footer: Selected summary + Cancel & Save buttons
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = { showTeacherSubjectsDialog = false },
+                                    modifier = Modifier
+                                        .weight(0.38f)
+                                        .height(48.dp)
+                                        .testTag("signup_teacher_subjects_cancel_button")
+                                ) {
+                                    Text(
+                                        text = "Cancel",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = LightLavender
+                                    )
+                                }
+
+                                Button(
+                                    onClick = {
+                                        selectedTeacherSubjects = tempTeacherSubjects
+                                        if (tempTeacherSubjects.isNotEmpty()) {
+                                            errorMessage = null
+                                        }
+                                        showTeacherSubjectsDialog = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = PaymentGold
+                                    ),
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier
+                                        .weight(0.62f)
+                                        .height(48.dp)
+                                        .testTag("signup_teacher_subjects_save_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = PaymentDarkText,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = if (tempTeacherSubjects.isEmpty()) {
+                                            "Save"
+                                        } else {
+                                            "Save (${tempTeacherSubjects.size})"
+                                        },
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = PaymentDarkText
+                                    )
                                 }
                             }
                         }
@@ -916,8 +1129,8 @@ fun SignupScreen(
                         fullNameInput.isBlank() -> {
                             errorMessage = "Please enter your full name"
                         }
-                        phoneNumberInput.isBlank() -> {
-                            errorMessage = "Please enter your phone number"
+                        emailInput.isBlank() -> {
+                            errorMessage = "Please enter your email"
                         }
                         passwordInput.isBlank() -> {
                             errorMessage = "Please enter a password"
@@ -925,8 +1138,8 @@ fun SignupScreen(
                         passwordInput.length < 4 -> {
                             errorMessage = "Password must be at least 4 characters"
                         }
-                        isStudentRole && classInput.isBlank() -> {
-                            errorMessage = "Please write your Class (e.g. S.4)"
+                        isStudentRole && classInput !in UgandanSecondaryClasses -> {
+                            errorMessage = "Please select your Class (S.1 - S.6)"
                         }
                         isStudentRole && streamInput.isBlank() -> {
                             errorMessage = "Please write your Stream (e.g. Green or North)"
@@ -939,7 +1152,7 @@ fun SignupScreen(
                             errorMessage = null
                             coroutineScope.launch {
                                 val cleanName = fullNameInput.trim()
-                                val cleanPhone = phoneNumberInput.trim()
+                                val cleanEmail = emailInput.trim()
                                 val cleanClass = if (isStudentRole) classInput.trim() else ""
                                 val cleanStream = if (isStudentRole) streamInput.trim() else ""
                                 val cleanTeacherSubjects = if (!isStudentRole) {
@@ -949,10 +1162,10 @@ fun SignupScreen(
                                 } else ""
 
                                 val teacherCode = if (!isStudentRole) {
-                                    generateTeacherIdCode(cleanName.ifBlank { cleanPhone })
+                                    generateTeacherIdCode(cleanName.ifBlank { cleanEmail })
                                 } else null
                                 SupabaseRepository.syncUserToSupabase(
-                                    phoneNumber = cleanPhone,
+                                    phoneNumber = cleanEmail,
                                     fullName = cleanName,
                                     role = selectedRole.lowercase(),
                                     plainPassword = passwordInput,
@@ -980,7 +1193,7 @@ fun SignupScreen(
                                 isLoading = false
                                 onSignupSuccess(
                                     selectedRole.lowercase(),
-                                    cleanPhone,
+                                    cleanEmail,
                                     cleanName,
                                     cleanClass,
                                     cleanStream,

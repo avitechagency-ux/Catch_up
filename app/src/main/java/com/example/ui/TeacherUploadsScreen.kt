@@ -101,51 +101,9 @@ data class TeacherUploadItem(
 
 /**
  * Default uploaded notes and assignments for teacher view.
+ * Empty by default so new teachers see an empty panel and existing teachers see only their real database uploads.
  */
-val DefaultTeacherAllUploads: List<TeacherUploadItem> = listOf(
-    TeacherUploadItem(
-        id = "upload-1",
-        title = "Plate Tectonics & Volcanicity",
-        subject = "Geography",
-        type = "Notes",
-        dateUploaded = "24 Sep 2026"
-    ),
-    TeacherUploadItem(
-        id = "upload-2",
-        title = "Quadratic Equations & Polynomials",
-        subject = "Math",
-        type = "Notes",
-        dateUploaded = "22 Sep 2026"
-    ),
-    TeacherUploadItem(
-        id = "upload-3",
-        title = "Weathering & Soil Formation Quiz",
-        subject = "Geography",
-        type = "Assignment",
-        dateUploaded = "20 Sep 2026"
-    ),
-    TeacherUploadItem(
-        id = "upload-4",
-        title = "Trigonometry & Circle Theorems",
-        subject = "Math",
-        type = "Assignment",
-        dateUploaded = "15 Aug 2026"
-    ),
-    TeacherUploadItem(
-        id = "upload-5",
-        title = "East African Drainage & Lakes",
-        subject = "Geography",
-        type = "Notes",
-        dateUploaded = "10 Aug 2026"
-    ),
-    TeacherUploadItem(
-        id = "upload-6",
-        title = "Calculus & Differentiation Basics",
-        subject = "Math",
-        type = "Notes",
-        dateUploaded = "18 May 2026"
-    )
-)
+val DefaultTeacherAllUploads: List<TeacherUploadItem> = emptyList()
 
 /**
  * Simplified Teacher Uploads Screen.
@@ -166,12 +124,13 @@ fun TeacherUploadsScreen(
     onNavigateToUploads: () -> Unit = {},
     onNavigateToUploadNotes: () -> Unit = {},
     onNavigateToTeacherProfile: () -> Unit = {},
+    onDeleteUpload: (TeacherUploadItem) -> Unit = {},
     onOpenUpload: (String, String) -> Unit = { _, _ -> }
 ) {
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var uploadsList by remember { mutableStateOf(initialUploads) }
+    var uploadsList by remember(initialUploads) { mutableStateOf(initialUploads) }
     var searchQuery by remember { mutableStateOf("") }
 
     // Search filtering only (no bulky filter section)
@@ -448,6 +407,7 @@ fun TeacherUploadsScreen(
                             onOpen = { onOpenUpload(item.title, item.subject) },
                             onDelete = {
                                 uploadsList = uploadsList.filterNot { it.id == item.id }
+                                onDeleteUpload(item)
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar("Removed \"${item.title}\"")
                                 }
@@ -482,15 +442,7 @@ private fun SimpleTeacherUploadCard(
     val isAssignment = item.type.equals("Assignment", ignoreCase = true)
     val typeColor = if (isAssignment) CoralTile else TealTile
 
-    val subjectColor = when (item.subject.lowercase()) {
-        "geography" -> CoralTile
-        "math" -> TealTile
-        "biology" -> NavyTile
-        "physics" -> PurpleTile
-        "chemistry" -> AmberTile
-        "history" -> BlueTile
-        else -> IndigoPurple
-    }
+    val subjectColor = getSubjectThemeColor(item.subject)
 
     Surface(
         modifier = modifier

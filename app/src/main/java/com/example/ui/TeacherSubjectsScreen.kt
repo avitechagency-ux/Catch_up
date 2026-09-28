@@ -291,20 +291,61 @@ fun TeacherSubjectsScreen(
                 }
             }
 
-            // White Body with Subject Cards
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 20.dp)
-            ) {
+            // White Body with Subject Cards (matching Student SubjectsScreen grid & card layout)
+            if (subjects.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = SoftLavenderGrey
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.School,
+                                contentDescription = null,
+                                tint = IndigoPurple,
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "No subjects assigned yet",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Open Profile → Account to select the subjects you teach.",
+                                fontSize = 13.sp,
+                                color = TextMuted,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .testTag("teacher_subjects_grid"),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 20.dp,
+                        bottom = 20.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     items(subjects, key = { it.id }) { subjectItem ->
                         TeacherSubjectCard(
@@ -320,11 +361,12 @@ fun TeacherSubjectsScreen(
 
 /**
  * Subject card in Teacher's Subjects page.
- * Follows the design of the student panel SubjectCard:
- * - Distinct solid background color (Coral for Geography, Teal for Math)
- * - 18dp rounded corners, frosted border, color-matched ambient elevation
- * - Crisp 44dp white outline icon
- * - Bold white title with class badges
+ * Exact match with the student panel SubjectCard:
+ * - Solid subject theme colour
+ * - 145dp height, 18dp rounded corners
+ * - Top-left 28dp white outline icon
+ * - Bottom-left 18sp bold white subject name
+ * - No extra or overwritten texts on the card
  */
 @Composable
 fun TeacherSubjectCard(
@@ -334,78 +376,39 @@ fun TeacherSubjectCard(
 ) {
     Surface(
         modifier = modifier
-            .fillMaxWidth()
-            .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(18.dp),
-                ambientColor = subject.color.copy(alpha = 0.35f),
-                spotColor = subject.color.copy(alpha = 0.35f)
-            )
-            .border(
-                width = 1.dp,
-                color = Color.White.copy(alpha = 0.18f),
-                shape = RoundedCornerShape(18.dp)
-            )
+            .height(145.dp)
+            .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
             .testTag("teacher_subject_card_${subject.name.lowercase()}"),
         shape = RoundedCornerShape(18.dp),
-        color = subject.color,
-        tonalElevation = 0.dp
+        color = subject.color
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 24.dp, horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .fillMaxSize()
+                .padding(16.dp)
         ) {
+            // Top-left icon
             Icon(
                 imageVector = subject.icon,
-                contentDescription = subject.name,
+                contentDescription = "${subject.name} Icon",
                 tint = Color.White,
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(28.dp)
+                    .align(Alignment.TopStart)
                     .testTag("teacher_subject_icon_${subject.name.lowercase()}")
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
+            // Bottom-left subject name
             Text(
                 text = subject.name,
-                fontSize = 17.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.testTag("teacher_subject_name_${subject.name.lowercase()}")
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = subject.classes,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Normal,
-                color = Color.White.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.testTag("teacher_subject_classes_${subject.name.lowercase()}")
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.22f))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = "${subject.noteCount} notes • ${subject.assignmentCount} tasks",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.White,
-                    textAlign = TextAlign.Center
-                )
-            }
+                    .align(Alignment.BottomStart)
+                    .testTag("teacher_subject_name_${subject.name.lowercase()}")
+            )
         }
     }
 }
@@ -425,11 +428,13 @@ fun TeacherSubjectConfigScreen(
     onNavigateBack: () -> Unit = {},
     onUploadNotesClick: () -> Unit = {},
     onEditNote: (SubjectUploadItem) -> Unit = {},
+    onDeleteNote: (SubjectUploadItem) -> Unit = {},
+    onQuickUpload: (SubjectUploadItem) -> Unit = {},
     onOpenNote: (String, String) -> Unit = { _, _ -> }
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var uploadsList by remember { mutableStateOf(initialUploads) }
+    var uploadsList by remember(initialUploads) { mutableStateOf(initialUploads) }
 
     var showUploadNotesDialog by remember { mutableStateOf(false) }
     var showUploadAssignmentDialog by remember { mutableStateOf(false) }
@@ -789,6 +794,7 @@ fun TeacherSubjectConfigScreen(
                 Button(
                     onClick = {
                         uploadsList = uploadsList.filterNot { it.id == item.id }
+                        onDeleteNote(item)
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar("Removed \"${item.title}\"")
                         }
@@ -812,8 +818,11 @@ fun TeacherSubjectConfigScreen(
     // ==========================================
     if (showUploadNotesDialog) {
         var noteTitle by remember { mutableStateOf("") }
-        var targetClass by remember { mutableStateOf(subject.classes.split(",").firstOrNull()?.trim() ?: "S.4") }
-        val availableClasses = subject.classes.split(",").map { it.trim() }
+        val availableClasses = remember(subject.classes) {
+            val parsed = subject.classes.split(",").map { it.trim() }.filter { it in UgandanSecondaryClasses }
+            parsed.ifEmpty { UgandanSecondaryClasses }
+        }
+        var targetClass by remember(availableClasses) { mutableStateOf(availableClasses.firstOrNull() ?: "S.4") }
 
         AlertDialog(
             onDismissRequest = { showUploadNotesDialog = false },
@@ -856,7 +865,7 @@ fun TeacherSubjectConfigScreen(
                             color = TextDark
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             availableClasses.forEach { cls ->
                                 FilterChip(
                                     selected = targetClass == cls,
@@ -907,9 +916,10 @@ fun TeacherSubjectConfigScreen(
                             subject = subject.name,
                             targetClass = targetClass,
                             type = "Notes",
-                            dateUploaded = "Just now"
+                            dateUploaded = "Today"
                         )
                         uploadsList = listOf(newUpload) + uploadsList
+                        onQuickUpload(newUpload)
                         showUploadNotesDialog = false
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar("Notes \"$titleToAdd\" uploaded to $targetClass!")
@@ -934,9 +944,12 @@ fun TeacherSubjectConfigScreen(
     // ==========================================
     if (showUploadAssignmentDialog) {
         var assignmentTitle by remember { mutableStateOf("") }
-        var targetClass by remember { mutableStateOf(subject.classes.split(",").firstOrNull()?.trim() ?: "S.4") }
+        val availableClasses = remember(subject.classes) {
+            val parsed = subject.classes.split(",").map { it.trim() }.filter { it in UgandanSecondaryClasses }
+            parsed.ifEmpty { UgandanSecondaryClasses }
+        }
+        var targetClass by remember(availableClasses) { mutableStateOf(availableClasses.firstOrNull() ?: "S.4") }
         var dueDate by remember { mutableStateOf("Due in 7 days") }
-        val availableClasses = subject.classes.split(",").map { it.trim() }
 
         AlertDialog(
             onDismissRequest = { showUploadAssignmentDialog = false },
@@ -979,7 +992,7 @@ fun TeacherSubjectConfigScreen(
                             color = TextDark
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             availableClasses.forEach { cls ->
                                 FilterChip(
                                     selected = targetClass == cls,
@@ -1051,10 +1064,11 @@ fun TeacherSubjectConfigScreen(
                             subject = subject.name,
                             targetClass = targetClass,
                             type = "Assignment",
-                            dateUploaded = "Just now",
+                            dateUploaded = "Today",
                             dueDate = dueDate
                         )
                         uploadsList = listOf(newUpload) + uploadsList
+                        onQuickUpload(newUpload)
                         showUploadAssignmentDialog = false
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar("Assignment \"$titleToAdd\" assigned to $targetClass!")

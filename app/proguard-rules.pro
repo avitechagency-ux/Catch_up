@@ -20,7 +20,11 @@
 # hide the original source file name.
 -renamesourcefileattribute SourceFile
 
-# Preserve Moshi Supabase DTO classes for JSON serialization
+# Preserve BuildConfig fields accessed via reflection (SupabaseConfig & GoogleAuthManager)
+-keep class com.example.BuildConfig { *; }
+
+# Preserve Moshi Supabase DTO classes and Google auth models for JSON serialization
+-keep class com.example.data.** { *; }
 -keep class com.example.data.Supabase*Dto { *; }
 -keep interface com.example.data.SupabasePostgrestApi { *; }
 

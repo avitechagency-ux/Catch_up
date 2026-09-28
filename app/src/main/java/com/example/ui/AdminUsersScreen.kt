@@ -731,7 +731,7 @@ fun AdminUserCard(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Outlined.PhoneAndroid,
+                            imageVector = if (user.email.contains("@")) Icons.Outlined.Mail else Icons.Outlined.PhoneAndroid,
                             contentDescription = null,
                             tint = Color.White.copy(alpha = 0.80f),
                             modifier = Modifier.size(12.dp)

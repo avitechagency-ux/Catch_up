@@ -107,9 +107,9 @@ fun TeacherProfileScreen(
     onSwitchToStudentView: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
-    var currentTeacherName by remember { mutableStateOf(teacherName) }
-    var currentSubjects by remember { mutableStateOf(subjectsTaught) }
-    var currentSchool by remember { mutableStateOf(schoolName) }
+    var currentTeacherName by remember(teacherName) { mutableStateOf(teacherName) }
+    var currentSubjects by remember(subjectsTaught) { mutableStateOf(subjectsTaught) }
+    var currentSchool by remember(schoolName) { mutableStateOf(schoolName) }
 
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }

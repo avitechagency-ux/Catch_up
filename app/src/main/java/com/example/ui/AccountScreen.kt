@@ -115,7 +115,7 @@ fun StudentPaymentScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var phoneNumber by remember(signupPhoneNumber) {
-        mutableStateOf(signupPhoneNumber)
+        mutableStateOf(if (signupPhoneNumber.contains("@")) "" else signupPhoneNumber)
     }
     val defaultNetwork = remember(signupPhoneNumber) {
         val cleaned = signupPhoneNumber.replace(" ", "")
@@ -363,10 +363,10 @@ fun StudentPaymentScreen(
                 }
             }
 
-            // Phone Number Input (Pre-filled from Signup)
+            // Phone Number Input for Mobile Money
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "Phone Number (Used at Sign Up)",
+                    text = "Mobile Money Phone Number",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -719,7 +719,7 @@ fun AccountScreen(
     selectedPlanForPayment?.let { targetPlan ->
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var phoneNumber by remember(initialPhoneNumber) {
-            mutableStateOf(initialPhoneNumber)
+            mutableStateOf(if (initialPhoneNumber.contains("@")) "" else initialPhoneNumber)
         }
         val defaultNetwork = remember(initialPhoneNumber) {
             val cleaned = initialPhoneNumber.replace(" ", "")
