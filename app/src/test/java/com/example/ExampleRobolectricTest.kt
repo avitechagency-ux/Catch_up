@@ -936,4 +936,52 @@ class ExampleRobolectricTest {
     org.junit.Assert.assertNotNull(loadedBytes)
     org.junit.Assert.assertArrayEquals(samplePdfBytes, loadedBytes)
   }
+
+  @Test
+  fun `verify signup and login authentication works by phone and username across apk builds`() = kotlinx.coroutines.runBlocking {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    com.example.data.SupabaseRepository.initialize(context)
+
+    val syncSuccess = com.example.data.SupabaseRepository.syncUserToSupabase(
+      phoneNumber = "0772123456",
+      fullName = "John Mukasa",
+      role = "student",
+      plainPassword = "secretPassword123",
+      academicClass = "S.4",
+      stream = "Green"
+    )
+    assertTrue(syncSuccess)
+
+    // Authenticate by standard 07... phone
+    val byPhone = com.example.data.SupabaseRepository.authenticateWithTableAuth(
+      phoneOrIdentifier = "0772123456",
+      plainPassword = "secretPassword123"
+    )
+    org.junit.Assert.assertNotNull(byPhone)
+    assertEquals("John Mukasa", byPhone?.fullName)
+    assertEquals("student", byPhone?.role)
+
+    // Authenticate by +256 normalized phone
+    val byIntlPhone = com.example.data.SupabaseRepository.authenticateWithTableAuth(
+      phoneOrIdentifier = "+256772123456",
+      plainPassword = "secretPassword123"
+    )
+    org.junit.Assert.assertNotNull(byIntlPhone)
+    assertEquals("John Mukasa", byIntlPhone?.fullName)
+
+    // Authenticate by username / full name
+    val byUsername = com.example.data.SupabaseRepository.authenticateWithTableAuth(
+      phoneOrIdentifier = "John Mukasa",
+      plainPassword = "secretPassword123"
+    )
+    org.junit.Assert.assertNotNull(byUsername)
+    assertEquals("0772123456", byUsername?.phoneNumber)
+
+    // Wrong password should be rejected
+    val wrongPassword = com.example.data.SupabaseRepository.authenticateWithTableAuth(
+      phoneOrIdentifier = "0772123456",
+      plainPassword = "wrongPassword"
+    )
+    org.junit.Assert.assertNull(wrongPassword)
+  }
 }

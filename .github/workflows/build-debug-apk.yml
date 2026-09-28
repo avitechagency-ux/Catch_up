@@ -35,7 +35,17 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # Step 5: Build the Android Debug APK using Gradle with stacktrace logging for clear diagnostics
+      # Step 5: Generate .env file for Secrets Gradle Plugin (uses GitHub Secrets if configured)
+      - name: Configure Supabase environment (.env)
+        env:
+          SUPABASE_URL_SECRET: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY_SECRET: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          URL_VAL="${SUPABASE_URL_SECRET:-https://xzutgxiwexxhmpqtybaf.supabase.co}"
+          KEY_VAL="${SUPABASE_ANON_KEY_SECRET:-your-anon-key}"
+          printf "SUPABASE_URL=%s\nSUPABASE_ANON_KEY=%s\n" "$URL_VAL" "$KEY_VAL" > .env
+
+      # Step 6: Build the Android Debug APK using Gradle with stacktrace logging for clear diagnostics
       - name: Build Debug APK with Gradle
         run: ./gradlew assembleDebug --stacktrace
 

@@ -144,6 +144,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SupabaseRepository.initialize(this)
         NotificationHelper.createNotificationChannels(this)
         NotificationHelper.fetchAndStoreCurrentFcmToken(this)
         pendingNotificationIntent = intent
@@ -151,6 +152,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyApplicationTheme(dynamicColor = false) {
                 val context = LocalContext.current
+                remember(context) {
+                    SupabaseRepository.initialize(context)
+                    true
+                }
                 val prefs = remember { context.getSharedPreferences("catch_up_prefs", Context.MODE_PRIVATE) }
                 val todayStr = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()) }
 
@@ -629,6 +634,12 @@ class MainActivity : ComponentActivity() {
                                     if (combinedClassStream.isNotBlank()) {
                                         academicClass = combinedClassStream
                                         editor.putString("student_class", combinedClassStream)
+                                    }
+                                    if (!savedClass.isNullOrBlank()) {
+                                        editor.putString("student_class_only", savedClass.trim())
+                                    }
+                                    if (!savedStream.isNullOrBlank()) {
+                                        editor.putString("student_stream_only", savedStream.trim())
                                     }
                                 } else if (role.equals("teacher", ignoreCase = true)) {
                                     if (!fullName.isNullOrBlank()) {

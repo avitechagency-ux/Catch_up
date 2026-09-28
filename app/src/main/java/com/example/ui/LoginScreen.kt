@@ -101,6 +101,12 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    val context = LocalContext.current
+    remember(context) {
+        SupabaseRepository.initialize(context)
+        true
+    }
+
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -421,6 +427,12 @@ fun LoginScreen(
                                 }
 
                                 isLoading = false
+                                runCatching {
+                                    context.getSharedPreferences("catch_up_prefs", android.content.Context.MODE_PRIVATE)
+                                        .edit()
+                                        .putString("user_password_hash", SupabaseSecurityVault.hashPassword(passwordInput))
+                                        .apply()
+                                }
                                 val targetRole = remoteUser.role.trim().lowercase().ifBlank { "student" }
                                 val resolvedName = remoteUser.fullName.ifBlank { cleanIdentifier }
                                 onLoginSuccess(

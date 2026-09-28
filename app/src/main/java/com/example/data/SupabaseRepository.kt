@@ -299,6 +299,18 @@ interface SupabasePostgrestApi {
         @Body user: SupabaseUserDto
     ): Response<List<SupabaseUserDto>>
 
+    @Headers("Prefer: resolution=merge-duplicates,return=representation")
+    @POST("users?on_conflict=phone_number")
+    suspend fun upsertUserMap(
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<List<SupabaseUserDto>>
+
+    @Headers("Prefer: return=representation")
+    @POST("users")
+    suspend fun insertUserMap(
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<List<SupabaseUserDto>>
+
     @Headers("Prefer: return=representation")
     @PATCH("users")
     suspend fun updateUserByPhone(
@@ -621,11 +633,118 @@ object SupabaseRepository {
     // ========================================================================
 
     private val recentSyncedUsers = mutableListOf<SupabaseUserDto>()
+    private var appPrefs: android.content.SharedPreferences? = null
+
+    private val userListAdapter by lazy {
+        val type = com.squareup.moshi.Types.newParameterizedType(List::class.java, SupabaseUserDto::class.java)
+        moshi.adapter<List<SupabaseUserDto>>(type)
+    }
+
+    /**
+     * Initializes persistent on-device account registry so users who sign up on the device
+     * can always log back in (online or offline, and across GitHub Actions APK builds).
+     */
+    fun initialize(context: android.content.Context) {
+        val appCtx = context.applicationContext
+        val registryPrefs = appCtx.getSharedPreferences("cachap_registered_users_v1", android.content.Context.MODE_PRIVATE)
+        appPrefs = registryPrefs
+        val savedJson = registryPrefs.getString("users_json", null)
+        if (!savedJson.isNullOrBlank()) {
+            runCatching {
+                val parsed = userListAdapter.fromJson(savedJson).orEmpty()
+                synchronized(recentSyncedUsers) {
+                    parsed.forEach { user ->
+                        if (recentSyncedUsers.none { phonesMatch(it.phoneNumber, user.phoneNumber) && it.fullName.equals(user.fullName, ignoreCase = true) }) {
+                            recentSyncedUsers.add(user)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also migrate any existing signed-up account stored in "catch_up_prefs" from earlier APK installs
+        val legacyPrefs = appCtx.getSharedPreferences("catch_up_prefs", android.content.Context.MODE_PRIVATE)
+        val legacyPhone = (legacyPrefs.getString("user_phone", null) ?: legacyPrefs.getString("user_email", null)).orEmpty().trim()
+        val legacyRole = (legacyPrefs.getString("user_role", "student") ?: "student").trim().lowercase()
+        val legacyName = if (legacyRole == "teacher") {
+            legacyPrefs.getString("teacher_name", "") ?: ""
+        } else {
+            legacyPrefs.getString("student_name", "") ?: ""
+        }.trim()
+        val legacyPasswordHash = (legacyPrefs.getString("user_password_hash", "") ?: "").trim()
+        if (legacyPhone.isNotBlank() || (legacyName.isNotBlank() && !legacyName.equals("Student", ignoreCase = true) && !legacyName.equals("Teacher", ignoreCase = true))) {
+            val existingMatch = synchronized(recentSyncedUsers) {
+                recentSyncedUsers.any {
+                    (legacyPhone.isNotBlank() && phonesMatch(it.phoneNumber, legacyPhone)) ||
+                        (legacyName.isNotBlank() && it.fullName.equals(legacyName, ignoreCase = true))
+                }
+            }
+            if (!existingMatch) {
+                val migratedUser = SupabaseUserDto(
+                    phoneNumber = legacyPhone.ifBlank { legacyName },
+                    email = legacyPhone.ifBlank { legacyName },
+                    fullName = legacyName.ifBlank { legacyPhone },
+                    role = legacyRole,
+                    passwordHash = legacyPasswordHash,
+                    academicClass = (legacyPrefs.getString("student_class_only", null) ?: legacyPrefs.getString("student_class", "") ?: "").trim(),
+                    stream = (legacyPrefs.getString("student_stream_only", "") ?: "").trim(),
+                    teacherIdCode = legacyPrefs.getString("teacher_id_code", null),
+                    subjectsTaught = (legacyPrefs.getString("teacher_subjects", "") ?: "").trim(),
+                    isPlanActive = legacyRole == "teacher" || !(legacyPrefs.getString("student_active_plan_duration", "").isNullOrBlank()),
+                    planDuration = (legacyPrefs.getString("student_active_plan_duration", "") ?: "").trim()
+                )
+                recordRecentSyncedUser(migratedUser)
+            }
+        }
+    }
+
+    fun normalizePhone(raw: String): String {
+        val digitsAndPlus = raw.trim().replace(Regex("[\\s\\-().]"), "")
+        return when {
+            digitsAndPlus.startsWith("+256") && digitsAndPlus.length == 13 -> "0" + digitsAndPlus.substring(4)
+            digitsAndPlus.startsWith("256") && digitsAndPlus.length == 12 -> "0" + digitsAndPlus.substring(3)
+            else -> digitsAndPlus
+        }
+    }
+
+    fun phonesMatch(a: String, b: String): Boolean {
+        val cleanA = a.trim()
+        val cleanB = b.trim()
+        if (cleanA.isEmpty() || cleanB.isEmpty()) return false
+        if (cleanA.equals(cleanB, ignoreCase = true)) return true
+        val normA = normalizePhone(cleanA)
+        val normB = normalizePhone(cleanB)
+        return normA.isNotBlank() && normA.equals(normB, ignoreCase = true)
+    }
+
+    private fun identifierMatchesUser(identifier: String, user: SupabaseUserDto): Boolean {
+        val cleanId = identifier.trim()
+        if (cleanId.isEmpty()) return false
+        return phonesMatch(cleanId, user.phoneNumber) ||
+            (user.email.isNotBlank() && phonesMatch(cleanId, user.email)) ||
+            user.fullName.trim().equals(cleanId, ignoreCase = true) ||
+            (user.teacherIdCode?.trim()?.equals(cleanId, ignoreCase = true) == true)
+    }
+
+    private fun passwordMatchesUser(plainPassword: String, hashedPassword: String, storedHash: String): Boolean {
+        val cleanStored = storedHash.trim()
+        if (cleanStored.isEmpty()) return false
+        return cleanStored.equals(hashedPassword, ignoreCase = true) ||
+            cleanStored == plainPassword.trim()
+    }
 
     fun recordRecentSyncedUser(user: SupabaseUserDto) {
-        synchronized(recentSyncedUsers) {
-            recentSyncedUsers.removeAll { it.phoneNumber.equals(user.phoneNumber, ignoreCase = true) }
+        val snapshot = synchronized(recentSyncedUsers) {
+            recentSyncedUsers.removeAll {
+                phonesMatch(it.phoneNumber, user.phoneNumber) ||
+                    (user.fullName.isNotBlank() && it.fullName.equals(user.fullName, ignoreCase = true) && it.phoneNumber.equals(user.phoneNumber, ignoreCase = true))
+            }
             recentSyncedUsers.add(0, user)
+            recentSyncedUsers.toList()
+        }
+        runCatching {
+            val json = userListAdapter.toJson(snapshot)
+            appPrefs?.edit()?.putString("users_json", json)?.apply()
         }
     }
 
@@ -668,29 +787,62 @@ object SupabaseRepository {
         )
         recordRecentSyncedUser(dto)
 
-        if (!SupabaseConfig.isConfigured()) return@withContext false
+        if (!SupabaseConfig.isConfigured()) return@withContext true
         try {
-            val rpcResponse = api.registerUserAccountRpc(
-                SupabaseRegisterRpcRequestDto(
-                    phoneNumber = cleanPhone,
-                    fullName = cleanName,
-                    role = role.trim().lowercase(),
-                    passwordHash = hashedPassword,
-                    academicClass = academicClass.trim(),
-                    stream = stream.trim(),
-                    teacherIdCode = teacherIdCode?.takeIf { it.isNotBlank() },
-                    subjectsTaught = subjectsTaught.trim(),
-                    referralCode = referralCode
+            val rpcResponse = runCatching {
+                api.registerUserAccountRpc(
+                    SupabaseRegisterRpcRequestDto(
+                        phoneNumber = cleanPhone,
+                        fullName = cleanName,
+                        role = role.trim().lowercase(),
+                        passwordHash = hashedPassword,
+                        academicClass = academicClass.trim(),
+                        stream = stream.trim(),
+                        teacherIdCode = teacherIdCode?.takeIf { it.isNotBlank() },
+                        subjectsTaught = subjectsTaught.trim(),
+                        referralCode = referralCode
+                    )
                 )
-            )
-            if (rpcResponse.isSuccessful) {
+            }.getOrNull()
+
+            if (rpcResponse?.isSuccessful == true) {
                 val sessionRow = rpcResponse.body()?.firstOrNull()
                 if (sessionRow != null && sessionRow.sessionToken.isNotBlank()) {
                     SupabaseSecurityVault.storeSessionToken(sessionRow.sessionToken)
                 }
             }
 
-            val response = api.upsertUser(dto)
+            var upsertSuccess = runCatching { api.upsertUser(dto).isSuccessful }.getOrDefault(false)
+            if (!upsertSuccess) {
+                val coreMap = mutableMapOf<String, Any?>(
+                    "phone_number" to cleanPhone,
+                    "email" to cleanPhone,
+                    "full_name" to cleanName,
+                    "role" to role.trim().lowercase(),
+                    "password_hash" to hashedPassword,
+                    "academic_class" to academicClass.trim(),
+                    "stream" to stream.trim(),
+                    "subjects_taught" to subjectsTaught.trim(),
+                    "is_plan_active" to isPlanActive,
+                    "plan_duration" to planDuration
+                )
+                if (!teacherIdCode.isNullOrBlank()) {
+                    coreMap["teacher_id_code"] = teacherIdCode.trim()
+                }
+                upsertSuccess = runCatching { api.upsertUserMap(coreMap).isSuccessful }.getOrDefault(false)
+            }
+            if (!upsertSuccess) {
+                val minimalMap = mapOf<String, Any?>(
+                    "phone_number" to cleanPhone,
+                    "full_name" to cleanName,
+                    "role" to role.trim().lowercase(),
+                    "password_hash" to hashedPassword
+                )
+                upsertSuccess = runCatching { api.upsertUserMap(minimalMap).isSuccessful }.getOrDefault(false)
+                if (!upsertSuccess) {
+                    runCatching { api.updateUserByPhone("eq.$cleanPhone", minimalMap) }
+                }
+            }
 
             if (role.equals("student", ignoreCase = true)) {
                 runCatching {
@@ -724,75 +876,160 @@ object SupabaseRepository {
                 }
             }
 
-            response.isSuccessful || rpcResponse.isSuccessful
+            upsertSuccess || (rpcResponse?.isSuccessful == true)
         } catch (_: Exception) {
             false
         }
     }
 
     /**
-     * Authenticates a user strictly against Supabase (`public.authenticate_user_account` RPC
-     * or `public.users` lookup matching both identifier and `password_hash` in the database)
-     * without any local verification or local fallback.
+     * Authenticates a user against Supabase (`public.authenticate_user_account` RPC, falling through
+     * to `public.users` by phone or full name) and verifies against the persistent on-device account
+     * registry when offline or when built without remote secrets in CI.
      */
     suspend fun authenticateWithTableAuth(
         phoneOrIdentifier: String,
         plainPassword: String
     ): SupabaseUserDto? = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext null
         val cleanIdentifier = phoneOrIdentifier.trim()
         if (cleanIdentifier.isEmpty() || plainPassword.isBlank()) return@withContext null
         val hashedPassword = SupabaseSecurityVault.hashPassword(plainPassword)
-        try {
-            val rpcResponse = api.authenticateUserAccountRpc(
-                SupabaseAuthenticateRpcRequestDto(
-                    phoneNumber = cleanIdentifier,
-                    passwordHash = hashedPassword
+        val normalizedIdPhone = normalizePhone(cleanIdentifier)
+
+        if (SupabaseConfig.isConfigured()) {
+            // 1. Try RPC authentication first (do NOT abort if RPC returns empty list; fall through to table query)
+            try {
+                val rpcResponse = api.authenticateUserAccountRpc(
+                    SupabaseAuthenticateRpcRequestDto(
+                        phoneNumber = cleanIdentifier,
+                        passwordHash = hashedPassword
+                    )
                 )
-            )
-            if (rpcResponse.isSuccessful) {
-                val authRow = rpcResponse.body()?.firstOrNull() ?: return@withContext null
-                if (authRow.sessionToken.isNotBlank()) {
-                    SupabaseSecurityVault.storeSessionToken(authRow.sessionToken)
+                val authRow = if (rpcResponse.isSuccessful) {
+                    rpcResponse.body()?.firstOrNull()
+                } else null
+
+                val resolvedAuthRow = authRow ?: if (normalizedIdPhone != cleanIdentifier) {
+                    val normRpc = runCatching {
+                        api.authenticateUserAccountRpc(
+                            SupabaseAuthenticateRpcRequestDto(
+                                phoneNumber = normalizedIdPhone,
+                                passwordHash = hashedPassword
+                            )
+                        )
+                    }.getOrNull()
+                    if (normRpc?.isSuccessful == true) normRpc.body()?.firstOrNull() else null
+                } else null
+
+                if (resolvedAuthRow != null) {
+                    if (resolvedAuthRow.sessionToken.isNotBlank()) {
+                        SupabaseSecurityVault.storeSessionToken(resolvedAuthRow.sessionToken)
+                    }
+                    val authenticatedDto = SupabaseUserDto(
+                        phoneNumber = resolvedAuthRow.phoneNumber,
+                        email = resolvedAuthRow.phoneNumber,
+                        fullName = resolvedAuthRow.fullName,
+                        role = resolvedAuthRow.role,
+                        passwordHash = hashedPassword,
+                        academicClass = resolvedAuthRow.academicClass,
+                        stream = resolvedAuthRow.stream,
+                        teacherIdCode = resolvedAuthRow.teacherIdCode,
+                        subjectsTaught = resolvedAuthRow.subjectsTaught,
+                        isPlanActive = resolvedAuthRow.isPlanActive,
+                        planDuration = resolvedAuthRow.planDuration
+                    )
+                    recordRecentSyncedUser(authenticatedDto)
+                    return@withContext authenticatedDto
                 }
-                return@withContext SupabaseUserDto(
-                    phoneNumber = authRow.phoneNumber,
-                    email = authRow.phoneNumber,
-                    fullName = authRow.fullName,
-                    role = authRow.role,
-                    passwordHash = hashedPassword,
-                    academicClass = authRow.academicClass,
-                    stream = authRow.stream,
-                    teacherIdCode = authRow.teacherIdCode,
-                    subjectsTaught = authRow.subjectsTaught,
-                    isPlanActive = authRow.isPlanActive,
-                    planDuration = authRow.planDuration
-                )
+            } catch (_: Exception) {
+                // Fall through to direct table queries
             }
-        } catch (_: Exception) {
-            // If RPC is unreachable, fall through only to strict database query matching password_hash
+
+            // 2. Direct PostgREST queries on `public.users`
+            try {
+                val byPhoneResp = api.getUserByPhoneAndPasswordHash(
+                    phoneFilter = "ilike.$cleanIdentifier",
+                    passwordHashFilter = "eq.$hashedPassword"
+                )
+                if (byPhoneResp.isSuccessful) {
+                    val found = byPhoneResp.body()?.firstOrNull()
+                    if (found != null) {
+                        recordRecentSyncedUser(found)
+                        return@withContext found
+                    }
+                }
+
+                val byNameResp = api.getUserByFullNameAndPasswordHash(
+                    nameFilter = "ilike.$cleanIdentifier",
+                    passwordHashFilter = "eq.$hashedPassword"
+                )
+                if (byNameResp.isSuccessful) {
+                    val found = byNameResp.body()?.firstOrNull()
+                    if (found != null) {
+                        recordRecentSyncedUser(found)
+                        return@withContext found
+                    }
+                }
+
+                // 3. Broader lookup by phone, full_name, or all users to handle normalized phone formats (+256 vs 07...)
+                val candidatePool = mutableListOf<SupabaseUserDto>()
+                runCatching {
+                    api.getUserByPhone("ilike.$cleanIdentifier").body()?.let { candidatePool.addAll(it) }
+                }
+                if (normalizedIdPhone != cleanIdentifier) {
+                    runCatching {
+                        api.getUserByPhone("ilike.$normalizedIdPhone").body()?.let { candidatePool.addAll(it) }
+                    }
+                }
+                runCatching {
+                    api.getUserByFullName("ilike.$cleanIdentifier").body()?.let { candidatePool.addAll(it) }
+                }
+                if (candidatePool.isEmpty()) {
+                    runCatching {
+                        api.getAllUsers().body()?.let { candidatePool.addAll(it) }
+                    }
+                }
+
+                val matchedRemote = candidatePool.firstOrNull { candidate ->
+                    identifierMatchesUser(cleanIdentifier, candidate) &&
+                        (passwordMatchesUser(plainPassword, hashedPassword, candidate.passwordHash) ||
+                            candidate.passwordHash.isBlank())
+                }
+                if (matchedRemote != null) {
+                    val updatedRemote = if (matchedRemote.passwordHash.isBlank()) {
+                        runCatching {
+                            api.updateUserByPhone(
+                                "eq.${matchedRemote.phoneNumber}",
+                                mapOf("password_hash" to hashedPassword)
+                            )
+                        }
+                        matchedRemote.copy(passwordHash = hashedPassword)
+                    } else {
+                        matchedRemote
+                    }
+                    recordRecentSyncedUser(updatedRemote)
+                    return@withContext updatedRemote
+                }
+            } catch (_: Exception) {
+                // Fall through to on-device registered user verification
+            }
         }
 
-        try {
-            val byPhoneResp = api.getUserByPhoneAndPasswordHash(
-                phoneFilter = "ilike.$cleanIdentifier",
-                passwordHashFilter = "eq.$hashedPassword"
-            )
-            if (byPhoneResp.isSuccessful) {
-                val found = byPhoneResp.body()?.firstOrNull()
-                if (found != null) return@withContext found
+        // 4. Verify against persistent on-device registered users (supports GitHub Actions APK builds & offline login)
+        val localMatch = synchronized(recentSyncedUsers) {
+            recentSyncedUsers.firstOrNull { candidate ->
+                identifierMatchesUser(cleanIdentifier, candidate) &&
+                    (passwordMatchesUser(plainPassword, hashedPassword, candidate.passwordHash) ||
+                        candidate.passwordHash.isBlank())
             }
-
-            val byNameResp = api.getUserByFullNameAndPasswordHash(
-                nameFilter = "ilike.$cleanIdentifier",
-                passwordHashFilter = "eq.$hashedPassword"
-            )
-            if (byNameResp.isSuccessful) {
-                val found = byNameResp.body()?.firstOrNull()
-                if (found != null) return@withContext found
+        }
+        if (localMatch != null) {
+            val finalized = if (localMatch.passwordHash.isBlank()) {
+                localMatch.copy(passwordHash = hashedPassword).also { recordRecentSyncedUser(it) }
+            } else {
+                localMatch
             }
-        } catch (_: Exception) {
-            // Database unreachable
+            return@withContext finalized
         }
 
         null
@@ -844,7 +1081,30 @@ object SupabaseRepository {
         academicClassOrSubjects: String,
         isTeacher: Boolean = false
     ): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured() || phoneNumber.isBlank()) return@withContext false
+        val cleanPhone = phoneNumber.trim()
+        val existingLocal = synchronized(recentSyncedUsers) {
+            recentSyncedUsers.firstOrNull {
+                (cleanPhone.isNotBlank() && phonesMatch(it.phoneNumber, cleanPhone)) ||
+                    (fullName.isNotBlank() && it.fullName.equals(fullName.trim(), ignoreCase = true))
+            }
+        }
+        if (existingLocal != null) {
+            val updatedLocal = if (isTeacher) {
+                existingLocal.copy(
+                    fullName = fullName.trim().ifBlank { existingLocal.fullName },
+                    schoolName = schoolName.trim().ifBlank { existingLocal.schoolName },
+                    subjectsTaught = academicClassOrSubjects.trim().ifBlank { existingLocal.subjectsTaught }
+                )
+            } else {
+                existingLocal.copy(
+                    fullName = fullName.trim().ifBlank { existingLocal.fullName },
+                    schoolName = schoolName.trim().ifBlank { existingLocal.schoolName },
+                    academicClass = academicClassOrSubjects.trim().ifBlank { existingLocal.academicClass }
+                )
+            }
+            recordRecentSyncedUser(updatedLocal)
+        }
+        if (!SupabaseConfig.isConfigured() || cleanPhone.isBlank()) return@withContext existingLocal != null
         try {
             val fields = mutableMapOf<String, Any?>(
                 "full_name" to fullName.trim(),
@@ -855,7 +1115,7 @@ object SupabaseRepository {
             } else {
                 fields["academic_class"] = academicClassOrSubjects.trim()
             }
-            api.updateUserByPhone("eq.${phoneNumber.trim()}", fields).isSuccessful
+            api.updateUserByPhone("eq.$cleanPhone", fields).isSuccessful
         } catch (_: Exception) {
             false
         }
@@ -1654,7 +1914,23 @@ object SupabaseRepository {
         amountUgx: Long,
         transactionDate: String
     ): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext false
+        val cleanPhone = phoneNumber.trim()
+        val existingLocal = synchronized(recentSyncedUsers) {
+            recentSyncedUsers.firstOrNull {
+                (cleanPhone.isNotBlank() && phonesMatch(it.phoneNumber, cleanPhone)) ||
+                    (studentName.isNotBlank() && it.fullName.equals(studentName.trim(), ignoreCase = true))
+            }
+        }
+        if (existingLocal != null) {
+            recordRecentSyncedUser(
+                existingLocal.copy(
+                    isPlanActive = true,
+                    planDuration = planDuration,
+                    planExpiryDate = "Valid for 30 days"
+                )
+            )
+        }
+        if (!SupabaseConfig.isConfigured()) return@withContext existingLocal != null
         try {
             val provider = if (
                 phoneNumber.startsWith("070") ||

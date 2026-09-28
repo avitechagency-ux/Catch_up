@@ -71,6 +71,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.SupabaseRepository
+import com.example.data.SupabaseSecurityVault
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
 import kotlinx.coroutines.launch
@@ -118,6 +119,12 @@ fun SignupScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+    remember(context) {
+        SupabaseRepository.initialize(context)
+        true
+    }
 
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -963,6 +970,12 @@ fun SignupScreen(
                                             .filter { it.name in selectedTeacherSubjects }
                                             .map { it.name }
                                     )
+                                }
+                                runCatching {
+                                    context.getSharedPreferences("catch_up_prefs", android.content.Context.MODE_PRIVATE)
+                                        .edit()
+                                        .putString("user_password_hash", SupabaseSecurityVault.hashPassword(passwordInput))
+                                        .apply()
                                 }
                                 isLoading = false
                                 onSignupSuccess(
