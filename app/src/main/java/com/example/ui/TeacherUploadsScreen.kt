@@ -91,12 +91,13 @@ data class TeacherUploadItem(
     val type: String, // "Notes" or "Assignment"
     val dateUploaded: String,
     val fileSize: String = "2.4 MB",
-    val fileFormat: String = "PDF",
+    val fileFormat: String = "DOCX",
     val downloadCount: Int = 18,
     val viewCount: Int = 34,
     val dueDate: String? = null,
     val submissionCount: Int? = null,
-    val status: String = "Published"
+    val status: String = "Published",
+    val teacherIdCode: String = ""
 )
 
 /**

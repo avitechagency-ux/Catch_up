@@ -99,13 +99,83 @@ fun getSubjectThemeColor(subjectName: String): Color {
 }
 
 /**
+ * Normalizes a secondary class string (e.g. "S.4 Green", "s4", "S.1", "Senior 2")
+ * to its canonical Ugandan secondary class level ("S.1" .. "S.6").
+ */
+fun normalizeSecondaryClass(rawClass: String): String {
+    val cleaned = rawClass.trim()
+    if (cleaned.isEmpty()) return ""
+    val match = Regex("(?i)\\b(?:s\\.?|senior)\\s*([1-6])\\b").find(cleaned)
+    if (match != null) {
+        return "S.${match.groupValues[1]}"
+    }
+    return cleaned.uppercase()
+}
+
+/**
+ * Checks whether a note's targetClass matches a student's academicClass.
+ * Ensures students in one class (e.g. S.4) NEVER receive notes uploaded for other classes (e.g. S.1, S.2, S.3, S.5, S.6).
+ */
+fun doesNoteMatchStudentClass(noteTargetClass: String, studentClass: String): Boolean {
+    val cleanStudent = studentClass.trim()
+    if (cleanStudent.isEmpty()) return true
+    val cleanNoteClass = noteTargetClass.trim()
+    if (cleanNoteClass.isEmpty()) return false
+
+    val normalizedStudent = normalizeSecondaryClass(cleanStudent)
+    val noteClassMatches = Regex("(?i)\\b(?:s\\.?|senior)\\s*([1-6])\\b")
+        .findAll(cleanNoteClass)
+        .map { "S.${it.groupValues[1]}" }
+        .toSet()
+
+    return if (noteClassMatches.isNotEmpty()) {
+        normalizedStudent in noteClassMatches
+    } else {
+        cleanNoteClass.equals(cleanStudent, ignoreCase = true) ||
+            cleanNoteClass.equals(normalizedStudent, ignoreCase = true)
+    }
+}
+
+/**
+ * Checks whether a note's teacherIdCode matches the Teacher ID connected by the student for that subject.
+ */
+fun doesNoteMatchLinkedTeacher(noteTeacherIdCode: String, linkedTeacherIdCode: String): Boolean {
+    val cleanLinked = linkedTeacherIdCode.trim().uppercase()
+    if (cleanLinked.isEmpty()) return true
+    val cleanNoteCode = noteTeacherIdCode.trim().uppercase()
+    if (cleanNoteCode.isEmpty()) return false
+    return cleanNoteCode == cleanLinked
+}
+
+/**
+ * Filters a list of [TopicItem] notes or assignments strictly by the student's class and connected Teacher ID.
+ */
+fun filterTopicsForStudent(
+    topics: List<TopicItem>,
+    studentClass: String,
+    linkedTeacherIdCode: String = ""
+): List<TopicItem> {
+    return topics.filter { item ->
+        val classMatches = studentClass.isBlank() ||
+            item.targetClass.isBlank() ||
+            doesNoteMatchStudentClass(item.targetClass, studentClass)
+        val teacherMatches = linkedTeacherIdCode.isBlank() ||
+            item.teacherIdCode.isBlank() ||
+            doesNoteMatchLinkedTeacher(item.teacherIdCode, linkedTeacherIdCode)
+        classMatches && teacherMatches
+    }
+}
+
+/**
  * Data model for a topic item under a subject.
  */
 data class TopicItem(
     val id: String,
     val title: String,
     val date: String,
-    val fileType: String = "PDF"
+    val fileType: String = "DOCX",
+    val targetClass: String = "",
+    val teacherIdCode: String = ""
 )
 
 /**
@@ -129,6 +199,8 @@ enum class NotesContentType {
 @Composable
 fun SubjectNotesScreen(
     subjectName: String = "Math",
+    studentClass: String = "",
+    linkedTeacherIdCode: String = "",
     modifier: Modifier = Modifier,
     initialNotes: List<TopicItem> = emptyList(),
     initialAssignments: List<TopicItem> = emptyList(),
@@ -144,14 +216,30 @@ fun SubjectNotesScreen(
     var selectedContentType by remember { mutableStateOf(NotesContentType.NOTES) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var liveNotes by remember(subjectName, initialNotes) { mutableStateOf(initialNotes) }
-    var liveAssignments by remember(subjectName, initialAssignments) { mutableStateOf(initialAssignments) }
+    var liveNotes by remember(subjectName, studentClass, linkedTeacherIdCode, initialNotes) {
+        mutableStateOf(filterTopicsForStudent(initialNotes, studentClass, linkedTeacherIdCode))
+    }
+    var liveAssignments by remember(subjectName, studentClass, linkedTeacherIdCode, initialAssignments) {
+        mutableStateOf(filterTopicsForStudent(initialAssignments, studentClass, linkedTeacherIdCode))
+    }
 
-    androidx.compose.runtime.LaunchedEffect(subjectName, initialNotes, initialAssignments) {
-        val fetchedNotes = com.example.data.SupabaseRepository.fetchNotesForSubject(subjectName, "Notes")
-        val fetchedAssignments = com.example.data.SupabaseRepository.fetchNotesForSubject(subjectName, "Assignment")
-        liveNotes = (initialNotes + fetchedNotes).distinctBy { it.title.trim().lowercase() }
-        liveAssignments = (initialAssignments + fetchedAssignments).distinctBy { it.title.trim().lowercase() }
+    androidx.compose.runtime.LaunchedEffect(subjectName, studentClass, linkedTeacherIdCode, initialNotes, initialAssignments) {
+        val fetchedNotes = com.example.data.SupabaseRepository.fetchNotesForSubject(
+            subjectName = subjectName,
+            contentType = "Notes",
+            studentClass = studentClass,
+            teacherIdCode = linkedTeacherIdCode
+        )
+        val fetchedAssignments = com.example.data.SupabaseRepository.fetchNotesForSubject(
+            subjectName = subjectName,
+            contentType = "Assignment",
+            studentClass = studentClass,
+            teacherIdCode = linkedTeacherIdCode
+        )
+        val scopedInitialNotes = filterTopicsForStudent(initialNotes, studentClass, linkedTeacherIdCode)
+        val scopedInitialAssignments = filterTopicsForStudent(initialAssignments, studentClass, linkedTeacherIdCode)
+        liveNotes = (scopedInitialNotes + fetchedNotes).distinctBy { it.title.trim().lowercase() }
+        liveAssignments = (scopedInitialAssignments + fetchedAssignments).distinctBy { it.title.trim().lowercase() }
     }
 
     val headerColor = remember(subjectName) { getSubjectThemeColor(subjectName) }

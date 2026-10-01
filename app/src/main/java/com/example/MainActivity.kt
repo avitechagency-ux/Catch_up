@@ -453,7 +453,7 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf<List<TeacherUploadItem>>(emptyList())
                 }
 
-                LaunchedEffect(isTeacherScreen, currentScreen, teacherIdCode, teacherName) {
+                LaunchedEffect(isTeacherScreen, currentScreen, teacherIdCode, teacherName, studentPhone, studentName) {
                     if (isTeacherScreen) {
                         val accountEmail = (prefs.getString("user_email", null) ?: studentPhone).orEmpty().trim()
                         if (accountEmail.isNotBlank()) {
@@ -518,6 +518,35 @@ class MainActivity : ComponentActivity() {
                                 .distinctBy { "${it.studentName.lowercase()}_${it.subjectName.lowercase()}_${it.teacherIdCode.uppercase()}" }
                             connectedStudentsList = merged
                             prefs.edit().putString("teacher_connected_students", serializeConnectedStudents(merged)).apply()
+                        }
+                    } else if (!currentScreen.name.startsWith("ADMIN_") &&
+                        currentScreen !in setOf(AppScreen.WELCOME, AppScreen.LOGIN, AppScreen.SIGNUP, AppScreen.ONBOARDING)
+                    ) {
+                        val accountPhone = studentPhone.ifBlank { prefs.getString("user_email", null).orEmpty() }.trim()
+                        if (accountPhone.isNotBlank()) {
+                            val remoteStudent = SupabaseRepository.fetchUserByPhone(accountPhone)
+                            if (remoteStudent != null && remoteStudent.role.equals("student", ignoreCase = true)) {
+                                val resolvedClass = listOf(remoteStudent.academicClass.trim(), remoteStudent.stream.trim())
+                                    .filter { it.isNotBlank() }
+                                    .joinToString(" ")
+                                if (resolvedClass.isNotBlank() && resolvedClass != academicClass) {
+                                    academicClass = resolvedClass
+                                    prefs.edit()
+                                        .putString("student_class_only", remoteStudent.academicClass.trim())
+                                        .putString("student_class", resolvedClass)
+                                        .apply()
+                                }
+                            }
+                            val remoteLinks = SupabaseRepository.fetchStudentLinkedTeachers(
+                                studentPhone = accountPhone,
+                                studentName = studentName
+                            )
+                            if (remoteLinks.isNotEmpty()) {
+                                val mergedLinks = remoteLinks + linkedSubjectTeachers
+                                if (mergedLinks != linkedSubjectTeachers) {
+                                    persistLinkedSubjectTeachers(mergedLinks)
+                                }
+                            }
                         }
                     }
                 }
@@ -927,14 +956,48 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                         AppScreen.SUBJECT_NOTES -> {
+                            val linkedTeacherForSubject = linkedSubjectTeachers.entries
+                                .firstOrNull { it.key.equals(selectedSubjectName, ignoreCase = true) }
+                                ?.value
+                                .orEmpty()
                             val subjectNotesInitial = teacherUploadsList
-                                .filter { it.subject.equals(selectedSubjectName, ignoreCase = true) && !it.type.equals("Assignment", ignoreCase = true) }
-                                .map { com.example.ui.TopicItem(id = it.id, title = it.title, date = it.dateUploaded) }
+                                .filter {
+                                    it.subject.equals(selectedSubjectName, ignoreCase = true) &&
+                                        !it.type.equals("Assignment", ignoreCase = true) &&
+                                        com.example.ui.doesNoteMatchStudentClass(it.targetClass, academicClass) &&
+                                        com.example.ui.doesNoteMatchLinkedTeacher(it.teacherIdCode.ifBlank { teacherIdCode }, linkedTeacherForSubject)
+                                }
+                                .map {
+                                    com.example.ui.TopicItem(
+                                        id = it.id,
+                                        title = it.title,
+                                        date = it.dateUploaded,
+                                        fileType = it.fileFormat.ifBlank { "DOCX" },
+                                        targetClass = it.targetClass,
+                                        teacherIdCode = it.teacherIdCode.ifBlank { teacherIdCode }
+                                    )
+                                }
                             val subjectAssignmentsInitial = teacherUploadsList
-                                .filter { it.subject.equals(selectedSubjectName, ignoreCase = true) && it.type.equals("Assignment", ignoreCase = true) }
-                                .map { com.example.ui.TopicItem(id = it.id, title = it.title, date = it.dateUploaded) }
+                                .filter {
+                                    it.subject.equals(selectedSubjectName, ignoreCase = true) &&
+                                        it.type.equals("Assignment", ignoreCase = true) &&
+                                        com.example.ui.doesNoteMatchStudentClass(it.targetClass, academicClass) &&
+                                        com.example.ui.doesNoteMatchLinkedTeacher(it.teacherIdCode.ifBlank { teacherIdCode }, linkedTeacherForSubject)
+                                }
+                                .map {
+                                    com.example.ui.TopicItem(
+                                        id = it.id,
+                                        title = it.title,
+                                        date = it.dateUploaded,
+                                        fileType = it.fileFormat.ifBlank { "DOCX" },
+                                        targetClass = it.targetClass,
+                                        teacherIdCode = it.teacherIdCode.ifBlank { teacherIdCode }
+                                    )
+                                }
                             SubjectNotesScreen(
                                 subjectName = selectedSubjectName,
+                                studentClass = academicClass,
+                                linkedTeacherIdCode = linkedTeacherForSubject,
                                 initialNotes = subjectNotesInitial,
                                 initialAssignments = subjectAssignmentsInitial,
                                 onNavigateBack = {
@@ -1232,7 +1295,8 @@ class MainActivity : ComponentActivity() {
                                     targetClass = it.targetClass,
                                     type = it.type,
                                     dateUploaded = it.dateUploaded,
-                                    dueDate = it.dueDate
+                                    dueDate = it.dueDate,
+                                    teacherIdCode = it.teacherIdCode.ifBlank { teacherIdCode }
                                 )
                             },
                             onNavigateBack = {
@@ -1273,10 +1337,12 @@ class MainActivity : ComponentActivity() {
                                     type = quickItem.type,
                                     dateUploaded = nowStr,
                                     fileSize = quickItem.fileSize.ifBlank { "2.4 MB" },
+                                    fileFormat = "DOCX",
                                     downloadCount = 0,
                                     viewCount = 0,
                                     dueDate = quickItem.dueDate,
-                                    status = if (quickItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published"
+                                    status = if (quickItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published",
+                                    teacherIdCode = teacherIdCode
                                 )
                                 teacherUploadsList = listOf(newUpload) + teacherUploadsList
                                 coroutineScope.launch {
@@ -1324,10 +1390,12 @@ class MainActivity : ComponentActivity() {
                                         type = savedItem.type,
                                         dateUploaded = resolvedDate,
                                         fileSize = resolvedSize,
+                                        fileFormat = "DOCX",
                                         downloadCount = 0,
                                         viewCount = 0,
                                         dueDate = savedItem.dueDate,
-                                        status = if (savedItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published"
+                                        status = if (savedItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published",
+                                        teacherIdCode = teacherIdCode
                                     )
                                     val existingIdx = teacherUploadsList.indexOfFirst { it.id == newUpload.id }
                                     teacherUploadsList = if (existingIdx >= 0) {

@@ -104,8 +104,8 @@ class ExampleRobolectricTest {
   fun `verify teacher taught subjects contains Geography and Math`() {
     val subjectNames = DefaultTeacherSubjects.map { it.name }
     assertEquals(listOf("Geography", "Math"), subjectNames)
-    assertEquals("S.4, S.5", DefaultTeacherSubjects.first { it.name == "Geography" }.classes)
-    assertEquals("S.3, S.4", DefaultTeacherSubjects.first { it.name == "Math" }.classes)
+    assertEquals("S.1, S.2, S.3, S.4, S.5, S.6", DefaultTeacherSubjects.first { it.name == "Geography" }.classes)
+    assertEquals("S.1, S.2, S.3, S.4, S.5, S.6", DefaultTeacherSubjects.first { it.name == "Math" }.classes)
     assertEquals(0, DefaultTeacherSubjects.first { it.name == "Geography" }.noteCount)
     assertEquals(0, DefaultTeacherSubjects.first { it.name == "Geography" }.assignmentCount)
   }
@@ -915,23 +915,139 @@ class ExampleRobolectricTest {
   @Test
   fun `verify teacher pdf upload item retains pdf bytes and caches locally`() {
     val context = ApplicationProvider.getApplicationContext<Context>()
-    val samplePdfBytes = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF".toByteArray()
+    val sampleDocxBytes = com.example.ui.generateDocxBytes(
+      title = "Quadratic Equations",
+      subject = "Math",
+      targetClass = "S.4",
+      authorName = "Tr. Okello",
+      description = "Notes for S.4 Math"
+    )
     val uploadItem = com.example.ui.SubjectUploadItem(
       id = "note-test-1",
       title = "Quadratic Equations",
       subject = "Math",
-      targetClass = "S.4 Green",
+      targetClass = "S.4",
       type = "Notes",
       dateUploaded = "Sep 27, 2026",
-      fileName = "quadratic_equations.pdf",
+      fileName = "quadratic_equations.docx",
       fileSize = "1.2 MB",
-      fileBytes = samplePdfBytes
+      fileBytes = sampleDocxBytes
     )
 
-    com.example.ui.savePdfBytesLocally(context, uploadItem.subject, uploadItem.title, samplePdfBytes)
+    com.example.ui.savePdfBytesLocally(context, uploadItem.subject, uploadItem.title, sampleDocxBytes)
     val loadedBytes = com.example.ui.loadPdfBytesLocally(context, "Math", "Quadratic Equations")
     org.junit.Assert.assertNotNull(loadedBytes)
-    org.junit.Assert.assertArrayEquals(samplePdfBytes, loadedBytes)
+    org.junit.Assert.assertArrayEquals(sampleDocxBytes, loadedBytes)
+
+    val parsedDoc = com.example.ui.parseDocxDocument(
+      bytes = loadedBytes,
+      fallbackTitle = "Quadratic Equations",
+      fallbackSubject = "Math"
+    )
+    assertTrue(parsedDoc.sections.isNotEmpty())
+    assertTrue(parsedDoc.allText.contains("Quadratic Equations"))
+  }
+
+  @Test
+  fun `verify teacher upload notes class list contains all secondary classes from s1 to s6 and only allows docx`() {
+    assertEquals(
+      listOf("S.1", "S.2", "S.3", "S.4", "S.5", "S.6"),
+      com.example.ui.UgandanSecondaryClasses
+    )
+    com.example.ui.DefaultTeacherSubjects.forEach { subject ->
+      assertEquals("S.1, S.2, S.3, S.4, S.5, S.6", subject.classes)
+    }
+
+    assertTrue(com.example.ui.isAllowedDocxFile("S4_Physics_Mechanics_Notes.docx"))
+    assertTrue(com.example.ui.isAllowedDocxFile("REVISION_NOTES.DOCX"))
+    assertFalse(com.example.ui.isAllowedDocxFile("old_scan.pdf"))
+    assertFalse(com.example.ui.isAllowedDocxFile("legacy_word.doc"))
+    assertFalse(com.example.ui.isAllowedDocxFile("image.png"))
+  }
+
+  @Test
+  fun `verify students only receive notes matching their class and connected teacher id`() = kotlinx.coroutines.runBlocking {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    com.example.data.SupabaseRepository.initialize(context)
+
+    // Normalize class strings (with or without stream or dots)
+    assertEquals("S.1", com.example.ui.normalizeSecondaryClass("S.1"))
+    assertEquals("S.1", com.example.ui.normalizeSecondaryClass("s1"))
+    assertEquals("S.4", com.example.ui.normalizeSecondaryClass("S.4 Green"))
+    assertEquals("S.6", com.example.ui.normalizeSecondaryClass("Senior 6"))
+
+    // Teacher K7M4P9 uploads notes for S.1, S.4, and S.6 in Physics
+    val s1Note = com.example.ui.SubjectUploadItem(
+      id = "up-phys-s1",
+      title = "Introduction to Measurements S1",
+      subject = "Physics",
+      targetClass = "S.1",
+      type = "Notes",
+      dateUploaded = "01/10/2026",
+      fileName = "measurements_s1.docx",
+      teacherIdCode = "K7M4P9"
+    )
+    val s4Note = com.example.ui.SubjectUploadItem(
+      id = "up-phys-s4",
+      title = "Electromagnetic Induction S4",
+      subject = "Physics",
+      targetClass = "S.4",
+      type = "Notes",
+      dateUploaded = "01/10/2026",
+      fileName = "electromagnetism_s4.docx",
+      teacherIdCode = "K7M4P9"
+    )
+    val s6Note = com.example.ui.SubjectUploadItem(
+      id = "up-phys-s6",
+      title = "Quantum Mechanics S6",
+      subject = "Physics",
+      targetClass = "S.6",
+      type = "Notes",
+      dateUploaded = "01/10/2026",
+      fileName = "quantum_s6.docx",
+      teacherIdCode = "K7M4P9"
+    )
+    // Different teacher (T9X2L1) uploads an S.4 Physics note
+    val otherTeacherS4Note = com.example.ui.SubjectUploadItem(
+      id = "up-phys-s4-other",
+      title = "Other Teacher S4 Optics",
+      subject = "Physics",
+      targetClass = "S.4",
+      type = "Notes",
+      dateUploaded = "01/10/2026",
+      fileName = "optics_s4.docx",
+      teacherIdCode = "T9X2L1"
+    )
+
+    com.example.data.SupabaseRepository.uploadNoteAndFileToSupabase(s1Note, "K7M4P9", "Tr. Okello")
+    com.example.data.SupabaseRepository.uploadNoteAndFileToSupabase(s4Note, "K7M4P9", "Tr. Okello")
+    com.example.data.SupabaseRepository.uploadNoteAndFileToSupabase(s6Note, "K7M4P9", "Tr. Okello")
+    com.example.data.SupabaseRepository.uploadNoteAndFileToSupabase(otherTeacherS4Note, "T9X2L1", "Tr. Mukasa")
+
+    // Student in S.4 connected to K7M4P9 should ONLY receive S.4 note from K7M4P9
+    val s4NotesForStudent = com.example.data.SupabaseRepository.fetchNotesForSubject(
+      subjectName = "Physics",
+      contentType = "Notes",
+      studentClass = "S.4",
+      teacherIdCode = "K7M4P9"
+    )
+    val s4Titles = s4NotesForStudent.map { it.title }
+    assertTrue(s4Titles.contains("Electromagnetic Induction S4"))
+    assertFalse(s4Titles.contains("Introduction to Measurements S1"))
+    assertFalse(s4Titles.contains("Quantum Mechanics S6"))
+    assertFalse(s4Titles.contains("Other Teacher S4 Optics"))
+
+    // Student in S.1 connected to K7M4P9 should ONLY receive S.1 note from K7M4P9
+    val s1NotesForStudent = com.example.data.SupabaseRepository.fetchNotesForSubject(
+      subjectName = "Physics",
+      contentType = "Notes",
+      studentClass = "S.1",
+      teacherIdCode = "K7M4P9"
+    )
+    val s1Titles = s1NotesForStudent.map { it.title }
+    assertTrue(s1Titles.contains("Introduction to Measurements S1"))
+    assertFalse(s1Titles.contains("Electromagnetic Induction S4"))
+    assertFalse(s1Titles.contains("Quantum Mechanics S6"))
   }
 
   @Test

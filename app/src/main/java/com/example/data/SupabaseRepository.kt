@@ -21,8 +21,12 @@ import com.example.ui.TeacherUploadItem
 import com.example.ui.TopicItem
 import com.example.ui.UGX_PER_REFERRAL
 import com.example.ui.calculateNextMilestone
+import com.example.ui.doesNoteMatchLinkedTeacher
+import com.example.ui.doesNoteMatchStudentClass
 import com.example.ui.formatUgx
 import com.example.ui.formatUgxPrice
+import com.example.ui.generateDocxBytes
+import com.example.ui.normalizeSecondaryClass
 import com.squareup.moshi.Json
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -104,7 +108,7 @@ data class SupabaseRegisterRpcRequestDto(
 data class SupabaseTeacherSubjectDto(
     @Json(name = "teacher_id_code") val teacherIdCode: String,
     @Json(name = "subject_name") val subjectName: String,
-    @Json(name = "assigned_classes") val assignedClasses: String = "S.1, S.2, S.3, S.4"
+    @Json(name = "assigned_classes") val assignedClasses: String = "S.1, S.2, S.3, S.4, S.5, S.6"
 )
 
 data class SupabaseAuthenticateRpcRequestDto(
@@ -151,7 +155,7 @@ data class SupabaseNoteUploadDto(
     @Json(name = "author_name") val authorName: String = "Teacher",
     @Json(name = "file_url") val fileUrl: String = "",
     @Json(name = "file_size") val fileSize: String = "2.0 MB",
-    @Json(name = "file_type") val fileType: String = "PDF",
+    @Json(name = "file_type") val fileType: String = "DOCX",
     @Json(name = "due_date") val dueDate: String? = null,
     @Json(name = "status") val status: String = "Published",
     @Json(name = "date_uploaded") val dateUploaded: String
@@ -717,6 +721,7 @@ object SupabaseRepository {
                         if (recentUploadedNotes.none {
                                 it.title.equals(note.title, ignoreCase = true) &&
                                     it.subjectName.equals(note.subjectName, ignoreCase = true) &&
+                                    normalizeSecondaryClass(it.targetClass) == normalizeSecondaryClass(note.targetClass) &&
                                     it.teacherIdCode.equals(note.teacherIdCode, ignoreCase = true)
                             }) {
                             recentUploadedNotes.add(note)
@@ -1577,21 +1582,26 @@ object SupabaseRepository {
     private fun mergeWithRecentUploadedNotes(remote: List<SupabaseNoteUploadDto>): List<SupabaseNoteUploadDto> {
         val localSnapshot = synchronized(recentUploadedNotes) { recentUploadedNotes.toList() }
         return (localSnapshot + remote).distinctBy {
-            "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}"
+            "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}_${normalizeSecondaryClass(it.targetClass)}_${it.teacherIdCode.trim().uppercase()}"
         }
     }
 
     /**
-     * Fetches notes or assignments for a specific subject from Supabase `public.notes_uploads`.
+     * Fetches notes or assignments for a specific subject from Supabase `public.notes_uploads`,
+     * strictly filtered by the student's class (S.1-S.6) and their connected teacher's 6-character ID code.
      */
     suspend fun fetchNotesForSubject(
         subjectName: String,
-        contentType: String = "Notes"
+        contentType: String = "Notes",
+        studentClass: String = "",
+        teacherIdCode: String = ""
     ): List<TopicItem> = withContext(Dispatchers.IO) {
         val localMatches = synchronized(recentUploadedNotes) {
             recentUploadedNotes.filter {
                 it.subjectName.equals(subjectName.trim(), ignoreCase = true) &&
-                    it.contentType.equals(contentType, ignoreCase = true)
+                    it.contentType.equals(contentType, ignoreCase = true) &&
+                    doesNoteMatchStudentClass(it.targetClass, studentClass) &&
+                    doesNoteMatchLinkedTeacher(it.teacherIdCode, teacherIdCode)
             }
         }
         val remoteMatches = if (SupabaseConfig.isConfigured()) {
@@ -1599,7 +1609,11 @@ object SupabaseRepository {
                 val response = api.getNotesForSubject("eq.${subjectName.trim()}")
                 if (response.isSuccessful) {
                     response.body().orEmpty()
-                        .filter { it.contentType.equals(contentType, ignoreCase = true) }
+                        .filter {
+                            it.contentType.equals(contentType, ignoreCase = true) &&
+                                doesNoteMatchStudentClass(it.targetClass, studentClass) &&
+                                doesNoteMatchLinkedTeacher(it.teacherIdCode, teacherIdCode)
+                        }
                 } else {
                     emptyList()
                 }
@@ -1610,13 +1624,17 @@ object SupabaseRepository {
             emptyList()
         }
         (localMatches + remoteMatches)
-            .distinctBy { "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}" }
+            .distinctBy {
+                "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}_${normalizeSecondaryClass(it.targetClass)}_${it.teacherIdCode.trim().uppercase()}"
+            }
             .mapIndexed { index, dto ->
                 TopicItem(
                     id = dto.id ?: "sup_${index}_${dto.title.hashCode()}",
                     title = dto.title,
                     date = dto.dateUploaded,
-                    fileType = dto.fileType
+                    fileType = dto.fileType.ifBlank { "DOCX" },
+                    targetClass = dto.targetClass,
+                    teacherIdCode = dto.teacherIdCode
                 )
             }
     }
@@ -1743,7 +1761,9 @@ object SupabaseRepository {
                 emptyList()
             }
             (localMatches + remoteMatches)
-                .distinctBy { "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}" }
+                .distinctBy {
+                    "${it.subjectName.trim().lowercase()}_${it.title.trim().lowercase()}_${it.contentType.trim().lowercase()}_${normalizeSecondaryClass(it.targetClass)}_${it.teacherIdCode.trim().uppercase()}"
+                }
                 .mapIndexed { index, dto ->
                     TeacherUploadItem(
                         id = dto.id ?: "sup_up_${index}_${dto.title.hashCode()}",
@@ -1754,17 +1774,18 @@ object SupabaseRepository {
                         type = dto.contentType,
                         dateUploaded = dto.dateUploaded,
                         fileSize = dto.fileSize,
-                        fileFormat = dto.fileType,
+                        fileFormat = dto.fileType.ifBlank { "DOCX" },
                         downloadCount = 0,
                         viewCount = 0,
                         dueDate = dto.dueDate,
-                        status = dto.status
+                        status = dto.status,
+                        teacherIdCode = dto.teacherIdCode
                     )
                 }
         }
 
     /**
-     * Uploads a PDF file to Supabase Storage (`notes_files/{teacherCode}/{fileName}`) and inserts
+     * Uploads a DOCX file to Supabase Storage (`notes_files/{teacherCode}/{fileName}`) and inserts
      * or updates the corresponding row in `public.notes_uploads`.
      */
     suspend fun uploadNoteAndFileToSupabase(
@@ -1775,15 +1796,28 @@ object SupabaseRepository {
     ): SubjectUploadItem? = withContext(Dispatchers.IO) {
         val cleanCode = teacherIdCode.trim().uppercase().ifBlank { "K7M4P9" }
         val rawFileName = uploadItem.fileName.trim().ifBlank {
-            "${uploadItem.title.trim().lowercase().replace(" ", "_")}.pdf"
+            "${uploadItem.title.trim().lowercase().replace(" ", "_")}.docx"
         }
         val sanitizedFileName = rawFileName
             .replace(Regex("[^a-zA-Z0-9._-]"), "_")
-            .let { if (it.endsWith(".pdf", ignoreCase = true)) it else "$it.pdf" }
+            .let {
+                if (it.endsWith(".docx", ignoreCase = true)) it
+                else "${it.removeSuffix(".pdf").removeSuffix(".PDF")}.docx"
+            }
         val storagePublicUrl = "${SupabaseConfig.storageBaseUrl}object/public/notes_files/$cleanCode/$sanitizedFileName"
 
+        val resolvedDescription = uploadItem.description.trim().ifBlank {
+            "${uploadItem.type} for ${uploadItem.targetClass} (${uploadItem.subject})"
+        }
+
         val resolvedBytes = fileBytes ?: uploadItem.fileBytes
-            ?: "%PDF-1.4\n% Cachap Study Note: ${uploadItem.title} (${uploadItem.subject})".toByteArray()
+            ?: generateDocxBytes(
+                title = uploadItem.title,
+                subject = uploadItem.subject,
+                targetClass = uploadItem.targetClass,
+                authorName = teacherName,
+                description = resolvedDescription
+            )
 
         val key = noteCacheKey(uploadItem.subject, uploadItem.title)
         synchronized(recentUploadedPdfBytes) {
@@ -1792,7 +1826,7 @@ object SupabaseRepository {
 
         val dto = SupabaseNoteUploadDto(
             title = uploadItem.title.trim(),
-            description = "${uploadItem.type} for ${uploadItem.targetClass} (${uploadItem.subject})",
+            description = resolvedDescription,
             subjectName = uploadItem.subject.trim(),
             targetClass = uploadItem.targetClass.trim(),
             contentType = uploadItem.type.trim(),
@@ -1800,7 +1834,7 @@ object SupabaseRepository {
             authorName = teacherName.trim().ifBlank { "Teacher" },
             fileUrl = storagePublicUrl,
             fileSize = uploadItem.fileSize.ifBlank { "2.4 MB" },
-            fileType = "PDF",
+            fileType = "DOCX",
             dueDate = uploadItem.dueDate,
             status = if (uploadItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published",
             dateUploaded = uploadItem.dateUploaded
@@ -1809,7 +1843,9 @@ object SupabaseRepository {
         synchronized(recentUploadedNotes) {
             recentUploadedNotes.removeAll {
                 it.title.equals(dto.title, ignoreCase = true) &&
-                    it.subjectName.equals(dto.subjectName, ignoreCase = true)
+                    it.subjectName.equals(dto.subjectName, ignoreCase = true) &&
+                    normalizeSecondaryClass(it.targetClass) == normalizeSecondaryClass(dto.targetClass) &&
+                    it.teacherIdCode.equals(dto.teacherIdCode, ignoreCase = true)
             }
             recentUploadedNotes.add(0, dto)
         }
@@ -1819,7 +1855,9 @@ object SupabaseRepository {
 
         try {
             runCatching {
-                val body = resolvedBytes.toRequestBody("application/pdf".toMediaTypeOrNull())
+                val body = resolvedBytes.toRequestBody(
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document".toMediaTypeOrNull()
+                )
                 val uploadResp = storageApi.uploadNoteFile(
                     teacherCode = cleanCode,
                     fileName = sanitizedFileName,
@@ -1849,7 +1887,9 @@ object SupabaseRepository {
                     synchronized(recentUploadedNotes) {
                         recentUploadedNotes.removeAll {
                             it.title.equals(dto.title, ignoreCase = true) &&
-                                it.subjectName.equals(dto.subjectName, ignoreCase = true)
+                                it.subjectName.equals(dto.subjectName, ignoreCase = true) &&
+                                normalizeSecondaryClass(it.targetClass) == normalizeSecondaryClass(dto.targetClass) &&
+                                it.teacherIdCode.equals(dto.teacherIdCode, ignoreCase = true)
                         }
                         recentUploadedNotes.add(0, created)
                     }

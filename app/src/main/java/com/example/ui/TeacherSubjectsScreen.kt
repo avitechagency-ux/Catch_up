@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.School
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.BorderGrey
 import com.example.ui.theme.CoralTile
+import com.example.ui.theme.IconGrey
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
 import com.example.ui.theme.SoftLavenderGrey
@@ -115,12 +117,14 @@ data class SubjectUploadItem(
     val type: String, // "Notes" or "Assignment"
     val dateUploaded: String,
     val dueDate: String? = null,
+    val description: String = "",
     val isOwnUpload: Boolean = true,
     val uploaderName: String = "Teacher",
-    val fileName: String = "document.pdf",
+    val fileName: String = "document.docx",
     val fileSize: String = "2.4 MB",
     val fileBytes: ByteArray? = null,
-    val fileUrl: String = ""
+    val fileUrl: String = "",
+    val teacherIdCode: String = ""
 )
 
 /**
@@ -130,7 +134,7 @@ val DefaultTeacherSubjects = listOf(
     TeacherSubjectItem(
         id = "geography",
         name = "Geography",
-        classes = "S.4, S.5",
+        classes = "S.1, S.2, S.3, S.4, S.5, S.6",
         noteCount = 0,
         assignmentCount = 0,
         icon = Icons.Outlined.Public,
@@ -139,7 +143,7 @@ val DefaultTeacherSubjects = listOf(
     TeacherSubjectItem(
         id = "math",
         name = "Math",
-        classes = "S.3, S.4",
+        classes = "S.1, S.2, S.3, S.4, S.5, S.6",
         noteCount = 0,
         assignmentCount = 0,
         icon = Icons.Outlined.Architecture,
@@ -170,7 +174,7 @@ fun resolveTeacherSubjectItems(subjectsTaught: String): List<TeacherSubjectItem>
             TeacherSubjectItem(
                 id = curriculumMatch.name.lowercase().replace(" ", "_"),
                 name = curriculumMatch.name,
-                classes = "S.1, S.2, S.3, S.4",
+                classes = "S.1, S.2, S.3, S.4, S.5, S.6",
                 noteCount = 0,
                 assignmentCount = 0,
                 icon = curriculumMatch.icon,
@@ -630,7 +634,7 @@ fun TeacherSubjectConfigScreen(
                                             color = Color.White
                                         )
                                         Text(
-                                            text = "Share PDF notes",
+                                            text = "Share DOCX notes",
                                             fontSize = 11.sp,
                                             color = LightLavender
                                         )
@@ -818,14 +822,13 @@ fun TeacherSubjectConfigScreen(
     // ==========================================
     if (showUploadNotesDialog) {
         var noteTitle by remember { mutableStateOf("") }
-        val availableClasses = remember(subject.classes) {
-            val parsed = subject.classes.split(",").map { it.trim() }.filter { it in UgandanSecondaryClasses }
-            parsed.ifEmpty { UgandanSecondaryClasses }
-        }
+        val availableClasses = remember { UgandanSecondaryClasses }
         var targetClass by remember(availableClasses) { mutableStateOf(availableClasses.firstOrNull() ?: "S.4") }
 
         AlertDialog(
             onDismissRequest = { showUploadNotesDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
                     text = "Upload Notes for ${subject.name}",
@@ -835,9 +838,9 @@ fun TeacherSubjectConfigScreen(
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Share textbook chapters, revision summaries or classroom notes with students.",
+                        text = "Share textbook chapters, revision summaries or classroom notes (.docx) with students.",
                         fontSize = 13.sp,
                         color = TextMuted
                     )
@@ -848,34 +851,77 @@ fun TeacherSubjectConfigScreen(
                         label = { Text("Note Title") },
                         placeholder = { Text("e.g. Fieldwork Techniques & Data Collection") },
                         singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = IndigoPurple,
-                            focusedLabelColor = IndigoPurple
+                            unfocusedBorderColor = BorderGrey
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_note_title")
                     )
 
+                    var showNotesClassDropdown by remember { mutableStateOf(false) }
                     Column {
                         Text(
-                            text = "Target Class",
+                            text = "Target Class (S.1 - S.6)",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextDark
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextMuted
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            availableClasses.forEach { cls ->
-                                FilterChip(
-                                    selected = targetClass == cls,
-                                    onClick = { targetClass = cls },
-                                    label = { Text(cls) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = IndigoPurple,
-                                        selectedLabelColor = Color.White
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { showNotesClassDropdown = true },
+                                shape = RoundedCornerShape(12.dp),
+                                color = SoftLavenderGrey.copy(alpha = 0.6f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, BorderGrey)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = targetClass,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = IndigoPurple
                                     )
-                                )
+                                    Icon(
+                                        imageVector = Icons.Outlined.KeyboardArrowDown,
+                                        contentDescription = "Select Class",
+                                        tint = IconGrey,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = showNotesClassDropdown,
+                                onDismissRequest = { showNotesClassDropdown = false },
+                                modifier = Modifier.background(Color.White)
+                            ) {
+                                availableClasses.forEach { cls ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = cls,
+                                                fontWeight = if (targetClass == cls) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (targetClass == cls) IndigoPurple else TextDark
+                                            )
+                                        },
+                                        onClick = {
+                                            targetClass = cls
+                                            showNotesClassDropdown = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -883,11 +929,11 @@ fun TeacherSubjectConfigScreen(
                     // Attached Document Preview
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = SoftLavenderGrey
                     ) {
                         Row(
-                            modifier = Modifier.padding(10.dp),
+                            modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -898,8 +944,9 @@ fun TeacherSubjectConfigScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "document_attached.pdf (2.4 MB)",
+                                text = "document_attached.docx (2.4 MB)",
                                 fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = TextDark
                             )
                         }
@@ -926,9 +973,10 @@ fun TeacherSubjectConfigScreen(
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.testTag("btn_confirm_upload_notes")
                 ) {
-                    Text("Publish Notes")
+                    Text("Publish Notes", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -944,15 +992,14 @@ fun TeacherSubjectConfigScreen(
     // ==========================================
     if (showUploadAssignmentDialog) {
         var assignmentTitle by remember { mutableStateOf("") }
-        val availableClasses = remember(subject.classes) {
-            val parsed = subject.classes.split(",").map { it.trim() }.filter { it in UgandanSecondaryClasses }
-            parsed.ifEmpty { UgandanSecondaryClasses }
-        }
+        val availableClasses = remember { UgandanSecondaryClasses }
         var targetClass by remember(availableClasses) { mutableStateOf(availableClasses.firstOrNull() ?: "S.4") }
         var dueDate by remember { mutableStateOf("Due in 7 days") }
 
         AlertDialog(
             onDismissRequest = { showUploadAssignmentDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
                     text = "New ${subject.name} Assignment",
@@ -962,9 +1009,9 @@ fun TeacherSubjectConfigScreen(
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Assign coursework, homework exercises or term project questions with submission deadlines.",
+                        text = "Assign coursework, homework exercises or term project questions (.docx) with submission deadlines.",
                         fontSize = 13.sp,
                         color = TextMuted
                     )
@@ -975,34 +1022,77 @@ fun TeacherSubjectConfigScreen(
                         label = { Text("Assignment Title") },
                         placeholder = { Text("e.g. Weather Station Instruments Exercise") },
                         singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = subject.color,
-                            focusedLabelColor = subject.color
+                            focusedBorderColor = IndigoPurple,
+                            unfocusedBorderColor = BorderGrey
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("input_assignment_title")
                     )
 
+                    var showAssignmentClassDropdown by remember { mutableStateOf(false) }
                     Column {
                         Text(
-                            text = "Target Class",
+                            text = "Target Class (S.1 - S.6)",
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextDark
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextMuted
                         )
                         Spacer(modifier = Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            availableClasses.forEach { cls ->
-                                FilterChip(
-                                    selected = targetClass == cls,
-                                    onClick = { targetClass = cls },
-                                    label = { Text(cls) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = subject.color,
-                                        selectedLabelColor = Color.White
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { showAssignmentClassDropdown = true },
+                                shape = RoundedCornerShape(12.dp),
+                                color = SoftLavenderGrey.copy(alpha = 0.6f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, BorderGrey)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = targetClass,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = IndigoPurple
                                     )
-                                )
+                                    Icon(
+                                        imageVector = Icons.Outlined.KeyboardArrowDown,
+                                        contentDescription = "Select Class",
+                                        tint = IconGrey,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = showAssignmentClassDropdown,
+                                onDismissRequest = { showAssignmentClassDropdown = false },
+                                modifier = Modifier.background(Color.White)
+                            ) {
+                                availableClasses.forEach { cls ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = cls,
+                                                fontWeight = if (targetClass == cls) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (targetClass == cls) IndigoPurple else TextDark
+                                            )
+                                        },
+                                        onClick = {
+                                            targetClass = cls
+                                            showAssignmentClassDropdown = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -1015,13 +1105,15 @@ fun TeacherSubjectConfigScreen(
                             Icon(
                                 imageVector = Icons.Outlined.CalendarToday,
                                 contentDescription = null,
+                                tint = IndigoPurple,
                                 modifier = Modifier.size(18.dp)
                             )
                         },
                         singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = subject.color,
-                            focusedLabelColor = subject.color
+                            focusedBorderColor = IndigoPurple,
+                            unfocusedBorderColor = BorderGrey
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1031,11 +1123,11 @@ fun TeacherSubjectConfigScreen(
                     // Attached Instructions Preview
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         color = SoftLavenderGrey
                     ) {
                         Row(
-                            modifier = Modifier.padding(10.dp),
+                            modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -1046,8 +1138,9 @@ fun TeacherSubjectConfigScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "assignment_brief.pdf (1.1 MB)",
+                                text = "assignment_brief.docx (1.1 MB)",
                                 fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
                                 color = TextDark
                             )
                         }
@@ -1075,9 +1168,10 @@ fun TeacherSubjectConfigScreen(
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = subject.color),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.testTag("btn_confirm_upload_assignment")
                 ) {
-                    Text("Publish Assignment")
+                    Text("Publish Assignment", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
