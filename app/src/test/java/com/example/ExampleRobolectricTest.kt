@@ -1127,6 +1127,44 @@ class ExampleRobolectricTest {
   }
 
   @Test
+  fun `verify docx preview does not add artificial headers or synthetic page counts`() {
+    val rawParagraphs = listOf(
+      "1. Introduction to Photosynthesis",
+      "Photosynthesis is the process by which green plants transform light energy into chemical energy.",
+      "• Light dependent reactions occur in thylakoid membranes",
+      "• Calvin cycle occurs in the stroma"
+    )
+    val docxBytes = com.example.ui.generateDocxBytes(
+      title = "Photosynthesis",
+      subject = "Biology",
+      targetClass = "S.3",
+      authorName = "Tr. Kato",
+      paragraphs = rawParagraphs
+    )
+
+    val parsedDoc = com.example.ui.parseDocxDocument(
+      bytes = docxBytes,
+      fallbackTitle = "Photosynthesis",
+      fallbackSubject = "Biology"
+    )
+
+    // Verify sections have natural document flow without synthetic split pages
+    assertEquals(1, parsedDoc.sections.size)
+    val firstSection = parsedDoc.sections.first()
+    assertEquals(4, firstSection.blocks.size)
+
+    // Verify first block is the heading directly from the document
+    val firstBlock = firstSection.blocks[0]
+    assertTrue(firstBlock is com.example.ui.DocxBlock.Heading)
+    assertEquals("1. Introduction to Photosynthesis", (firstBlock as com.example.ui.DocxBlock.Heading).text)
+
+    // Verify bullet items are preserved without synthetic header metadata
+    val thirdBlock = firstSection.blocks[2]
+    assertTrue(thirdBlock is com.example.ui.DocxBlock.BulletItem)
+    assertEquals("Light dependent reactions occur in thylakoid membranes", (thirdBlock as com.example.ui.DocxBlock.BulletItem).text)
+  }
+
+  @Test
   fun `verify release keystore base64 contains valid upload key alias`() {
     val rootDir = java.io.File(System.getProperty("user.dir") ?: ".").let {
       if (it.name == "app") it.parentFile ?: it else it

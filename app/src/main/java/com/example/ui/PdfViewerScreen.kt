@@ -23,16 +23,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.TextDecrease
 import androidx.compose.material.icons.outlined.TextIncrease
 import androidx.compose.material3.CircularProgressIndicator
@@ -55,7 +50,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -73,7 +67,6 @@ import com.example.ui.theme.BorderGrey
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
 import com.example.ui.theme.SoftLavenderGrey
-import com.example.ui.theme.TealTile
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
 import kotlinx.coroutines.launch
@@ -150,6 +143,7 @@ fun isAllowedDocxFile(fileName: String, mimeType: String? = null): Boolean {
 /**
  * Generates a real, standards-compliant OpenXML Word (.docx) ZIP byte array containing
  * `[Content_Types].xml`, `_rels/.rels`, and `word/document.xml`.
+ * Does NOT inject synthetic metadata headers or subtitles.
  */
 fun generateDocxBytes(
     title: String,
@@ -167,25 +161,18 @@ fun generateDocxBytes(
         .replace("'", "&apos;")
 
     val resolvedParagraphs = paragraphs.ifEmpty {
-        listOf(
-            description.ifBlank { "Comprehensive $subject study notes prepared for $targetClass students." },
-            "1. Key Concepts & Definitions",
-            "• Topic: $title ($subject - $targetClass)",
-            "• Prepared by: $authorName",
-            "• Review the core principles, worked examples, and curriculum definitions in this section carefully.",
-            "2. Detailed Curriculum Explanation",
-            "Understanding $title in $subject helps $targetClass students apply concepts accurately in classroom exercises and UNEB examinations.",
-            "• Read each section clearly at your preferred font size without needing to zoom.",
-            "• Summarize the main formulas, terms, and structured points in your revision notebook."
-        )
+        val descText = description.trim()
+        if (descText.isNotBlank()) {
+            listOf(title, descText)
+        } else {
+            listOf(
+                title,
+                "Study notes for $title in $subject ($targetClass)."
+            )
+        }
     }
 
     val bodyXml = buildString {
-        // Title heading paragraph
-        append("""<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t>${escapeXml(title)}</w:t></w:r></w:p>""")
-        // Metadata subtitle paragraph
-        append("""<w:p><w:pPr><w:pStyle w:val="Subtitle"/></w:pPr><w:r><w:rPr><w:i/></w:rPr><w:t>${escapeXml("Subject: $subject | Class: $targetClass | Author: $authorName")}</w:t></w:r></w:p>""")
-
         resolvedParagraphs.forEach { rawLine ->
             val line = rawLine.trim()
             if (line.isNotEmpty()) {
@@ -243,8 +230,9 @@ fun generateDocxBytes(
 }
 
 /**
- * Parses a Word (.docx) byte array (or fallback note metadata) into reflowable [DocxParsedDocument] sections
+ * Parses a Word (.docx) byte array (or fallback note content) into reflowable [DocxParsedDocument]
  * so students can read notes clearly on mobile without zooming.
+ * Does NOT inject synthetic metadata banners or artificial section page splits.
  */
 fun parseDocxDocument(
     bytes: ByteArray?,
@@ -320,35 +308,22 @@ fun parseDocxDocument(
         }
     }
 
-    // Group blocks into clean reading sections so long documents are organized into digestible cards
+    // Keep all extracted blocks in a single, continuous, natural document flow (no artificial page breaks)
     val sections = mutableListOf<DocxSectionPage>()
-    var currentHeading = fallbackTitle
-    var currentList = mutableListOf<DocxBlock>()
-
-    extractedBlocks.forEach { block ->
-        if (block is DocxBlock.Heading && currentList.isNotEmpty() && currentList.size >= 3) {
-            sections.add(
-                DocxSectionPage(
-                    sectionNumber = sections.size + 1,
-                    sectionTitle = currentHeading,
-                    blocks = currentList.toList()
-                )
-            )
-            currentHeading = block.text
-            currentList = mutableListOf(block)
-        } else {
-            if (block is DocxBlock.Heading && currentList.isEmpty()) {
-                currentHeading = block.text
-            }
-            currentList.add(block)
-        }
-    }
-    if (currentList.isNotEmpty()) {
+    if (extractedBlocks.isNotEmpty()) {
         sections.add(
             DocxSectionPage(
-                sectionNumber = sections.size + 1,
-                sectionTitle = currentHeading,
-                blocks = currentList.toList()
+                sectionNumber = 1,
+                sectionTitle = fallbackTitle,
+                blocks = extractedBlocks
+            )
+        )
+    } else {
+        sections.add(
+            DocxSectionPage(
+                sectionNumber = 1,
+                sectionTitle = fallbackTitle,
+                blocks = listOf(DocxBlock.Paragraph(fallbackTitle))
             )
         )
     }
@@ -547,10 +522,10 @@ fun loadPdfBytesLocally(context: Context, subjectName: String, noteTitle: String
 }
 
 /**
- * Clear, Mobile-Reflowable DOCX Study Note Viewer Screen.
+ * Clean, Mobile-Reflowable DOCX Study Note Viewer Screen.
  *
- * Parses Word (.docx) documents and renders them in a crisp, responsive mobile reading layout
- * with adjustable font sizes so students can read notes clearly without needing to zoom or pan.
+ * Renders the actual document text naturally and cleanly without artificial headers,
+ * banners, or page count pills, supporting adjustable font sizes for comfortable reading.
  */
 @Composable
 fun PdfViewerScreen(
@@ -579,8 +554,6 @@ fun PdfViewerScreen(
     }
     // Adjustable reading font scale (default 17sp body text for effortless reading without zooming)
     var bodyFontSp by remember { mutableIntStateOf(17) }
-
-    val subjectThemeColor = remember(subjectName) { getSubjectThemeColor(subjectName) }
 
     // Trigger callback when note is opened & sync read history + fetch remote .docx bytes
     LaunchedEffect(noteTitle, subjectName) {
@@ -611,7 +584,7 @@ fun PdfViewerScreen(
         isFetchingDocument = false
     }
 
-    // Parse DOCX bytes into reflowable mobile reading sections
+    // Parse DOCX bytes into reflowable document content
     val parsedDocument by remember(uploadedDocxBytes, remoteNoteDetail, noteTitle, subjectName) {
         derivedStateOf {
             parseDocxDocument(
@@ -626,24 +599,6 @@ fun PdfViewerScreen(
         }
     }
 
-    val totalSections = parsedDocument.sections.size.coerceAtLeast(1)
-
-    val currentPage by remember {
-        derivedStateOf {
-            val layoutInfo = listState.layoutInfo
-            val visibleItems = layoutInfo.visibleItemsInfo
-            if (visibleItems.isEmpty()) {
-                1
-            } else {
-                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
-                val centerItem = visibleItems.minByOrNull { item ->
-                    kotlin.math.abs((item.offset + item.size / 2) - viewportCenter)
-                }
-                (centerItem?.index?.plus(1) ?: 1).coerceIn(1, totalSections)
-            }
-        }
-    }
-
     BackHandler {
         onNavigateBack()
     }
@@ -651,16 +606,16 @@ fun PdfViewerScreen(
     Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFF6F5FA))
+            .background(Color(0xFFF8F7FC))
             .testTag("pdf_viewer_screen"),
-        containerColor = Color(0xFFF6F5FA),
+        containerColor = Color(0xFFF8F7FC),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {
             SnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier
                     .navigationBarsPadding()
-                    .padding(bottom = 64.dp)
+                    .padding(bottom = 16.dp)
             )
         },
         topBar = {
@@ -709,16 +664,8 @@ fun PdfViewerScreen(
                             textAlign = TextAlign.Center,
                             modifier = Modifier.testTag("pdf_viewer_title")
                         )
-                        val subtitleText = buildString {
-                            append(subjectName)
-                            remoteNoteDetail?.targetClass?.takeIf { it.isNotBlank() }?.let {
-                                append(" • ")
-                                append(it)
-                            }
-                            append(" • DOCX")
-                        }
                         Text(
-                            text = subtitleText,
+                            text = subjectName,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Normal,
                             color = LightLavender,
@@ -729,133 +676,73 @@ fun PdfViewerScreen(
                         )
                     }
 
-                    IconButton(
-                        onClick = {
-                            isSaved = !isSaved
-                            onToggleSave(isSaved)
-                            val message = if (isSaved) {
-                                "Saved for offline access"
-                            } else {
-                                "Removed from offline cache"
-                            }
-                            val prefs = context.getSharedPreferences("catch_up_prefs", Context.MODE_PRIVATE)
-                            val studentPhone = (prefs.getString("user_email", null) ?: prefs.getString("user_phone", "")) ?: ""
-                            val todayStr = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
-                            coroutineScope.launch {
-                                SupabaseRepository.syncSavedNoteInSupabase(
-                                    studentPhone = studentPhone,
-                                    noteTitle = noteTitle,
-                                    subjectName = subjectName,
-                                    dateAdded = todayStr,
-                                    isSaved = isSaved,
-                                    fileUrl = remoteNoteDetail?.fileUrl ?: ""
-                                )
-                                snackbarHostState.currentSnackbarData?.dismiss()
-                                snackbarHostState.showSnackbar(message)
-                            }
-                        },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("pdf_viewer_save_button")
-                    ) {
-                        Icon(
-                            imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = if (isSaved) "Saved for offline access" else "Save for offline access",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-
-                // Clear Reading Toolbar: DOCX Reflowable Badge + Text Size Controls (No Zoom Needed)
-                Surface(
-                    color = Color(0xFF3E337A),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Quick font decrease
+                        IconButton(
+                            onClick = { bodyFontSp = (bodyFontSp - 2).coerceAtLeast(13) },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .testTag("docx_font_decrease_button")
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = TealTile.copy(alpha = 0.25f)
-                            ) {
-                                Text(
-                                    text = "DOCX READER",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF64FFDA),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                            Text(
-                                text = "Clear mobile view • Auto-fit text",
-                                fontSize = 11.sp,
-                                color = LightLavender
+                            Icon(
+                                imageVector = Icons.Outlined.TextDecrease,
+                                contentDescription = "Decrease font size",
+                                tint = Color.White,
+                                modifier = Modifier.size(19.dp)
                             )
                         }
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        // Quick font increase
+                        IconButton(
+                            onClick = { bodyFontSp = (bodyFontSp + 2).coerceAtMost(28) },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .testTag("docx_font_increase_button")
                         ) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color.White.copy(alpha = 0.14f),
-                                modifier = Modifier
-                                    .clickable { bodyFontSp = (bodyFontSp - 2).coerceAtLeast(14) }
-                                    .testTag("docx_font_decrease_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.TextDecrease,
-                                        contentDescription = "Decrease font size",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text("A-", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                }
-                            }
-
-                            Text(
-                                text = "${bodyFontSp}sp",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                            Icon(
+                                imageVector = Icons.Outlined.TextIncrease,
+                                contentDescription = "Increase font size",
+                                tint = Color.White,
+                                modifier = Modifier.size(19.dp)
                             )
+                        }
 
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color.White.copy(alpha = 0.14f),
-                                modifier = Modifier
-                                    .clickable { bodyFontSp = (bodyFontSp + 2).coerceAtMost(26) }
-                                    .testTag("docx_font_increase_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.TextIncrease,
-                                        contentDescription = "Increase font size",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text("A+", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        // Bookmark save button
+                        IconButton(
+                            onClick = {
+                                isSaved = !isSaved
+                                onToggleSave(isSaved)
+                                val message = if (isSaved) {
+                                    "Saved for offline access"
+                                } else {
+                                    "Removed from offline cache"
                                 }
-                            }
+                                val prefs = context.getSharedPreferences("catch_up_prefs", Context.MODE_PRIVATE)
+                                val studentPhone = (prefs.getString("user_email", null) ?: prefs.getString("user_phone", "")) ?: ""
+                                val todayStr = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                                coroutineScope.launch {
+                                    SupabaseRepository.syncSavedNoteInSupabase(
+                                        studentPhone = studentPhone,
+                                        noteTitle = noteTitle,
+                                        subjectName = subjectName,
+                                        dateAdded = todayStr,
+                                        isSaved = isSaved,
+                                        fileUrl = remoteNoteDetail?.fileUrl ?: ""
+                                    )
+                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                    snackbarHostState.showSnackbar(message)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .testTag("pdf_viewer_save_button")
+                        ) {
+                            Icon(
+                                imageVector = if (isSaved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder,
+                                contentDescription = if (isSaved) "Saved for offline access" else "Save for offline access",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
                     }
                 }
@@ -876,7 +763,7 @@ fun PdfViewerScreen(
                         CircularProgressIndicator(color = IndigoPurple)
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "Opening DOCX study note...",
+                            text = "Opening study note...",
                             fontSize = 14.sp,
                             color = TextMuted
                         )
@@ -889,51 +776,18 @@ fun PdfViewerScreen(
                         .fillMaxSize()
                         .testTag("pdf_pages_list"),
                     contentPadding = PaddingValues(
-                        start = 14.dp,
-                        end = 14.dp,
-                        top = 14.dp,
-                        bottom = 84.dp
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 16.dp,
+                        bottom = 32.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     itemsIndexed(parsedDocument.sections) { index, section ->
                         DocxSectionCard(
                             section = section,
-                            document = parsedDocument,
-                            subjectThemeColor = subjectThemeColor,
                             bodyFontSp = bodyFontSp,
-                            isFirstSection = index == 0,
                             modifier = Modifier.testTag("pdf_page_card_${index + 1}")
-                        )
-                    }
-                }
-            }
-
-            // Bottom floating section indicator pill
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 20.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = IndigoPurple,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier
-                        .height(36.dp)
-                        .testTag("pdf_bottom_page_pill")
-                ) {
-                    Box(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Page $currentPage of $totalSections",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White,
-                            modifier = Modifier.testTag("pdf_page_indicator_text")
                         )
                     }
                 }
@@ -943,219 +797,81 @@ fun PdfViewerScreen(
 }
 
 /**
- * Renders a reflowable Word (.docx) section card with large, clear, wrapped text that requires zero zooming.
+ * Renders the actual document text directly and clearly without added headers or banners.
  */
 @Composable
 private fun DocxSectionCard(
     section: DocxSectionPage,
-    document: DocxParsedDocument,
-    subjectThemeColor: Color,
     bodyFontSp: Int,
-    isFirstSection: Boolean,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .shadow(
-                elevation = 2.dp,
-                shape = RoundedCornerShape(16.dp),
-                ambientColor = Color(0x14000000),
-                spotColor = Color(0x14000000)
+                elevation = 1.dp,
+                shape = RoundedCornerShape(12.dp),
+                ambientColor = Color(0x0F000000),
+                spotColor = Color(0x0F000000)
             ),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = Color.White,
-        border = BorderStroke(1.dp, BorderGrey.copy(alpha = 0.6f))
+        border = BorderStroke(1.dp, BorderGrey.copy(alpha = 0.5f))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 18.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (isFirstSection) {
-                // Top Subject & Class Header Banner inside the first document card
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = subjectThemeColor.copy(alpha = 0.14f)
-                        ) {
-                            Text(
-                                text = document.subjectName,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = subjectThemeColor,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                            )
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = IndigoPurple.copy(alpha = 0.10f)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.School,
-                                    contentDescription = null,
-                                    tint = IndigoPurple,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Text(
-                                    text = document.targetClass,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = IndigoPurple
-                                )
-                            }
-                        }
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = TealTile.copy(alpha = 0.12f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Description,
-                                contentDescription = null,
-                                tint = TealTile,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Text(
-                                text = ".DOCX",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TealTile
-                            )
-                        }
-                    }
-                }
-
-                // Document Title
-                Text(
-                    text = document.title,
-                    fontSize = (bodyFontSp + 5).sp,
-                    lineHeight = (bodyFontSp + 12).sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = TextDark
-                )
-
-                // Author & Date Metadata Row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Person,
-                            contentDescription = null,
-                            tint = TextMuted,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = document.authorName,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextMuted
-                        )
-                    }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.CalendarToday,
-                            contentDescription = null,
-                            tint = TextMuted,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            text = document.dateUploaded,
-                            fontSize = 12.sp,
-                            color = TextMuted
-                        )
-                    }
-                }
-
-                HorizontalDivider(color = BorderGrey.copy(alpha = 0.7f))
-            }
-
-            // Render each structured block from the DOCX file
             section.blocks.forEach { block ->
                 when (block) {
                     is DocxBlock.Heading -> {
-                        if (!isFirstSection || !block.text.equals(document.title, ignoreCase = true)) {
-                            val headingSize = if (block.level == 1) (bodyFontSp + 3).sp else (bodyFontSp + 1).sp
-                            Text(
-                                text = block.text,
-                                fontSize = headingSize,
-                                lineHeight = (headingSize.value + 8).sp,
-                                fontWeight = FontWeight.Bold,
-                                color = subjectThemeColor,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
+                        val headingSize = if (block.level == 1) (bodyFontSp + 3).sp else (bodyFontSp + 1).sp
+                        Text(
+                            text = block.text,
+                            fontSize = headingSize,
+                            lineHeight = (headingSize.value + 6).sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
                     is DocxBlock.Paragraph -> {
                         Text(
                             text = block.text,
                             fontSize = bodyFontSp.sp,
-                            lineHeight = (bodyFontSp + 9).sp,
+                            lineHeight = (bodyFontSp + 8).sp,
                             fontWeight = if (block.isBold) FontWeight.Bold else FontWeight.Normal,
                             fontStyle = if (block.isItalic) FontStyle.Italic else FontStyle.Normal,
                             color = TextDark
                         )
                     }
                     is DocxBlock.BulletItem -> {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = SoftLavenderGrey.copy(alpha = 0.65f),
-                            modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.Top
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(top = 7.dp)
-                                        .size(7.dp)
-                                        .clip(CircleShape)
-                                        .background(subjectThemeColor)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = block.text,
-                                    fontSize = bodyFontSp.sp,
-                                    lineHeight = (bodyFontSp + 8).sp,
-                                    color = TextDark,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                            Text(
+                                text = "• ",
+                                fontSize = bodyFontSp.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = IndigoPurple
+                            )
+                            Text(
+                                text = block.text,
+                                fontSize = bodyFontSp.sp,
+                                lineHeight = (bodyFontSp + 8).sp,
+                                color = TextDark,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
                     is DocxBlock.TableBlock -> {
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(8.dp),
                             border = BorderStroke(1.dp, BorderGrey),
                             color = Color.White,
                             modifier = Modifier.fillMaxWidth()
@@ -1167,8 +883,8 @@ private fun DocxSectionCard(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .background(
-                                                if (isHeaderRow) subjectThemeColor.copy(alpha = 0.12f)
-                                                else if (rowIndex % 2 == 1) SoftLavenderGrey.copy(alpha = 0.35f)
+                                                if (isHeaderRow) SoftLavenderGrey
+                                                else if (rowIndex % 2 == 1) Color(0xFFFAFAFD)
                                                 else Color.White
                                             )
                                             .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1186,7 +902,7 @@ private fun DocxSectionCard(
                                         }
                                     }
                                     if (rowIndex < block.rows.lastIndex) {
-                                        HorizontalDivider(color = BorderGrey.copy(alpha = 0.6f))
+                                        HorizontalDivider(color = BorderGrey.copy(alpha = 0.5f))
                                     }
                                 }
                             }
