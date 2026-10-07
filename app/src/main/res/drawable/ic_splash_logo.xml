@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+
+    <!-- Subtle brand circle badge background -->
+    <path
+        android:fillColor="#5A4EA8"
+        android:pathData="M144,144m-90,0a90,90 0 1,0 180,0a90,90 0 1,0 -180,0" />
+
+    <!-- Pure Gold Cap Top / Book Shield -->
+    <path
+        android:fillColor="#FFC9A227"
+        android:pathData="M144,92 L76,124 L144,156 L202,128.5 V170 H212 V124 Z" />
+
+    <!-- Crisp White Open Pages / Graduation Base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M95,142.5 V168 C95,188 144,198 144,198 C144,198 193,188 193,168 V142.5 L144,166 Z" />
+</vector>

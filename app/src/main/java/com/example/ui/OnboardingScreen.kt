@@ -60,6 +60,7 @@ private val SplashOrange = Color(0xFFFF7A53)
 private val SplashWarmAmber = Color(0xFFFF9E6D)
 private val SplashPink = Color(0xFFFF6B9D)
 private val SplashSoftPink = Color(0xFFFF8FB8)
+private val SplashGold = Color(0xFFC9A227)
 
 data class OnboardingPageData(
     val stepBadge: String,
@@ -72,7 +73,7 @@ data class OnboardingPageData(
 
 val DefaultOnboardingPages = listOf(
     OnboardingPageData(
-        stepBadge = "01 / 03",
+        stepBadge = "01 / 04",
         subtitleTag = "WELCOME",
         title = "Simple notes for calm, focused study.",
         description = "Everything you need to read, revise, and catch up—kept clean and effortless.",
@@ -80,7 +81,7 @@ val DefaultOnboardingPages = listOf(
         secondaryColor = SplashPink
     ),
     OnboardingPageData(
-        stepBadge = "02 / 03",
+        stepBadge = "02 / 04",
         subtitleTag = "ORGANIZED",
         title = "Your class notes, always within reach.",
         description = "Read clear topic notes from your teachers anytime, even when you are offline.",
@@ -88,10 +89,18 @@ val DefaultOnboardingPages = listOf(
         secondaryColor = SplashOrange
     ),
     OnboardingPageData(
-        stepBadge = "03 / 03",
+        stepBadge = "03 / 04",
+        subtitleTag = "LIVE AUDIO",
+        title = "Live audio lessons with your teachers.",
+        description = "Join interactive audio classes in real time, raise your hand to ask questions, and learn together.",
+        accentColor = SplashGold,
+        secondaryColor = SplashOrange
+    ),
+    OnboardingPageData(
+        stepBadge = "04 / 04",
         subtitleTag = "BEGIN",
         title = "Small daily steps build great results.",
-        description = "Move at your own pace, one simple note at a time.",
+        description = "Move at your own pace, one simple note and lesson at a time.",
         accentColor = PeachOrange,
         secondaryColor = SplashSoftPink
     )
@@ -124,14 +133,14 @@ fun OnboardingScreen(
                     .fillMaxSize()
                     .background(color = IndigoPurple)
             ) {
-                // Minimalist Orange & Pink graphic color composition on the empty purple canvas
+                // Minimalist Graphic color composition on the empty purple canvas
                 MinimalistColorSplashCanvas(
                     pageIndex = page,
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // On the BEGIN page (page 2), display the App Icon in Orange in the upper canvas
-                if (page == 2) {
+                // On the final BEGIN page (page 3), display the App Icon in Orange in the upper canvas
+                if (page == 3) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_launcher_foreground),
                         contentDescription = "Cachap App Icon",
@@ -162,14 +171,14 @@ fun OnboardingScreen(
                                 .width(20.dp)
                                 .height(4.dp)
                                 .clip(CircleShape)
-                                .background(SplashOrange)
+                                .background(pageData.accentColor)
                         )
                         Box(
                             modifier = Modifier
                                 .width(10.dp)
                                 .height(4.dp)
                                 .clip(CircleShape)
-                                .background(SplashPink)
+                                .background(pageData.secondaryColor)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
@@ -262,7 +271,7 @@ fun OnboardingScreen(
             )
         }
 
-        // Bottom Controls: Tiny indicator dots + minimal Continue pill
+        // Bottom Controls: Rounded indicator bars + sleek Orange Button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -272,7 +281,7 @@ fun OnboardingScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Minimalist Orange & Pink page indicators
+            // Modern pill indicators: active is widened (24dp), inactive are round dots (6dp)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -280,23 +289,20 @@ fun OnboardingScreen(
                 repeat(DefaultOnboardingPages.size) { index ->
                     val isSelected = pagerState.currentPage == index
                     val width by animateDpAsState(
-                        targetValue = if (isSelected) 22.dp else 6.dp,
-                        animationSpec = tween(250),
+                        targetValue = if (isSelected) 24.dp else 6.dp,
+                        animationSpec = tween(durationMillis = 300),
                         label = "dot_width"
                     )
                     val color by animateColorAsState(
-                        targetValue = when {
-                            isSelected && index % 2 == 0 -> SplashOrange
-                            isSelected -> SplashPink
-                            else -> Color.White.copy(alpha = 0.28f)
-                        },
-                        animationSpec = tween(250),
+                        targetValue = if (isSelected) SplashOrange else LightLavender.copy(alpha = 0.35f),
+                        animationSpec = tween(durationMillis = 300),
                         label = "dot_color"
                     )
+
                     Box(
                         modifier = Modifier
-                            .width(width)
                             .height(6.dp)
+                            .width(width)
                             .clip(CircleShape)
                             .background(color)
                     )
@@ -460,6 +466,43 @@ private fun MinimalistColorSplashCanvas(
                     topLeft = Offset(w * 0.26f, h * 0.39f),
                     size = Size(w * 0.28f, 28.dp.toPx()),
                     cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx())
+                )
+            }
+
+            2 -> {
+                // Live Audio Graphic: Sound wave ripples & golden live broadcast indicator
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            SplashGold.copy(alpha = 0.40f),
+                            IndigoPurple.copy(alpha = 0.0f)
+                        ),
+                        center = Offset(w * 0.5f, h * 0.30f),
+                        radius = w * 0.50f
+                    ),
+                    radius = w * 0.50f,
+                    center = Offset(w * 0.5f, h * 0.30f)
+                )
+
+                // Central Gold Broadcast Circle
+                drawCircle(
+                    color = SplashGold,
+                    radius = 28.dp.toPx(),
+                    center = Offset(w * 0.5f, h * 0.30f)
+                )
+
+                // Concentric dynamic audio sound waves
+                drawCircle(
+                    color = SplashWarmAmber.copy(alpha = 0.70f),
+                    radius = 48.dp.toPx(),
+                    center = Offset(w * 0.5f, h * 0.30f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                )
+                drawCircle(
+                    color = SplashPink.copy(alpha = 0.45f),
+                    radius = 70.dp.toPx(),
+                    center = Offset(w * 0.5f, h * 0.30f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx())
                 )
             }
 

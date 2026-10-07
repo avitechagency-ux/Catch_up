@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Solid Indigo Purple background color -->
+    <item android:drawable="@color/indigo_purple" />
+
+    <!-- Centered high-contrast Catch Up logo -->
+    <item
+        android:width="160dp"
+        android:height="160dp"
+        android:gravity="center"
+        android:drawable="@drawable/ic_splash_logo" />
+</layer-list>

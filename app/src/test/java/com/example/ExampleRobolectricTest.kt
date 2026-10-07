@@ -630,13 +630,15 @@ class ExampleRobolectricTest {
   @Test
   fun `verify onboarding pages match student panel colors and steps`() {
     val pages = com.example.ui.DefaultOnboardingPages
-    assertEquals(3, pages.size)
-    assertEquals("01 / 03", pages[0].stepBadge)
+    assertEquals(4, pages.size)
+    assertEquals("01 / 04", pages[0].stepBadge)
     assertEquals(Color(0xFFE76F51), pages[0].accentColor)
-    assertEquals("02 / 03", pages[1].stepBadge)
+    assertEquals("02 / 04", pages[1].stepBadge)
     assertEquals(Color(0xFF2A9D8F), pages[1].accentColor)
-    assertEquals("03 / 03", pages[2].stepBadge)
-    assertEquals(Color(0xFFFF7A53), pages[2].accentColor)
+    assertEquals("03 / 04", pages[2].stepBadge)
+    assertEquals(Color(0xFFC9A227), pages[2].accentColor)
+    assertEquals("04 / 04", pages[3].stepBadge)
+    assertEquals(Color(0xFFFF7A53), pages[3].accentColor)
   }
 
   @Test

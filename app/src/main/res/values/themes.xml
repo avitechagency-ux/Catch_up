@@ -2,10 +2,16 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
 
     <style name="Theme.MyApplication" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/indigo_purple</item>
+        <!-- Native window background during app startup -->
+        <item name="android:windowBackground">@drawable/splash_background</item>
         <item name="android:colorBackground">@color/indigo_purple</item>
         <item name="android:statusBarColor">@color/indigo_purple</item>
         <item name="android:navigationBarColor">@color/indigo_purple</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Android 12+ (API 31+) SplashScreen System APIs -->
         <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/indigo_purple</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="31">@drawable/ic_splash_logo</item>
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="31">@color/indigo_purple</item>
     </style>
 </resources>
