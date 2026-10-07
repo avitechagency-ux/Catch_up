@@ -148,21 +148,25 @@ fun doesNoteMatchLinkedTeacher(noteTeacherIdCode: String, linkedTeacherIdCode: S
 }
 
 /**
- * Filters a list of [TopicItem] notes or assignments strictly by the student's class and connected Teacher ID.
+ * Filters a list of [TopicItem] notes or assignments strictly by the student's class, stream, and connected Teacher ID.
  */
 fun filterTopicsForStudent(
     topics: List<TopicItem>,
     studentClass: String,
+    studentStream: String = "",
     linkedTeacherIdCode: String = ""
 ): List<TopicItem> {
     return topics.filter { item ->
-        val classMatches = studentClass.isBlank() ||
-            item.targetClass.isBlank() ||
-            doesNoteMatchStudentClass(item.targetClass, studentClass)
+        val classAndStreamMatches = com.example.data.doesContentTargetStudent(
+            targetClass = item.targetClass,
+            targetStreams = item.targetStreams,
+            studentClass = studentClass,
+            studentStream = studentStream
+        )
         val teacherMatches = linkedTeacherIdCode.isBlank() ||
             item.teacherIdCode.isBlank() ||
             doesNoteMatchLinkedTeacher(item.teacherIdCode, linkedTeacherIdCode)
-        classMatches && teacherMatches
+        classAndStreamMatches && teacherMatches
     }
 }
 
@@ -175,6 +179,7 @@ data class TopicItem(
     val date: String,
     val fileType: String = "DOCX",
     val targetClass: String = "",
+    val targetStreams: String = "ALL",
     val teacherIdCode: String = ""
 )
 

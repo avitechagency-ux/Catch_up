@@ -141,7 +141,8 @@ data class SupabaseStudentTeacherLinkDto(
     @Json(name = "student_class") val studentClass: String,
     @Json(name = "subject_name") val subjectName: String,
     @Json(name = "teacher_id_code") val teacherIdCode: String,
-    @Json(name = "connected_date") val connectedDate: String
+    @Json(name = "connected_date") val connectedDate: String,
+    @Json(name = "stream") val stream: String = ""
 )
 
 data class SupabaseNoteUploadDto(
@@ -150,6 +151,7 @@ data class SupabaseNoteUploadDto(
     @Json(name = "description") val description: String = "",
     @Json(name = "subject_name") val subjectName: String,
     @Json(name = "target_class") val targetClass: String,
+    @Json(name = "target_streams") val targetStreams: String = "ALL",
     @Json(name = "content_type") val contentType: String = "Notes",
     @Json(name = "teacher_id_code") val teacherIdCode: String,
     @Json(name = "author_name") val authorName: String = "Teacher",
@@ -1587,7 +1589,8 @@ object SupabaseRepository {
         studentClass: String,
         subjectName: String,
         teacherIdCode: String,
-        connectedDate: String
+        connectedDate: String,
+        stream: String = ""
     ): Boolean = withContext(Dispatchers.IO) {
         if (!SupabaseConfig.isConfigured()) return@withContext false
         try {
@@ -1597,7 +1600,8 @@ object SupabaseRepository {
                 studentClass = studentClass.trim(),
                 subjectName = subjectName.trim(),
                 teacherIdCode = teacherIdCode.trim().uppercase(),
-                connectedDate = connectedDate
+                connectedDate = connectedDate,
+                stream = com.example.data.normalizeStream(stream)
             )
             val response = api.upsertStudentTeacherLink(dto)
             response.isSuccessful
@@ -1649,7 +1653,8 @@ object SupabaseRepository {
                             studentClass = dto.studentClass,
                             subjectName = dto.subjectName,
                             teacherIdCode = dto.teacherIdCode,
-                            connectedDate = dto.connectedDate
+                            connectedDate = dto.connectedDate,
+                            stream = com.example.data.normalizeStream(dto.stream)
                         )
                     }
                 } else {

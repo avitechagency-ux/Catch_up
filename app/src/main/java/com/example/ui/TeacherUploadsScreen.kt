@@ -87,6 +87,7 @@ data class TeacherUploadItem(
     val title: String,
     val subject: String = "General",
     val targetClass: String = "S.4",
+    val targetStreams: String = "ALL", // "ALL" or "NORTH,SOUTH"
     val term: String = "Term 3",
     val type: String, // "Notes" or "Assignment"
     val dateUploaded: String,

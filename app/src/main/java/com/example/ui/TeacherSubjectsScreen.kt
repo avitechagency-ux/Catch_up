@@ -114,6 +114,7 @@ data class SubjectUploadItem(
     val title: String,
     val subject: String,
     val targetClass: String,
+    val targetStreams: String = "ALL", // "ALL" or "NORTH,EAST"
     val type: String, // "Notes" or "Assignment"
     val dateUploaded: String,
     val dueDate: String? = null,

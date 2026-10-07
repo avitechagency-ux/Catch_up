@@ -56,6 +56,9 @@ fun CreateLiveClassScreen(
     var selectedSubject by remember { mutableStateOf(assignedSubjects.firstOrNull() ?: "Physics") }
     var selectedClass by remember { mutableStateOf(assignedClasses.firstOrNull() ?: "S.4") }
 
+    var isAllStreamsSelected by remember { mutableStateOf(true) }
+    val selectedStreamsList = remember { mutableStateListOf<String>() }
+
     // Start mode: "schedule" vs "instant"
     var isInstantStart by remember { mutableStateOf(false) }
 
@@ -428,6 +431,113 @@ fun CreateLiveClassScreen(
                 }
             }
 
+            // 2b. Stream Targeting (All Streams vs Specific Streams)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "Target Streams",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextDark
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                isAllStreamsSelected = true
+                                selectedStreamsList.clear()
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = isAllStreamsSelected,
+                            onClick = {
+                                isAllStreamsSelected = true
+                                selectedStreamsList.clear()
+                            },
+                            colors = RadioButtonDefaults.colors(selectedColor = DeepMaroon)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "All $selectedClass Streams",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextDark
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                isAllStreamsSelected = false
+                                if (selectedStreamsList.isEmpty()) selectedStreamsList.add("NORTH")
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = !isAllStreamsSelected,
+                            onClick = {
+                                isAllStreamsSelected = false
+                                if (selectedStreamsList.isEmpty()) selectedStreamsList.add("NORTH")
+                            },
+                            colors = RadioButtonDefaults.colors(selectedColor = DeepMaroon)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Specific Streams",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextDark
+                        )
+                    }
+                }
+
+                if (!isAllStreamsSelected) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(SoftPastelBackground, RoundedCornerShape(10.dp))
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("NORTH", "SOUTH", "EAST", "WEST").forEach { st ->
+                            val isChecked = st in selectedStreamsList
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        if (isChecked) selectedStreamsList.remove(st) else selectedStreamsList.add(st)
+                                    }
+                                    .padding(2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { checked ->
+                                        if (checked) selectedStreamsList.add(st) else selectedStreamsList.remove(st)
+                                    },
+                                    colors = CheckboxDefaults.colors(checkedColor = DeepMaroon)
+                                )
+                                Text(
+                                    text = st,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // 3. Date & Start Time Pickers (Visible in Schedule mode)
             if (!isInstantStart) {
                 Row(
@@ -588,12 +698,16 @@ fun CreateLiveClassScreen(
 
                     isSubmitting = true
                     coroutineScope.launch {
+                        val resolvedTargetStreams = com.example.data.formatTargetStreams(
+                            if (isAllStreamsSelected) emptyList() else selectedStreamsList
+                        )
                         val newClass = LiveClassDto(
                             id = UUID.randomUUID().toString(),
                             schoolId = "UG_SEC_01",
                             teacherId = teacherId,
                             teacherName = teacherName,
                             classId = selectedClass,
+                            targetStreams = resolvedTargetStreams,
                             subjectId = selectedSubject,
                             title = title.trim(),
                             description = "",

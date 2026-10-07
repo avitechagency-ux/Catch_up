@@ -14,6 +14,7 @@ data class LiveClassDto(
     @Json(name = "teacher_id") val teacherId: String,
     @Json(name = "teacher_name") val teacherName: String = "Teacher",
     @Json(name = "class_id") val classId: String, // e.g. "S.1", "S.4"
+    @Json(name = "target_streams") val targetStreams: String = "ALL", // "ALL" or "NORTH,EAST"
     @Json(name = "subject_id") val subjectId: String, // e.g. "Physics", "Geography"
     @Json(name = "title") val title: String,
     @Json(name = "description") val description: String = "",

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -120,7 +121,8 @@ data class ConnectedStudent(
     val studentClass: String,
     val subjectName: String,
     val teacherIdCode: String,
-    val connectedDate: String
+    val connectedDate: String,
+    val stream: String = ""
 )
 
 fun serializeConnectedStudents(students: List<ConnectedStudent>): String {
@@ -131,7 +133,8 @@ fun serializeConnectedStudents(students: List<ConnectedStudent>): String {
             item.studentClass.replace("|", " ").replace(";", " "),
             item.subjectName.replace("|", " ").replace(";", " "),
             item.teacherIdCode.replace("|", " ").replace(";", " ").uppercase(),
-            item.connectedDate.replace("|", " ").replace(";", " ")
+            item.connectedDate.replace("|", " ").replace(";", " "),
+            com.example.data.normalizeStream(item.stream).replace("|", " ").replace(";", " ")
         ).joinToString("|")
     }
 }
@@ -147,7 +150,8 @@ fun deserializeConnectedStudents(serialized: String): List<ConnectedStudent> {
                 studentClass = parts[2],
                 subjectName = parts[3],
                 teacherIdCode = parts[4].uppercase(),
-                connectedDate = parts[5]
+                connectedDate = parts[5],
+                stream = if (parts.size >= 7) com.example.data.normalizeStream(parts[6]) else ""
             )
         } else null
     }
@@ -647,6 +651,31 @@ fun TeacherHomeScreen(
                 color = Color.White,
                 shadowElevation = 8.dp
             ) {
+                var selectedClassFilter by remember { mutableStateOf("S4") }
+                val classOptions = listOf("S1", "S2", "S3", "S4", "S5", "S6")
+
+                val streamsForSelectedClass = remember(connectedStudents, selectedClassFilter) {
+                    connectedStudents
+                        .filter { normalizeSecondaryClass(it.studentClass) == normalizeSecondaryClass(selectedClassFilter) }
+                        .map { com.example.data.normalizeStream(it.stream) }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                        .sorted()
+                }
+
+                var selectedStreamFilter by remember(selectedClassFilter, streamsForSelectedClass) {
+                    mutableStateOf(if (streamsForSelectedClass.isNotEmpty()) streamsForSelectedClass.first() else "ALL")
+                }
+
+                val filteredStudents = remember(connectedStudents, selectedClassFilter, selectedStreamFilter) {
+                    connectedStudents.filter { student ->
+                        val classMatches = normalizeSecondaryClass(student.studentClass) == normalizeSecondaryClass(selectedClassFilter)
+                        val streamMatches = selectedStreamFilter == "ALL" ||
+                            com.example.data.normalizeStream(student.stream) == com.example.data.normalizeStream(selectedStreamFilter)
+                        classMatches && streamMatches
+                    }
+                }
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -690,14 +719,113 @@ fun TeacherHomeScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    if (connectedStudents.isEmpty()) {
+                    // CLASS PILLS (S1 - S6)
+                    Text(
+                        text = "CLASS",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        classOptions.forEach { cls ->
+                            val isSelected = normalizeSecondaryClass(cls) == normalizeSecondaryClass(selectedClassFilter)
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { selectedClassFilter = cls }
+                                    .testTag("class_pill_$cls"),
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) DeepMaroon else SoftLavenderGrey,
+                                border = if (isSelected) null else BorderStroke(1.dp, BorderGrey)
+                            ) {
+                                Text(
+                                    text = cls,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else TextDark,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // STREAM PILLS
+                    Text(
+                        text = "STREAM",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMuted
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    val streamList = (listOf("ALL") + streamsForSelectedClass).distinct()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        streamList.forEach { st ->
+                            val isSelected = com.example.data.normalizeStream(st) == com.example.data.normalizeStream(selectedStreamFilter)
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { selectedStreamFilter = st }
+                                    .testTag("stream_pill_$st"),
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) GoldMustard else SoftLavenderGrey,
+                                border = if (isSelected) null else BorderStroke(1.dp, BorderGrey)
+                            ) {
+                                Text(
+                                    text = st,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) DeepMaroon else TextDark,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // HEADER SUMMARY
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${normalizeSecondaryClass(selectedClassFilter)} • ${com.example.data.normalizeStream(selectedStreamFilter).ifBlank { "ALL" }}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = DeepMaroon
+                        )
+                        Text(
+                            text = "${filteredStudents.size} Students",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextMuted
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    if (filteredStudents.isEmpty()) {
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             color = SoftLavenderGrey
                         ) {
                             Text(
-                                text = "No students have connected with your ID ($normalizedTeacherId) yet.",
+                                text = "No students found in ${normalizeSecondaryClass(selectedClassFilter)} ${com.example.data.normalizeStream(selectedStreamFilter)}.",
                                 fontSize = 13.sp,
                                 color = TextMuted,
                                 modifier = Modifier.padding(16.dp)
@@ -708,7 +836,7 @@ fun TeacherHomeScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            connectedStudents.forEach { student ->
+                            filteredStudents.forEach { student ->
                                 TeacherConnectedStudentCard(student = student)
                             }
                         }
@@ -729,6 +857,7 @@ fun TeacherConnectedStudentCard(
 ) {
     val subjectColor = getSubjectThemeColor(student.subjectName)
     val initial = student.studentName.trim().firstOrNull()?.uppercase() ?: "S"
+    val formattedStream = com.example.data.normalizeStream(student.stream)
 
     Surface(
         modifier = modifier
@@ -778,7 +907,7 @@ fun TeacherConnectedStudentCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${student.subjectName} • ${student.studentClass}",
+                        text = "${student.subjectName} • ${normalizeSecondaryClass(student.studentClass)}${if (formattedStream.isNotBlank()) " $formattedStream" else ""}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Normal,
                         color = TextMuted,

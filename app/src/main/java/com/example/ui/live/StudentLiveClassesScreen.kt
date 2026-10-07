@@ -62,6 +62,7 @@ fun getLiveSubjectIcon(subjectName: String): ImageVector {
 @Composable
 fun StudentLiveClassesScreen(
     studentClass: String = "S.4",
+    studentStream: String = "",
     studentName: String = "Student",
     studentId: String = "student_01",
     onNavigateBack: () -> Unit = {},
@@ -79,18 +80,29 @@ fun StudentLiveClassesScreen(
         }
     }
 
-    LaunchedEffect(studentClass) {
+    LaunchedEffect(studentClass, studentStream) {
         refreshClasses()
     }
 
-    val liveNowClasses = remember(classesList) {
-        classesList.filter { it.status == "live" }
+    val targetedClasses = remember(classesList, studentClass, studentStream) {
+        classesList.filter { liveClass ->
+            com.example.data.doesContentTargetStudent(
+                targetClass = liveClass.classId,
+                targetStreams = liveClass.targetStreams,
+                studentClass = studentClass,
+                studentStream = studentStream
+            )
+        }
     }
-    val upcomingClasses = remember(classesList) {
-        classesList.filter { it.status == "scheduled" }
+
+    val liveNowClasses = remember(targetedClasses) {
+        targetedClasses.filter { it.status == "live" }
     }
-    val pastClasses = remember(classesList) {
-        classesList.filter { it.status == "completed" || it.status == "cancelled" }
+    val upcomingClasses = remember(targetedClasses) {
+        targetedClasses.filter { it.status == "scheduled" }
+    }
+    val pastClasses = remember(targetedClasses) {
+        targetedClasses.filter { it.status == "completed" || it.status == "cancelled" }
     }
 
     Scaffold(

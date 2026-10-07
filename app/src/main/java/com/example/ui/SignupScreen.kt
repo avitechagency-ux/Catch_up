@@ -1153,8 +1153,8 @@ fun SignupScreen(
                             coroutineScope.launch {
                                 val cleanName = fullNameInput.trim()
                                 val cleanEmail = emailInput.trim()
-                                val cleanClass = if (isStudentRole) classInput.trim() else ""
-                                val cleanStream = if (isStudentRole) streamInput.trim() else ""
+                                val cleanClass = if (isStudentRole) normalizeSecondaryClass(classInput) else ""
+                                val cleanStream = if (isStudentRole) com.example.data.normalizeStream(streamInput) else ""
                                 val cleanTeacherSubjects = if (!isStudentRole) {
                                     DefaultCurriculumSubjects
                                         .filter { it.name in selectedTeacherSubjects }

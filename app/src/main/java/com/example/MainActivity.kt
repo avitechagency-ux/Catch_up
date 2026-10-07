@@ -383,13 +383,15 @@ class MainActivity : ComponentActivity() {
                     val nowDate = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date())
                     val currentStudentName = studentName.trim().ifBlank { "Student" }
                     val currentStudentClass = academicClass.trim().ifBlank { "S.4" }
+                    val currentStudentStream = com.example.data.normalizeStream(prefs.getString("student_stream_only", "") ?: "")
                     val newEntry = ConnectedStudent(
                         id = "${currentStudentName.lowercase().replace(" ", "_")}_${subjectName.lowercase().replace(" ", "_")}_$normalizedCode",
                         studentName = currentStudentName,
                         studentClass = currentStudentClass,
                         subjectName = subjectName,
                         teacherIdCode = normalizedCode,
-                        connectedDate = nowDate
+                        connectedDate = nowDate,
+                        stream = currentStudentStream
                     )
                     val updatedList = listOf(newEntry) + connectedStudentsList.filterNot {
                         it.studentName.equals(currentStudentName, ignoreCase = true) &&
@@ -405,7 +407,8 @@ class MainActivity : ComponentActivity() {
                             studentClass = currentStudentClass,
                             subjectName = subjectName,
                             teacherIdCode = normalizedCode,
-                            connectedDate = nowDate
+                            connectedDate = nowDate,
+                            stream = currentStudentStream
                         )
                     }
                 }
@@ -1008,11 +1011,12 @@ class MainActivity : ComponentActivity() {
                                 .firstOrNull { it.key.equals(selectedSubjectName, ignoreCase = true) }
                                 ?.value
                                 .orEmpty()
+                            val activeStudentStream = prefs.getString("student_stream_only", "") ?: ""
                             val subjectNotesInitial = teacherUploadsList
                                 .filter {
                                     it.subject.equals(selectedSubjectName, ignoreCase = true) &&
                                         !it.type.equals("Assignment", ignoreCase = true) &&
-                                        com.example.ui.doesNoteMatchStudentClass(it.targetClass, academicClass) &&
+                                        com.example.data.doesContentTargetStudent(it.targetClass, it.targetStreams, academicClass, activeStudentStream) &&
                                         com.example.ui.doesNoteMatchLinkedTeacher(it.teacherIdCode.ifBlank { teacherIdCode }, linkedTeacherForSubject)
                                 }
                                 .map {
@@ -1022,6 +1026,7 @@ class MainActivity : ComponentActivity() {
                                         date = it.dateUploaded,
                                         fileType = it.fileFormat.ifBlank { "DOCX" },
                                         targetClass = it.targetClass,
+                                        targetStreams = it.targetStreams,
                                         teacherIdCode = it.teacherIdCode.ifBlank { teacherIdCode }
                                     )
                                 }
@@ -1029,7 +1034,7 @@ class MainActivity : ComponentActivity() {
                                 .filter {
                                     it.subject.equals(selectedSubjectName, ignoreCase = true) &&
                                         it.type.equals("Assignment", ignoreCase = true) &&
-                                        com.example.ui.doesNoteMatchStudentClass(it.targetClass, academicClass) &&
+                                        com.example.data.doesContentTargetStudent(it.targetClass, it.targetStreams, academicClass, activeStudentStream) &&
                                         com.example.ui.doesNoteMatchLinkedTeacher(it.teacherIdCode.ifBlank { teacherIdCode }, linkedTeacherForSubject)
                                 }
                                 .map {
@@ -1039,6 +1044,7 @@ class MainActivity : ComponentActivity() {
                                         date = it.dateUploaded,
                                         fileType = it.fileFormat.ifBlank { "DOCX" },
                                         targetClass = it.targetClass,
+                                        targetStreams = it.targetStreams,
                                         teacherIdCode = it.teacherIdCode.ifBlank { teacherIdCode }
                                     )
                                 }
@@ -1680,6 +1686,7 @@ class MainActivity : ComponentActivity() {
                         )
                         AppScreen.STUDENT_LIVE_CLASSES -> StudentLiveClassesScreen(
                             studentClass = academicClass,
+                            studentStream = prefs.getString("student_stream_only", "") ?: "",
                             studentName = studentName,
                             studentId = studentPhone.ifBlank { "std_${studentName.lowercase().replace(" ", "_")}" },
                             onNavigateBack = { currentScreen = AppScreen.HOME },

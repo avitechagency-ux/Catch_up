@@ -39,6 +39,8 @@ import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +50,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -56,6 +60,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -156,6 +161,17 @@ fun TeacherUploadNotesScreen(
                 availableClassesForSubject.firstOrNull() ?: "S.1"
             }
         )
+    }
+
+    val initialTargetStreams = existingNote?.targetStreams ?: "ALL"
+    val parsedInitialStreams = remember(initialTargetStreams) { com.example.data.parseTargetStreams(initialTargetStreams) }
+    var isAllStreamsSelected by remember(initialTargetStreams) { mutableStateOf("ALL" in parsedInitialStreams) }
+    val selectedStreamsList = remember(initialTargetStreams) {
+        mutableStateListOf<String>().apply {
+            if ("ALL" !in parsedInitialStreams) {
+                addAll(parsedInitialStreams)
+            }
+        }
     }
 
     var selectedFileName by remember(existingNote) { mutableStateOf<String?>(existingNote?.fileName) }
@@ -754,6 +770,125 @@ fun TeacherUploadNotesScreen(
                     }
                 }
 
+                // 5b. FIELD — STREAM TARGETING
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Target Streams",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextDark
+                    )
+
+                    // Option A: All Streams
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                isAllStreamsSelected = true
+                                selectedStreamsList.clear()
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = isAllStreamsSelected,
+                            onClick = {
+                                isAllStreamsSelected = true
+                                selectedStreamsList.clear()
+                            },
+                            colors = RadioButtonDefaults.colors(selectedColor = IndigoPurple)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "All ${selectedClassStream} Streams",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextDark
+                        )
+                    }
+
+                    // Option B: Select Specific Streams
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                isAllStreamsSelected = false
+                                if (selectedStreamsList.isEmpty()) {
+                                    selectedStreamsList.add("NORTH")
+                                }
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = !isAllStreamsSelected,
+                            onClick = {
+                                isAllStreamsSelected = false
+                                if (selectedStreamsList.isEmpty()) {
+                                    selectedStreamsList.add("NORTH")
+                                }
+                            },
+                            colors = RadioButtonDefaults.colors(selectedColor = IndigoPurple)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Select Specific Streams",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextDark
+                        )
+                    }
+
+                    if (!isAllStreamsSelected) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(SoftLavenderGrey, RoundedCornerShape(12.dp))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val defaultStreamOptions = listOf("NORTH", "SOUTH", "EAST", "WEST")
+                            defaultStreamOptions.forEach { st ->
+                                val isChecked = st in selectedStreamsList
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            if (isChecked) {
+                                                selectedStreamsList.remove(st)
+                                            } else {
+                                                selectedStreamsList.add(st)
+                                            }
+                                        }
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = isChecked,
+                                        onCheckedChange = { checked ->
+                                            if (checked) selectedStreamsList.add(st) else selectedStreamsList.remove(st)
+                                        },
+                                        colors = CheckboxDefaults.colors(checkedColor = IndigoPurple)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = st,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextDark
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 6. FIELD — SUBMISSION DUE DATE (When Assignment is selected)
                 if (uploadType.equals("Assignment", ignoreCase = true)) {
                     Column(
@@ -875,11 +1010,15 @@ fun TeacherUploadNotesScreen(
                                     authorName = "Subject Teacher",
                                     description = resolvedDescription
                                 )
+                                val resolvedTargetStreams = com.example.data.formatTargetStreams(
+                                    if (isAllStreamsSelected) emptyList() else selectedStreamsList
+                                )
                                 val newUpload = SubjectUploadItem(
                                     id = existingNote?.id ?: "upload_${System.currentTimeMillis()}",
                                     title = noteTitle.trim(),
                                     subject = selectedSubject,
                                     targetClass = normalizedClass,
+                                    targetStreams = resolvedTargetStreams,
                                     type = uploadType,
                                     dateUploaded = existingNote?.dateUploaded
                                         ?: SimpleDateFormat("dd/MM/yyyy", Locale.US).format(Date()),
