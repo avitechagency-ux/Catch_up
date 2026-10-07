@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.EmojiEvents
@@ -31,11 +33,15 @@ import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -64,8 +70,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.BorderGrey
+import com.example.ui.theme.DeepMaroon
+import com.example.ui.theme.GoldMustard
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
+import com.example.ui.theme.LiveIndicatorRed
 import com.example.ui.theme.SoftLavenderGrey
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
@@ -174,6 +183,8 @@ fun TeacherHomeScreen(
     notesOpenedThisWeekCount: Int = 0,
     recentUploads: List<TeacherRecentUpload> = DefaultTeacherRecentUploads,
     onNavigateToMySubjects: () -> Unit = {},
+    onNavigateToLiveClasses: () -> Unit = {},
+    onCreateLiveClassClick: () -> Unit = {},
     onNavigateToUploads: () -> Unit = {},
     onNavigateToTeacherProfile: () -> Unit = {},
     onUploadNotesClick: () -> Unit = {},
@@ -437,6 +448,69 @@ fun TeacherHomeScreen(
                                     modifier = Modifier.testTag("stat_classes_label")
                                 )
                             }
+                        }
+                    }
+                }
+
+                // 24dp spacing between sections
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // SECTION — Live Classes (Primary teacher live teaching hub)
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { onNavigateToLiveClasses() }
+                        .testTag("teacher_live_classes_card"),
+                    shape = RoundedCornerShape(16.dp),
+                    color = DeepMaroon,
+                    border = BorderStroke(1.dp, GoldMustard.copy(alpha = 0.6f)),
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = GoldMustard,
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.VolumeUp,
+                                        contentDescription = null,
+                                        tint = DeepMaroon,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = "Live Audio Classes",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        Button(
+                            onClick = onNavigateToLiveClasses,
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = GoldMustard,
+                                contentColor = DeepMaroon
+                            )
+                        ) {
+                            Text("Open", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
                 }

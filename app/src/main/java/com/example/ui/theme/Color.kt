@@ -40,4 +40,11 @@ val PeachOrangeMuted = Color(0xFFFFD5C6)
 val NoteCountGreen = Color(0xFF2E7D5B)
 val GreenAccent = Color(0xFF2E7D32)
 
+// Live Classes Specification Colors
+val DeepMaroon = Color(0xFF4A0E1E)
+val GoldMustard = Color(0xFFC9A227)
+val SoftPastelBackground = Color(0xFFFAF7F5)
+val LiveIndicatorRed = Color(0xFFE53935)
+val LiveGoldLight = Color(0xFFFFF9E6)
+
 

@@ -85,6 +85,12 @@ import com.example.ui.TeacherUploadItem
 import com.example.ui.TeacherUploadNotesScreen
 import com.example.ui.TeacherUploadsScreen
 import com.example.ui.SubjectUploadItem
+import com.example.data.LiveClassRepository
+import com.example.ui.live.StudentLiveClassesScreen
+import com.example.ui.live.TeacherLiveClassesScreen
+import com.example.ui.live.CreateLiveClassScreen
+import com.example.ui.live.StudentLiveSessionScreen
+import com.example.ui.live.TeacherLiveSessionScreen
 import com.example.ui.evaluateDayRollover
 import com.example.ui.pruneExpiredDownloads
 import com.example.ui.recordSessionTime
@@ -120,6 +126,11 @@ enum class AppScreen {
     TEACHER_UPLOADS,
     TEACHER_PROFILE,
     TEACHER_ACCOUNT,
+    STUDENT_LIVE_CLASSES,
+    TEACHER_LIVE_CLASSES,
+    CREATE_LIVE_CLASS,
+    STUDENT_LIVE_SESSION,
+    TEACHER_LIVE_SESSION,
     ADMIN_HOME,
     ADMIN_ANALYSIS,
     ADMIN_USERS,
@@ -145,6 +156,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         SupabaseRepository.initialize(this)
+        LiveClassRepository.initialize(this)
         NotificationHelper.createNotificationChannels(this)
         NotificationHelper.fetchAndStoreCurrentFcmToken(this)
         pendingNotificationIntent = intent
@@ -154,6 +166,7 @@ class MainActivity : ComponentActivity() {
                 val context = LocalContext.current
                 remember(context) {
                     SupabaseRepository.initialize(context)
+                    LiveClassRepository.initialize(context)
                     true
                 }
                 val prefs = remember { context.getSharedPreferences("catch_up_prefs", Context.MODE_PRIVATE) }
@@ -309,6 +322,11 @@ class MainActivity : ComponentActivity() {
                 var activePlanExpiry by remember {
                     mutableStateOf(prefs.getString("student_active_plan_expiry", "") ?: "")
                 }
+
+                var activeLiveClassId by remember { mutableStateOf("") }
+                var activeLiveClassTitle by remember { mutableStateOf("") }
+                var activeLiveClassSubject by remember { mutableStateOf("") }
+                var activeLiveClassTeacherName by remember { mutableStateOf("") }
 
                 val onSaveProfile: (String, String, String) -> Unit = { newName, newSchool, newClass ->
                     studentName = newName
@@ -672,6 +690,28 @@ class MainActivity : ComponentActivity() {
                             activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
                             pendingNotificationIntent = null
                         }
+                        notifType == NotificationHelper.TYPE_LIVE_CLASS_SCHEDULED -> {
+                            currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+
+                            activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
+                            pendingNotificationIntent = null
+                        }
+                        notifType == NotificationHelper.TYPE_LIVE_CLASS_STARTED -> {
+                            val liveId = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_ID)
+                            val liveTitle = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_TITLE) ?: "Live Class"
+                            val liveSubj = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_SUBJECT) ?: "Lesson"
+                            if (!liveId.isNullOrBlank()) {
+                                activeLiveClassId = liveId
+                                activeLiveClassTitle = liveTitle
+                                activeLiveClassSubject = liveSubj
+                                currentScreen = AppScreen.STUDENT_LIVE_SESSION
+                            } else {
+                                currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                            }
+
+                            activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
+                            pendingNotificationIntent = null
+                        }
                     }
                 }
 
@@ -693,6 +733,11 @@ class MainActivity : ComponentActivity() {
                         AppScreen.HELP_AND_SUPPORT -> helpPreviousScreen
                         AppScreen.ABOUT -> aboutPreviousScreen
                         AppScreen.PRIVACY_POLICY -> privacyPreviousScreen
+                        AppScreen.STUDENT_LIVE_CLASSES -> AppScreen.HOME
+                        AppScreen.STUDENT_LIVE_SESSION -> AppScreen.STUDENT_LIVE_CLASSES
+                        AppScreen.TEACHER_LIVE_CLASSES -> AppScreen.TEACHER_HOME
+                        AppScreen.CREATE_LIVE_CLASS -> AppScreen.TEACHER_LIVE_CLASSES
+                        AppScreen.TEACHER_LIVE_SESSION -> AppScreen.TEACHER_LIVE_CLASSES
                         AppScreen.TEACHER_UPLOAD_NOTES -> previousScreen
                         AppScreen.TEACHER_SUBJECT_CONFIG -> AppScreen.TEACHER_MY_SUBJECTS
                         AppScreen.TEACHER_MY_SUBJECTS -> AppScreen.TEACHER_HOME
@@ -925,6 +970,9 @@ class MainActivity : ComponentActivity() {
                                 recordRecentTopic(title, subject, null)
                                 previousScreen = AppScreen.HOME
                                 currentScreen = AppScreen.PDF_VIEWER
+                            },
+                            onNavigateToLiveClasses = {
+                                currentScreen = AppScreen.STUDENT_LIVE_CLASSES
                             },
                             onNavigateToTeacher = {
                                 currentScreen = AppScreen.TEACHER_HOME
@@ -1237,6 +1285,12 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onNavigateToMySubjects = {
                                     currentScreen = AppScreen.TEACHER_MY_SUBJECTS
+                                },
+                                onNavigateToLiveClasses = {
+                                    currentScreen = AppScreen.TEACHER_LIVE_CLASSES
+                                },
+                                onCreateLiveClassClick = {
+                                    currentScreen = AppScreen.CREATE_LIVE_CLASS
                                 },
                                 onNavigateToUploads = {
                                     currentScreen = AppScreen.TEACHER_UPLOADS
@@ -1623,6 +1677,71 @@ class MainActivity : ComponentActivity() {
                             onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
                             onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
                             onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
+                        )
+                        AppScreen.STUDENT_LIVE_CLASSES -> StudentLiveClassesScreen(
+                            studentClass = academicClass,
+                            studentName = studentName,
+                            studentId = studentPhone.ifBlank { "std_${studentName.lowercase().replace(" ", "_")}" },
+                            onNavigateBack = { currentScreen = AppScreen.HOME },
+                            onJoinLiveClass = { classId, title, subject, teacher ->
+                                activeLiveClassId = classId
+                                activeLiveClassTitle = title
+                                activeLiveClassSubject = subject
+                                activeLiveClassTeacherName = teacher
+                                currentScreen = AppScreen.STUDENT_LIVE_SESSION
+                            }
+                        )
+                        AppScreen.STUDENT_LIVE_SESSION -> StudentLiveSessionScreen(
+                            classId = activeLiveClassId,
+                            title = activeLiveClassTitle,
+                            subject = activeLiveClassSubject,
+                            teacherName = activeLiveClassTeacherName.ifBlank { "Teacher" },
+                            studentId = studentPhone.ifBlank { "std_${studentName.lowercase().replace(" ", "_")}" },
+                            studentName = studentName,
+                            onLeaveClass = {
+                                currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                            }
+                        )
+                        AppScreen.TEACHER_LIVE_CLASSES -> TeacherLiveClassesScreen(
+                            teacherId = teacherIdCode,
+                            teacherName = teacherName,
+                            onNavigateBack = { currentScreen = AppScreen.TEACHER_HOME },
+                            onCreateLiveClassClick = { currentScreen = AppScreen.CREATE_LIVE_CLASS },
+                            onStartOrResumeClass = { classId, title, subject ->
+                                activeLiveClassId = classId
+                                activeLiveClassTitle = title
+                                activeLiveClassSubject = subject
+                                currentScreen = AppScreen.TEACHER_LIVE_SESSION
+                            }
+                        )
+                        AppScreen.CREATE_LIVE_CLASS -> {
+                            val activeTeacherSubjects = resolveTeacherSubjectItems(teacherSubjectsTaught).map { it.name }
+                            CreateLiveClassScreen(
+                                teacherId = teacherIdCode,
+                                teacherName = teacherName,
+                                assignedSubjects = activeTeacherSubjects.ifEmpty { listOf("Physics", "Mathematics", "Geography", "Biology") },
+                                assignedClasses = com.example.ui.UgandanSecondaryClasses,
+                                onNavigateBack = { currentScreen = AppScreen.TEACHER_LIVE_CLASSES },
+                                onClassScheduled = { scheduledClass ->
+                                    currentScreen = AppScreen.TEACHER_LIVE_CLASSES
+                                },
+                                onStartImmediately = { classId, title, subject ->
+                                    activeLiveClassId = classId
+                                    activeLiveClassTitle = title
+                                    activeLiveClassSubject = subject
+                                    currentScreen = AppScreen.TEACHER_LIVE_SESSION
+                                }
+                            )
+                        }
+                        AppScreen.TEACHER_LIVE_SESSION -> TeacherLiveSessionScreen(
+                            classId = activeLiveClassId,
+                            title = activeLiveClassTitle,
+                            subject = activeLiveClassSubject,
+                            teacherId = teacherIdCode,
+                            teacherName = teacherName,
+                            onEndClass = {
+                                currentScreen = AppScreen.TEACHER_LIVE_CLASSES
+                            }
                         )
                     }
                 }

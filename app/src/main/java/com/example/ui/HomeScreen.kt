@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -91,10 +92,13 @@ import com.example.ui.theme.BlueTile
 import com.example.ui.theme.BorderGrey
 import com.example.ui.theme.BottomNavBackground
 import com.example.ui.theme.CoralTile
+import com.example.ui.theme.DeepMaroon
+import com.example.ui.theme.GoldMustard
 import com.example.ui.theme.IconGrey
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LavenderPlaceholder
 import com.example.ui.theme.LightLavender
+import com.example.ui.theme.LiveIndicatorRed
 import com.example.ui.theme.NavyTile
 import com.example.ui.theme.PeachOrange
 import com.example.ui.theme.PeachOrangeBorder
@@ -294,6 +298,7 @@ fun HomeScreen(
     onNavigateToTab: (Int) -> Unit = {},
     onNavigateToSubjectDetail: (String) -> Unit = {},
     onOpenNote: (title: String, subject: String) -> Unit = { _, _ -> },
+    onNavigateToLiveClasses: () -> Unit = {},
     onNavigateToTeacher: () -> Unit = {},
     onNavigateToAdmin: () -> Unit = {}
 ) {
@@ -396,6 +401,7 @@ fun HomeScreen(
                     onOpenNote(note.title, note.subject)
                 },
                 onRecentSeeAll = { onActionNotice("Opening all recent notes") },
+                onNavigateToLiveClasses = onNavigateToLiveClasses,
                 onNavigateToAdmin = onNavigateToAdmin
             )
         }
@@ -514,6 +520,7 @@ fun WhiteBody(
     onQuickAccessSeeAll: () -> Unit,
     onRecentClick: (RecentNoteData) -> Unit,
     onRecentSeeAll: () -> Unit,
+    onNavigateToLiveClasses: () -> Unit = {},
     onNavigateToAdmin: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -529,6 +536,11 @@ fun WhiteBody(
             activePlanExpiry = activePlanExpiry,
             onSelectOrManagePlan = onSelectOrManagePlan
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Section: Live Audio Classes
+        LiveClassesBannerSection(onNavigateToLiveClasses = onNavigateToLiveClasses)
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -673,6 +685,76 @@ fun ActiveStudentPlanCard(
                 color = LightLavender,
                 modifier = Modifier.testTag("home_current_plan_expiry")
             )
+        }
+    }
+}
+
+/**
+ * Section banner for Live Audio Classes on the Student Home dashboard.
+ */
+@Composable
+fun LiveClassesBannerSection(
+    onNavigateToLiveClasses: () -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onNavigateToLiveClasses() }
+            .testTag("home_live_classes_banner"),
+        shape = RoundedCornerShape(16.dp),
+        color = DeepMaroon,
+        border = BorderStroke(1.dp, GoldMustard.copy(alpha = 0.6f)),
+        shadowElevation = 2.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = GoldMustard,
+                    modifier = Modifier.size(38.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.VolumeUp,
+                            contentDescription = "Live Classes",
+                            tint = DeepMaroon,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Live Audio Classes",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = LiveIndicatorRed
+            ) {
+                Text(
+                    text = "LIVE",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                )
+            }
         }
     }
 }

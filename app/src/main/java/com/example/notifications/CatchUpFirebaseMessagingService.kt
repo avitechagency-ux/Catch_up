@@ -40,14 +40,24 @@ object NotificationHelper {
     const val CHANNEL_ID_PAYMENT_REMINDERS = "payment_reminders"
     const val CHANNEL_NAME_PAYMENT_REMINDERS = "Payment Reminders"
 
+    const val CHANNEL_ID_LIVE_CLASSES = "live_classes"
+    const val CHANNEL_NAME_LIVE_CLASSES = "Live Audio Classes"
+
     // Deep-link Intent Extras (Requirement 3)
     const val EXTRA_NOTIFICATION_TYPE = "notification_type"
     const val TYPE_NEW_NOTE = "new_note"
     const val TYPE_PAYMENT_REMINDER = "payment_reminder"
+    const val TYPE_LIVE_CLASS_SCHEDULED = "live_class_scheduled"
+    const val TYPE_LIVE_CLASS_STARTED = "live_class_started"
 
     const val EXTRA_NOTE_ID = "note_id"
     const val EXTRA_NOTE_TITLE = "note_title"
     const val EXTRA_NOTE_SUBJECT = "note_subject"
+
+    const val EXTRA_LIVE_CLASS_ID = "live_class_id"
+    const val EXTRA_LIVE_CLASS_TITLE = "live_class_title"
+    const val EXTRA_LIVE_CLASS_SUBJECT = "live_class_subject"
+    const val EXTRA_LIVE_CLASS_IS_LIVE = "live_class_is_live"
 
     /**
      * Creates the two required Android 8.0+ (API 26+) notification channels:
@@ -76,8 +86,17 @@ object NotificationHelper {
                 description = "Reminders when your student access plan is expiring or needs renewal"
             }
 
+            val liveClassesChannel = NotificationChannel(
+                CHANNEL_ID_LIVE_CLASSES,
+                CHANNEL_NAME_LIVE_CLASSES,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Alerts for scheduled and live audio lessons from your teachers"
+            }
+
             notificationManager.createNotificationChannel(newNotesChannel)
             notificationManager.createNotificationChannel(paymentRemindersChannel)
+            notificationManager.createNotificationChannel(liveClassesChannel)
         }
     }
 
@@ -296,6 +315,92 @@ object NotificationHelper {
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        return postNotificationSafely(context, requestCode, notification)
+    }
+
+    /**
+     * Displays a system notification when a teacher schedules a new Live Audio Class for the student's class.
+     */
+    fun showLiveClassScheduledNotification(
+        context: Context,
+        classId: String,
+        subject: String,
+        title: String,
+        scheduledDate: String,
+        scheduledTime: String,
+        targetClass: String
+    ): Boolean {
+        createNotificationChannels(context)
+
+        val intent = Intent(context, com.example.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_NOTIFICATION_TYPE, TYPE_LIVE_CLASS_SCHEDULED)
+            putExtra(EXTRA_LIVE_CLASS_ID, classId)
+            putExtra(EXTRA_LIVE_CLASS_TITLE, title)
+            putExtra(EXTRA_LIVE_CLASS_SUBJECT, subject)
+            putExtra(EXTRA_LIVE_CLASS_IS_LIVE, false)
+        }
+        val requestCode = (3000 + (classId.hashCode() and 0xFFFF))
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val bodyText = "$subject — $title for $targetClass on $scheduledDate at $scheduledTime"
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_LIVE_CLASSES)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("Live Class Scheduled")
+            .setContentText(bodyText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        return postNotificationSafely(context, requestCode, notification)
+    }
+
+    /**
+     * Displays a high-priority system notification when a teacher starts the live session.
+     */
+    fun showLiveClassStartedNotification(
+        context: Context,
+        classId: String,
+        subject: String,
+        title: String,
+        teacherName: String
+    ): Boolean {
+        createNotificationChannels(context)
+
+        val intent = Intent(context, com.example.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_NOTIFICATION_TYPE, TYPE_LIVE_CLASS_STARTED)
+            putExtra(EXTRA_LIVE_CLASS_ID, classId)
+            putExtra(EXTRA_LIVE_CLASS_TITLE, title)
+            putExtra(EXTRA_LIVE_CLASS_SUBJECT, subject)
+            putExtra(EXTRA_LIVE_CLASS_IS_LIVE, true)
+        }
+        val requestCode = (4000 + (classId.hashCode() and 0xFFFF))
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val bodyText = "$teacherName started $subject: $title. Tap to join now!"
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_LIVE_CLASSES)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("🔴 Live Class Started")
+            .setContentText(bodyText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bodyText))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
             .build()

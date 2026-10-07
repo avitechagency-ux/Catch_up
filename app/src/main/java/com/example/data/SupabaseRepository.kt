@@ -591,6 +591,98 @@ interface SupabasePostgrestApi {
     suspend fun insertAffiliateTransaction(
         @Body tx: SupabaseAffiliateTxDto
     ): Response<List<SupabaseAffiliateTxDto>>
+
+    // --- 8. Live Classes (`live_classes`, `live_class_participants`, `live_class_hand_raises`, `live_class_reactions`, `live_class_signaling`) ---
+    @Headers("Prefer: return=representation")
+    @POST("live_classes")
+    suspend fun insertLiveClass(
+        @Body liveClass: LiveClassDto
+    ): Response<List<LiveClassDto>>
+
+    @GET("live_classes")
+    suspend fun getLiveClasses(
+        @Query("select") select: String = "*",
+        @Query("class_id") classFilter: String? = null,
+        @Query("teacher_id") teacherFilter: String? = null,
+        @Query("status") statusFilter: String? = null,
+        @Query("order") order: String = "scheduled_date.desc,scheduled_start_time.desc"
+    ): Response<List<LiveClassDto>>
+
+    @Headers("Prefer: return=representation")
+    @PATCH("live_classes")
+    suspend fun updateLiveClassById(
+        @Query("id") idFilter: String,
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<List<LiveClassDto>>
+
+    @Headers("Prefer: resolution=merge-duplicates,return=representation")
+    @POST("live_class_participants?on_conflict=live_class_id,user_id")
+    suspend fun upsertLiveClassParticipant(
+        @Body participant: LiveClassParticipantDto
+    ): Response<List<LiveClassParticipantDto>>
+
+    @GET("live_class_participants")
+    suspend fun getLiveClassParticipants(
+        @Query("live_class_id") liveClassIdFilter: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "joined_at.asc"
+    ): Response<List<LiveClassParticipantDto>>
+
+    @Headers("Prefer: return=representation")
+    @PATCH("live_class_participants")
+    suspend fun updateLiveClassParticipant(
+        @Query("live_class_id") liveClassIdFilter: String,
+        @Query("user_id") userIdFilter: String,
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<List<LiveClassParticipantDto>>
+
+    @Headers("Prefer: resolution=merge-duplicates,return=representation")
+    @POST("live_class_hand_raises?on_conflict=live_class_id,student_id")
+    suspend fun upsertLiveClassHandRaise(
+        @Body handRaise: LiveClassHandRaiseDto
+    ): Response<List<LiveClassHandRaiseDto>>
+
+    @GET("live_class_hand_raises")
+    suspend fun getLiveClassHandRaises(
+        @Query("live_class_id") liveClassIdFilter: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.asc"
+    ): Response<List<LiveClassHandRaiseDto>>
+
+    @Headers("Prefer: return=representation")
+    @PATCH("live_class_hand_raises")
+    suspend fun updateLiveClassHandRaise(
+        @Query("live_class_id") liveClassIdFilter: String,
+        @Query("student_id") studentIdFilter: String,
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<List<LiveClassHandRaiseDto>>
+
+    @Headers("Prefer: return=representation")
+    @POST("live_class_reactions")
+    suspend fun insertLiveClassReaction(
+        @Body reaction: LiveClassReactionDto
+    ): Response<List<LiveClassReactionDto>>
+
+    @GET("live_class_reactions")
+    suspend fun getLiveClassReactions(
+        @Query("live_class_id") liveClassIdFilter: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.desc",
+        @Query("limit") limit: Int = 30
+    ): Response<List<LiveClassReactionDto>>
+
+    @Headers("Prefer: return=representation")
+    @POST("live_class_signaling")
+    suspend fun insertLiveClassSignaling(
+        @Body message: LiveClassSignalingDto
+    ): Response<List<LiveClassSignalingDto>>
+
+    @GET("live_class_signaling")
+    suspend fun getLiveClassSignaling(
+        @Query("live_class_id") liveClassIdFilter: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.asc"
+    ): Response<List<LiveClassSignalingDto>>
 }
 
 data class SupabaseCreateBucketDto(
@@ -648,7 +740,7 @@ object SupabaseRepository {
             .build()
     }
 
-    private val api: SupabasePostgrestApi by lazy {
+    internal val api: SupabasePostgrestApi by lazy {
         Retrofit.Builder()
             .baseUrl(SupabaseConfig.restBaseUrl)
             .client(okHttpClient)
