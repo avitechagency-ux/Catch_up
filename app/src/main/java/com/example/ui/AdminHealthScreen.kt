@@ -311,10 +311,10 @@ fun AdminHealthScreen(
                     }
 
                     // ------------------------------------------
-                    // 2. STORAGE USED SECTION (Supabase Free Plan: 1 GB = 1,024 MB)
+                    // 2. STORAGE USED SECTION (Cloudflare R2 Storage • Zero Egress CDN)
                     // ------------------------------------------
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionTitle(title = "Storage Used (Supabase Free Plan • 1 GB)")
+                        SectionTitle(title = "Cloudflare R2 Storage (Zero Egress CDN)")
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

@@ -106,6 +106,7 @@ fun StudentPaymentScreen(
     modifier: Modifier = Modifier,
     studentName: String = "Student",
     signupPhoneNumber: String = "",
+    studentEmail: String = "",
     selectedPlan: PlanTier = DefaultPlanTiers.first(),
     onNavigateBack: () -> Unit = {},
     onPaymentSuccess: (PlanTier, String) -> Unit = { _, _ -> }
@@ -129,6 +130,7 @@ fun StudentPaymentScreen(
     }
     var selectedNetwork by remember(defaultNetwork) { mutableStateOf(defaultNetwork) }
     var isProcessing by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
@@ -416,6 +418,33 @@ fun StudentPaymentScreen(
                 )
             }
 
+            if (statusMessage != null) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF2A9D8F).copy(alpha = 0.25f),
+                    border = BorderStroke(1.5.dp, Color(0xFF80CBC4))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color(0xFFFFD54F),
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = statusMessage!!,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
             if (errorMessage != null) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -445,10 +474,54 @@ fun StudentPaymentScreen(
                     }
                     isProcessing = true
                     errorMessage = null
+                    statusMessage = "Sending STK push prompt to $cleanPhone ($selectedNetwork)..."
                     coroutineScope.launch {
-                        delay(900L)
-                        isProcessing = false
-                        onPaymentSuccess(selectedPlan, cleanPhone)
+                        val initResult = com.example.data.MarzPayPaymentService.initiateSubscriptionPayment(
+                            phoneNumber = cleanPhone,
+                            studentName = studentName,
+                            userEmail = studentEmail,
+                            planDuration = selectedPlan.duration,
+                            amountUgx = selectedPlan.priceUgx.toLong()
+                        )
+
+                        when (initResult) {
+                            is com.example.data.PaymentResult.Success -> {
+                                statusMessage = null
+                                isProcessing = false
+                                onPaymentSuccess(selectedPlan, cleanPhone)
+                            }
+                            is com.example.data.PaymentResult.Pending -> {
+                                statusMessage = "STK push prompt sent! Please enter your Mobile Money PIN on your phone..."
+                                // Poll MarzPay status up to 5 times (15 seconds total)
+                                var pollSuccess = false
+                                for (attempt in 1..5) {
+                                    delay(3000L)
+                                    val check = com.example.data.MarzPayPaymentService.checkPaymentStatus(
+                                        transactionId = initResult.transactionId,
+                                        marzpayTxId = initResult.marzpayTxId,
+                                        email = studentEmail,
+                                        phone = cleanPhone
+                                    )
+                                    if (check?.isCompleted == true) {
+                                        pollSuccess = true
+                                        break
+                                    } else if (check?.isFailed == true) {
+                                        errorMessage = check.error ?: "Payment was cancelled or failed on your mobile money."
+                                        break
+                                    }
+                                }
+                                isProcessing = false
+                                statusMessage = null
+                                if (pollSuccess || errorMessage == null) {
+                                    onPaymentSuccess(selectedPlan, cleanPhone)
+                                }
+                            }
+                            is com.example.data.PaymentResult.Failed -> {
+                                isProcessing = false
+                                statusMessage = null
+                                errorMessage = initResult.error
+                            }
+                        }
                     }
                 },
                 enabled = !isProcessing,
@@ -470,7 +543,7 @@ fun StudentPaymentScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Processing payment on $phoneNumber...",
+                        text = "Waiting for PIN approval...",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1A1A1A)
@@ -498,6 +571,8 @@ fun StudentPaymentScreen(
 @Composable
 fun AccountScreen(
     modifier: Modifier = Modifier,
+    studentName: String = "Student",
+    studentEmail: String = "",
     activePlanDuration: String = "",
     activePlanExpiry: String = "",
     initialPhoneNumber: String = "",
@@ -733,6 +808,8 @@ fun AccountScreen(
         }
         var selectedNetwork by remember(defaultNetwork) { mutableStateOf(defaultNetwork) } // "MTN" or "Airtel"
         var isProcessing by remember { mutableStateOf(false) }
+        var bottomStatusMessage by remember { mutableStateOf<String?>(null) }
+        var bottomErrorMessage by remember { mutableStateOf<String?>(null) }
 
         ModalBottomSheet(
             onDismissRequest = {
@@ -961,25 +1038,117 @@ fun AccountScreen(
                     )
                 }
 
+                if (bottomStatusMessage != null) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF2A9D8F).copy(alpha = 0.25f),
+                        border = BorderStroke(1.5.dp, Color(0xFF80CBC4))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                color = Color(0xFFFFD54F),
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = bottomStatusMessage!!,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+
+                if (bottomErrorMessage != null) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFFE53935).copy(alpha = 0.25f),
+                        border = BorderStroke(1.5.dp, Color(0xFFFF8A80))
+                    ) {
+                        Text(
+                            text = bottomErrorMessage!!,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(6.dp))
 
                 // Pay Button
                 Button(
                     onClick = {
+                        val cleanPhone = phoneNumber.trim()
+                        if (cleanPhone.isBlank()) {
+                            bottomErrorMessage = "Please enter your phone number to process payment"
+                            return@Button
+                        }
                         isProcessing = true
+                        bottomErrorMessage = null
+                        bottomStatusMessage = "Sending STK push prompt to $cleanPhone ($selectedNetwork)..."
                         coroutineScope.launch {
-                            delay(1200L) // Simulate network confirmation
-                            isProcessing = false
-                            currentActiveDuration = targetPlan.duration
-                            currentActiveExpiry = when (targetPlan.id) {
-                                "1_month" -> "Valid for 30 days"
-                                "1_term" -> "Valid until end of Term 3, 2026"
-                                "1_year" -> "Valid until Term 2, 2027"
-                                else -> "Valid until Term 2, 2026"
+                            val initResult = com.example.data.MarzPayPaymentService.initiateSubscriptionPayment(
+                                phoneNumber = cleanPhone,
+                                studentName = studentName,
+                                userEmail = studentEmail,
+                                planDuration = targetPlan.duration,
+                                amountUgx = targetPlan.priceUgx.toLong()
+                            )
+
+                            when (initResult) {
+                                is com.example.data.PaymentResult.Success -> {
+                                    isProcessing = false
+                                    bottomStatusMessage = null
+                                    currentActiveDuration = targetPlan.duration
+                                    currentActiveExpiry = "Valid for 30 days"
+                                    onPlanUpdated(targetPlan)
+                                    selectedPlanForPayment = null
+                                    snackbarHostState.showSnackbar("Payment received! Plan updated to ${targetPlan.duration}.")
+                                }
+                                is com.example.data.PaymentResult.Pending -> {
+                                    bottomStatusMessage = "STK push prompt sent! Please enter your Mobile Money PIN on your phone..."
+                                    var pollSuccess = false
+                                    for (attempt in 1..5) {
+                                        delay(3000L)
+                                        val check = com.example.data.MarzPayPaymentService.checkPaymentStatus(
+                                            transactionId = initResult.transactionId,
+                                            marzpayTxId = initResult.marzpayTxId,
+                                            email = studentEmail,
+                                            phone = cleanPhone
+                                        )
+                                        if (check?.isCompleted == true) {
+                                            pollSuccess = true
+                                            break
+                                        } else if (check?.isFailed == true) {
+                                            bottomErrorMessage = check.error ?: "Payment was cancelled or failed."
+                                            break
+                                        }
+                                    }
+                                    isProcessing = false
+                                    bottomStatusMessage = null
+                                    if (pollSuccess || bottomErrorMessage == null) {
+                                        currentActiveDuration = targetPlan.duration
+                                        currentActiveExpiry = "Valid for 30 days"
+                                        onPlanUpdated(targetPlan)
+                                        selectedPlanForPayment = null
+                                        snackbarHostState.showSnackbar("Payment received! Plan updated to ${targetPlan.duration}.")
+                                    }
+                                }
+                                is com.example.data.PaymentResult.Failed -> {
+                                    isProcessing = false
+                                    bottomStatusMessage = null
+                                    bottomErrorMessage = initResult.error
+                                }
                             }
-                            onPlanUpdated(targetPlan)
-                            selectedPlanForPayment = null
-                            snackbarHostState.showSnackbar("Payment received! Plan updated to ${targetPlan.duration}.")
                         }
                     },
                     enabled = !isProcessing && phoneNumber.isNotBlank(),
@@ -1001,7 +1170,7 @@ fun AccountScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Processing payment...",
+                            text = "Waiting for PIN approval...",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1A1A1A)

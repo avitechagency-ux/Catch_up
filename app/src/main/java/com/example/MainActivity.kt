@@ -905,39 +905,42 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         )
-                        AppScreen.STUDENT_PAYMENT -> StudentPaymentScreen(
-                            studentName = studentName,
-                            signupPhoneNumber = studentPhone,
-                            selectedPlan = DefaultPlanTiers.first(),
-                            onNavigateBack = {
-                                currentScreen = AppScreen.SIGNUP
-                            },
-                            onPaymentSuccess = { paidPlan, paidPhone ->
-                                val savedEmail = prefs.getString("user_email", studentPhone)?.trim().orEmpty()
-                                val accountIdentifier = savedEmail.ifBlank { paidPhone }
-                                studentPhone = accountIdentifier
-                                activePlanDuration = paidPlan.duration
-                                activePlanExpiry = "Valid for 30 days"
-                                prefs.edit()
-                                    .putString("user_phone", accountIdentifier)
-                                    .putString("momo_phone", paidPhone)
-                                    .putString("student_active_plan_duration", activePlanDuration)
-                                    .putString("student_active_plan_expiry", activePlanExpiry)
-                                    .apply()
-                                val nowDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
-                                coroutineScope.launch {
-                                    SupabaseRepository.recordStudentPayment(
-                                        studentName = studentName,
-                                        phoneNumber = paidPhone,
-                                        planDuration = paidPlan.duration,
-                                        amountUgx = paidPlan.priceUgx.toLong(),
-                                        transactionDate = nowDate,
-                                        accountEmail = accountIdentifier
-                                    )
+                        AppScreen.STUDENT_PAYMENT -> {
+                            val savedEmail = prefs.getString("user_email", "")?.trim().orEmpty()
+                            StudentPaymentScreen(
+                                studentName = studentName,
+                                signupPhoneNumber = studentPhone,
+                                studentEmail = savedEmail,
+                                selectedPlan = DefaultPlanTiers.first(),
+                                onNavigateBack = {
+                                    currentScreen = AppScreen.SIGNUP
+                                },
+                                onPaymentSuccess = { paidPlan, paidPhone ->
+                                    val accountIdentifier = savedEmail.ifBlank { paidPhone }
+                                    studentPhone = accountIdentifier
+                                    activePlanDuration = paidPlan.duration
+                                    activePlanExpiry = "Valid for 30 days"
+                                    prefs.edit()
+                                        .putString("user_phone", accountIdentifier)
+                                        .putString("momo_phone", paidPhone)
+                                        .putString("student_active_plan_duration", activePlanDuration)
+                                        .putString("student_active_plan_expiry", activePlanExpiry)
+                                        .apply()
+                                    val nowDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                                    coroutineScope.launch {
+                                        SupabaseRepository.recordStudentPayment(
+                                            studentName = studentName,
+                                            phoneNumber = paidPhone,
+                                            planDuration = paidPlan.duration,
+                                            amountUgx = paidPlan.priceUgx.toLong(),
+                                            transactionDate = nowDate,
+                                            accountEmail = accountIdentifier
+                                        )
+                                    }
+                                    currentScreen = AppScreen.HOME
                                 }
-                                currentScreen = AppScreen.HOME
-                            }
-                        )
+                            )
+                        }
                         AppScreen.HOME -> HomeScreen(
                             studentName = studentName,
                             streakData = streakData,
@@ -1250,22 +1253,27 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = privacyPreviousScreen
                             }
                         )
-                        AppScreen.ACCOUNT -> AccountScreen(
-                            activePlanDuration = activePlanDuration,
-                            activePlanExpiry = activePlanExpiry,
-                            initialPhoneNumber = studentPhone,
-                            onNavigateBack = {
-                                currentScreen = accountPreviousScreen
-                            },
-                            onPlanUpdated = { newPlan ->
-                                activePlanDuration = newPlan.duration
-                                activePlanExpiry = "Valid for 30 days"
-                                prefs.edit()
-                                    .putString("student_active_plan_duration", activePlanDuration)
-                                    .putString("student_active_plan_expiry", activePlanExpiry)
-                                    .apply()
-                            }
-                        )
+                        AppScreen.ACCOUNT -> {
+                            val savedEmail = prefs.getString("user_email", "")?.trim().orEmpty()
+                            AccountScreen(
+                                studentName = studentName,
+                                studentEmail = savedEmail,
+                                activePlanDuration = activePlanDuration,
+                                activePlanExpiry = activePlanExpiry,
+                                initialPhoneNumber = studentPhone,
+                                onNavigateBack = {
+                                    currentScreen = accountPreviousScreen
+                                },
+                                onPlanUpdated = { newPlan ->
+                                    activePlanDuration = newPlan.duration
+                                    activePlanExpiry = "Valid for 30 days"
+                                    prefs.edit()
+                                        .putString("student_active_plan_duration", activePlanDuration)
+                                        .putString("student_active_plan_expiry", activePlanExpiry)
+                                        .apply()
+                                }
+                            )
+                        }
                         AppScreen.TEACHER_HOME -> {
                             val teacherConnectedStudents = connectedStudentsList.filter {
                                 it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)

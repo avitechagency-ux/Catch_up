@@ -562,7 +562,6 @@ fun AdminAccountScreen(
                         val numericAmount = sendAmount.replace(",", "").trim().toLongOrNull() ?: 0L
                         val recipientText = sendRecipient.trim()
                         val noteText = sendNote.trim()
-                        val currentDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
 
                         if (numericAmount > 0L && recipientText.isNotBlank()) {
                             showSendDialog = false
@@ -570,12 +569,12 @@ fun AdminAccountScreen(
                             sendAmount = ""
                             sendNote = ""
                             coroutineScope.launch {
-                                com.example.data.SupabaseRepository.recordAdminDisbursement(
+                                val success = com.example.data.MarzPayPaymentService.disburseFunds(
                                     type = "Sent",
-                                    recipientOrAccount = recipientText,
+                                    recipient = recipientText,
+                                    phoneNumber = recipientText,
                                     amountUgx = numericAmount,
-                                    note = noteText,
-                                    dateStr = currentDate
+                                    note = noteText.ifBlank { "Admin payment to $recipientText" }
                                 )
                                 val remoteTxs = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
                                 transactions = remoteTxs.map { tx ->
@@ -588,7 +587,11 @@ fun AdminAccountScreen(
                                         isWithdrawal = tx.amountUgx < 0
                                     )
                                 }
-                                snackbarHostState.showSnackbar("Funds sent and recorded in database")
+                                if (success) {
+                                    snackbarHostState.showSnackbar("Funds sent via MarzPay and recorded in database")
+                                } else {
+                                    snackbarHostState.showSnackbar("Funds recorded in database")
+                                }
                             }
                         }
                     },
@@ -695,19 +698,18 @@ fun AdminAccountScreen(
                     onClick = {
                         val numericAmount = withdrawAmount.replace(",", "").trim().toLongOrNull() ?: 0L
                         val acctText = withdrawAccount.trim()
-                        val currentDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
 
                         if (numericAmount > 0L && acctText.isNotBlank()) {
                             showWithdrawDialog = false
                             withdrawAccount = ""
                             withdrawAmount = ""
                             coroutineScope.launch {
-                                com.example.data.SupabaseRepository.recordAdminDisbursement(
+                                val success = com.example.data.MarzPayPaymentService.disburseFunds(
                                     type = "Withdrew",
-                                    recipientOrAccount = "$withdrawMethod ($acctText)",
+                                    recipient = "$withdrawMethod ($acctText)",
+                                    phoneNumber = acctText,
                                     amountUgx = numericAmount,
-                                    note = "Admin withdrawal via $withdrawMethod",
-                                    dateStr = currentDate
+                                    note = "Admin withdrawal via $withdrawMethod"
                                 )
                                 val remoteTxs = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
                                 transactions = remoteTxs.map { tx ->
@@ -720,7 +722,11 @@ fun AdminAccountScreen(
                                         isWithdrawal = tx.amountUgx < 0
                                     )
                                 }
-                                snackbarHostState.showSnackbar("Withdrawal recorded in database")
+                                if (success) {
+                                    snackbarHostState.showSnackbar("Withdrawal processed via MarzPay and recorded")
+                                } else {
+                                    snackbarHostState.showSnackbar("Withdrawal recorded in database")
+                                }
                             }
                         }
                     },

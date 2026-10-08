@@ -693,6 +693,30 @@ data class SupabaseCreateBucketDto(
     @Json(name = "public") val isPublic: Boolean = true
 )
 
+data class CloudflareR2UploadRequest(
+    @Json(name = "action") val action: String = "get-upload-url",
+    @Json(name = "teacherCode") val teacherCode: String,
+    @Json(name = "fileName") val fileName: String,
+    @Json(name = "contentType") val contentType: String = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+)
+
+data class CloudflareR2UploadResponse(
+    @Json(name = "status") val status: String? = null,
+    @Json(name = "action") val action: String? = null,
+    @Json(name = "uploadUrl") val uploadUrl: String? = null,
+    @Json(name = "publicUrl") val publicUrl: String? = null,
+    @Json(name = "key") val key: String? = null,
+    @Json(name = "bucket") val bucket: String? = null,
+    @Json(name = "error") val error: String? = null
+)
+
+interface CloudflareR2EdgeApi {
+    @POST("r2-storage")
+    suspend fun getUploadPresignedUrl(
+        @Body request: CloudflareR2UploadRequest
+    ): Response<CloudflareR2UploadResponse>
+}
+
 interface SupabaseStorageApi {
     @POST("bucket")
     suspend fun createBucket(
@@ -742,6 +766,14 @@ object SupabaseRepository {
             .build()
     }
 
+    private val directHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
     internal val api: SupabasePostgrestApi by lazy {
         Retrofit.Builder()
             .baseUrl(SupabaseConfig.restBaseUrl)
@@ -758,6 +790,15 @@ object SupabaseRepository {
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
             .create(SupabaseStorageApi::class.java)
+    }
+
+    private val r2EdgeApi: CloudflareR2EdgeApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(SupabaseConfig.functionsBaseUrl)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(CloudflareR2EdgeApi::class.java)
     }
 
     // ========================================================================
@@ -1788,7 +1829,7 @@ object SupabaseRepository {
     }
 
     /**
-     * Downloads or retrieves the raw PDF bytes for a given note from memory cache or Supabase Storage.
+     * Downloads or retrieves the raw PDF bytes for a given note from memory cache or Cloudflare R2 / Supabase Storage.
      */
     suspend fun fetchNotePdfBytes(
         noteTitle: String,
@@ -1801,16 +1842,34 @@ object SupabaseRepository {
 
         val detail = fetchNoteDetail(noteTitle, subjectName) ?: return@withContext null
         val fileUrl = detail.fileUrl.trim()
-        if (fileUrl.isBlank() || !SupabaseConfig.isConfigured()) return@withContext null
+        if (fileUrl.isBlank()) return@withContext null
         try {
-            val resp = storageApi.downloadNoteFileByUrl(fileUrl)
-            if (resp.isSuccessful) {
-                val bytes = resp.body()?.bytes()
-                if (bytes != null && bytes.isNotEmpty()) {
-                    synchronized(recentUploadedPdfBytes) {
-                        recentUploadedPdfBytes[key] = bytes
+            // 1. Direct high-speed download via directHttpClient (Cloudflare R2 CDN or external URL)
+            try {
+                val directReq = okhttp3.Request.Builder().url(fileUrl).build()
+                val directResp = directHttpClient.newCall(directReq).execute()
+                if (directResp.isSuccessful) {
+                    val bytes = directResp.body?.bytes()
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        synchronized(recentUploadedPdfBytes) {
+                            recentUploadedPdfBytes[key] = bytes
+                        }
+                        return@withContext bytes
                     }
-                    return@withContext bytes
+                }
+            } catch (_: Exception) {}
+
+            // 2. Fallback to Supabase storageApi if needed
+            if (SupabaseConfig.isConfigured()) {
+                val resp = storageApi.downloadNoteFileByUrl(fileUrl)
+                if (resp.isSuccessful) {
+                    val bytes = resp.body()?.bytes()
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        synchronized(recentUploadedPdfBytes) {
+                            recentUploadedPdfBytes[key] = bytes
+                        }
+                        return@withContext bytes
+                    }
                 }
             }
             null
@@ -1901,7 +1960,8 @@ object SupabaseRepository {
                 if (it.endsWith(".docx", ignoreCase = true)) it
                 else "${it.removeSuffix(".pdf").removeSuffix(".PDF")}.docx"
             }
-        val storagePublicUrl = "${SupabaseConfig.storageBaseUrl}object/public/notes_files/$cleanCode/$sanitizedFileName"
+        val r2PublicUrl = "${SupabaseConfig.r2PublicBaseUrl}/notes_files/$cleanCode/$sanitizedFileName"
+        val storagePublicUrl = r2PublicUrl
 
         val resolvedDescription = uploadItem.description.trim().ifBlank {
             "${uploadItem.type} for ${uploadItem.targetClass} (${uploadItem.subject})"
@@ -1929,7 +1989,7 @@ object SupabaseRepository {
             contentType = uploadItem.type.trim(),
             teacherIdCode = cleanCode,
             authorName = teacherName.trim().ifBlank { "Teacher" },
-            fileUrl = storagePublicUrl,
+            fileUrl = r2PublicUrl,
             fileSize = uploadItem.fileSize.ifBlank { "2.4 MB" },
             fileType = "DOCX",
             dueDate = uploadItem.dueDate,
@@ -1950,54 +2010,92 @@ object SupabaseRepository {
 
         if (!SupabaseConfig.isConfigured()) return@withContext uploadItem
 
+        var finalFileUrl = r2PublicUrl
+
         try {
-            runCatching {
-                val body = resolvedBytes.toRequestBody(
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document".toMediaTypeOrNull()
-                )
-                val uploadResp = storageApi.uploadNoteFile(
+            // 1. Primary: Upload to Cloudflare R2 bucket via presigned PUT URL from Edge Function
+            var uploadedToR2 = false
+            try {
+                val r2Req = CloudflareR2UploadRequest(
+                    action = "get-upload-url",
                     teacherCode = cleanCode,
                     fileName = sanitizedFileName,
-                    body = body
+                    contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
-                if (!uploadResp.isSuccessful) {
-                    runCatching { storageApi.createBucket(SupabaseCreateBucketDto()) }
-                    val retryResp = storageApi.uploadNoteFile(
+                val presignedResp = r2EdgeApi.getUploadPresignedUrl(r2Req)
+                val uploadUrl = presignedResp.body()?.uploadUrl
+                val assignedPublicUrl = presignedResp.body()?.publicUrl
+                if (presignedResp.isSuccessful && !uploadUrl.isNullOrBlank()) {
+                    val mediaType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document".toMediaTypeOrNull()
+                    val reqBody = resolvedBytes.toRequestBody(mediaType)
+                    val putReq = okhttp3.Request.Builder()
+                        .url(uploadUrl)
+                        .put(reqBody)
+                        .header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                        .build()
+                    val putResp = directHttpClient.newCall(putReq).execute()
+                    if (putResp.isSuccessful) {
+                        uploadedToR2 = true
+                        if (!assignedPublicUrl.isNullOrBlank()) {
+                            finalFileUrl = assignedPublicUrl
+                        }
+                    }
+                }
+            } catch (r2Err: Exception) {
+                android.util.Log.w("SupabaseRepository", "Cloudflare R2 presigned upload error: ${r2Err.message}")
+            }
+
+            // 2. Fallback to Supabase Storage if R2 upload didn't succeed
+            if (!uploadedToR2) {
+                runCatching {
+                    val body = resolvedBytes.toRequestBody(
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document".toMediaTypeOrNull()
+                    )
+                    val uploadResp = storageApi.uploadNoteFile(
                         teacherCode = cleanCode,
                         fileName = sanitizedFileName,
                         body = body
                     )
-                    if (!retryResp.isSuccessful) {
-                        storageApi.putNoteFile(
+                    if (!uploadResp.isSuccessful) {
+                        runCatching { storageApi.createBucket(SupabaseCreateBucketDto()) }
+                        val retryResp = storageApi.uploadNoteFile(
                             teacherCode = cleanCode,
                             fileName = sanitizedFileName,
                             body = body
                         )
+                        if (!retryResp.isSuccessful) {
+                            storageApi.putNoteFile(
+                                teacherCode = cleanCode,
+                                fileName = sanitizedFileName,
+                                body = body
+                            )
+                        }
                     }
                 }
             }
 
-            val response = api.insertNoteUpload(dto)
+            val finalDto = dto.copy(fileUrl = finalFileUrl)
+            val response = api.insertNoteUpload(finalDto)
             if (response.isSuccessful) {
                 val created = response.body()?.firstOrNull()
                 if (created != null) {
                     synchronized(recentUploadedNotes) {
                         recentUploadedNotes.removeAll {
-                            it.title.equals(dto.title, ignoreCase = true) &&
-                                it.subjectName.equals(dto.subjectName, ignoreCase = true) &&
-                                normalizeSecondaryClass(it.targetClass) == normalizeSecondaryClass(dto.targetClass) &&
-                                it.teacherIdCode.equals(dto.teacherIdCode, ignoreCase = true)
+                            it.title.equals(finalDto.title, ignoreCase = true) &&
+                                it.subjectName.equals(finalDto.subjectName, ignoreCase = true) &&
+                                normalizeSecondaryClass(it.targetClass) == normalizeSecondaryClass(finalDto.targetClass) &&
+                                it.teacherIdCode.equals(finalDto.teacherIdCode, ignoreCase = true)
                         }
                         recentUploadedNotes.add(0, created)
                     }
                     persistRecentUploadedNotes()
                 }
-                uploadItem.copy(id = created?.id ?: uploadItem.id, fileUrl = storagePublicUrl)
+                uploadItem.copy(id = created?.id ?: uploadItem.id, fileUrl = finalFileUrl)
             } else {
-                uploadItem.copy(fileUrl = storagePublicUrl)
+                uploadItem.copy(fileUrl = finalFileUrl)
             }
         } catch (_: Exception) {
-            uploadItem.copy(fileUrl = storagePublicUrl)
+            uploadItem.copy(fileUrl = finalFileUrl)
         }
     }
 

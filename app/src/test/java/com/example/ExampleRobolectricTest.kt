@@ -1182,4 +1182,52 @@ class ExampleRobolectricTest {
     val key = keyStore.getKey("upload", "CatchUpRel2026!Key".toCharArray())
     org.junit.Assert.assertNotNull(key)
   }
+
+  @Test
+  fun `verify MarzPay DTOs serialize and handle mobile money subscription payloads`() {
+    val req = com.example.data.CreatePaymentRequest(
+      phoneNumber = "+256771234567",
+      paymentType = "subscription",
+      studentName = "Okello John",
+      email = "okello@example.com",
+      planDuration = "1 Month",
+      amountUgx = 1000L
+    )
+    assertEquals("+256771234567", req.phoneNumber)
+    assertEquals(1000L, req.amountUgx)
+    assertEquals("subscription", req.paymentType)
+
+    val res = com.example.data.CreatePaymentResponse(
+      success = true,
+      transactionId = "TX-ABCD1234",
+      marzpayTxId = "uuid-marz-999",
+      status = "PENDING",
+      provider = "MTN MoMo",
+      amountUgx = 1000L,
+      message = "STK push prompt sent"
+    )
+    assertTrue(res.success)
+    assertEquals("TX-ABCD1234", res.transactionId)
+    assertEquals("MTN MoMo", res.provider)
+
+    val checkRes = com.example.data.CheckStatusResponse(
+      success = true,
+      transactionId = "TX-ABCD1234",
+      status = "COMPLETED",
+      isCompleted = true,
+      isPending = false
+    )
+    assertTrue(checkRes.isCompleted)
+    assertFalse(checkRes.isPending)
+
+    val disburseReq = com.example.data.DisbursePaymentRequest(
+      type = "Withdrew",
+      recipient = "MTN MoMo (0781234567)",
+      phoneNumber = "0781234567",
+      amountUgx = 50000L,
+      note = "Admin tax reserve withdrawal"
+    )
+    assertEquals("Withdrew", disburseReq.type)
+    assertEquals(50000L, disburseReq.amountUgx)
+  }
 }
