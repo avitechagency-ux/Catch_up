@@ -69,6 +69,7 @@ import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -132,6 +133,8 @@ fun StudentPaymentScreen(
     var isProcessing by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var verificationState by remember { mutableStateOf<PaymentVerificationState?>(null) }
+    var pollingJob by remember { mutableStateOf<Job?>(null) }
 
     Scaffold(
         modifier = modifier
@@ -474,8 +477,20 @@ fun StudentPaymentScreen(
                     }
                     isProcessing = true
                     errorMessage = null
-                    statusMessage = "Sending STK push prompt to $cleanPhone ($selectedNetwork)..."
-                    coroutineScope.launch {
+                    statusMessage = null
+
+                    val initialVerification = PaymentVerificationState(
+                        stage = MarzPayVerificationStage.PROCESSING,
+                        phoneNumber = cleanPhone,
+                        networkProvider = selectedNetwork,
+                        planDuration = selectedPlan.duration,
+                        amountUgx = selectedPlan.priceUgx.toLong(),
+                        statusMessage = "Initiating payment with MarzPay Gateway..."
+                    )
+                    verificationState = initialVerification
+
+                    pollingJob?.cancel()
+                    pollingJob = coroutineScope.launch {
                         val initResult = com.example.data.MarzPayPaymentService.initiateSubscriptionPayment(
                             phoneNumber = cleanPhone,
                             studentName = studentName,
@@ -486,40 +501,76 @@ fun StudentPaymentScreen(
 
                         when (initResult) {
                             is com.example.data.PaymentResult.Success -> {
-                                statusMessage = null
                                 isProcessing = false
-                                onPaymentSuccess(selectedPlan, cleanPhone)
-                            }
-                            is com.example.data.PaymentResult.Pending -> {
-                                statusMessage = "STK push prompt sent! Please enter your Mobile Money PIN on your phone..."
-                                // Poll MarzPay status up to 5 times (15 seconds total)
-                                var pollSuccess = false
-                                for (attempt in 1..5) {
-                                    delay(3000L)
-                                    val check = com.example.data.MarzPayPaymentService.checkPaymentStatus(
-                                        transactionId = initResult.transactionId,
-                                        marzpayTxId = initResult.marzpayTxId,
-                                        email = studentEmail,
-                                        phone = cleanPhone
-                                    )
-                                    if (check?.isCompleted == true) {
-                                        pollSuccess = true
-                                        break
-                                    } else if (check?.isFailed == true) {
-                                        errorMessage = check.error ?: "Payment was cancelled or failed on your mobile money."
-                                        break
-                                    }
-                                }
-                                isProcessing = false
-                                statusMessage = null
-                                if (pollSuccess || errorMessage == null) {
-                                    onPaymentSuccess(selectedPlan, cleanPhone)
-                                }
+                                verificationState = verificationState?.copy(
+                                    stage = MarzPayVerificationStage.SUCCESS,
+                                    transactionId = initResult.transactionId,
+                                    statusMessage = "Payment confirmed by MarzPay!"
+                                )
                             }
                             is com.example.data.PaymentResult.Failed -> {
                                 isProcessing = false
-                                statusMessage = null
-                                errorMessage = initResult.error
+                                verificationState = verificationState?.copy(
+                                    stage = MarzPayVerificationStage.FAILED,
+                                    errorMessage = initResult.error,
+                                    statusMessage = "Payment failed on MarzPay."
+                                )
+                            }
+                            is com.example.data.PaymentResult.Pending -> {
+                                val txId = initResult.transactionId
+                                val marzTxId = initResult.marzpayTxId
+                                verificationState = verificationState?.copy(
+                                    stage = MarzPayVerificationStage.PENDING,
+                                    transactionId = txId,
+                                    marzpayTxId = marzTxId,
+                                    currentCheckAttempt = 1,
+                                    statusMessage = "STK push sent! Please enter your PIN on your phone."
+                                )
+
+                                // Real-time polling verification against MarzPay
+                                for (attempt in 1..12) {
+                                    delay(3500L)
+                                    if (verificationState?.stage != MarzPayVerificationStage.PENDING) break
+
+                                    verificationState = verificationState?.copy(
+                                        currentCheckAttempt = attempt,
+                                        isCheckingNow = true
+                                    )
+
+                                    val check = com.example.data.MarzPayPaymentService.checkPaymentStatus(
+                                        transactionId = txId,
+                                        marzpayTxId = marzTxId,
+                                        email = studentEmail,
+                                        phone = cleanPhone
+                                    )
+
+                                    verificationState = verificationState?.copy(isCheckingNow = false)
+
+                                    if (check?.isCompleted == true) {
+                                        isProcessing = false
+                                        verificationState = verificationState?.copy(
+                                            stage = MarzPayVerificationStage.SUCCESS,
+                                            transactionId = check.transactionId ?: txId,
+                                            statusMessage = "Payment confirmed by MarzPay!"
+                                        )
+                                        break
+                                    } else if (check?.isFailed == true) {
+                                        isProcessing = false
+                                        verificationState = verificationState?.copy(
+                                            stage = MarzPayVerificationStage.FAILED,
+                                            errorMessage = check.error ?: "Payment was cancelled, declined, or timed out on your phone.",
+                                            statusMessage = "Payment failed."
+                                        )
+                                        break
+                                    } else if (attempt == 12) {
+                                        isProcessing = false
+                                        verificationState = verificationState?.copy(
+                                            stage = MarzPayVerificationStage.FAILED,
+                                            errorMessage = "Payment approval timed out awaiting PIN confirmation. If you approved it, tap 'I Entered My PIN — Check Now' or retry.",
+                                            statusMessage = "Timed out."
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -543,7 +594,7 @@ fun StudentPaymentScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Waiting for PIN approval...",
+                        text = "Verifying with MarzPay...",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1A1A1A)
@@ -558,6 +609,63 @@ fun StudentPaymentScreen(
                 }
             }
         }
+    }
+
+    // Modal verification dialog
+    verificationState?.let { vState ->
+        PaymentVerificationDialog(
+            state = vState,
+            onDismiss = {
+                pollingJob?.cancel()
+                isProcessing = false
+                verificationState = null
+            },
+            onCheckNow = {
+                coroutineScope.launch {
+                    val curr = verificationState ?: return@launch
+                    verificationState = curr.copy(isCheckingNow = true)
+                    val check = com.example.data.MarzPayPaymentService.checkPaymentStatus(
+                        transactionId = curr.transactionId,
+                        marzpayTxId = curr.marzpayTxId,
+                        email = studentEmail,
+                        phone = curr.phoneNumber
+                    )
+                    if (check?.isCompleted == true) {
+                        isProcessing = false
+                        verificationState = curr.copy(
+                            stage = MarzPayVerificationStage.SUCCESS,
+                            transactionId = check.transactionId ?: curr.transactionId,
+                            isCheckingNow = false,
+                            statusMessage = "Payment confirmed by MarzPay!"
+                        )
+                    } else if (check?.isFailed == true) {
+                        isProcessing = false
+                        verificationState = curr.copy(
+                            stage = MarzPayVerificationStage.FAILED,
+                            isCheckingNow = false,
+                            errorMessage = check.error ?: "Payment failed on MarzPay."
+                        )
+                    } else {
+                        verificationState = curr.copy(
+                            isCheckingNow = false,
+                            statusMessage = "Still awaiting PIN approval from telecom..."
+                        )
+                    }
+                }
+            },
+            onRetry = {
+                pollingJob?.cancel()
+                isProcessing = false
+                verificationState = null
+            },
+            onConfirmedSuccess = {
+                val confirmedPhone = vState.phoneNumber.ifBlank { phoneNumber.trim() }
+                pollingJob?.cancel()
+                isProcessing = false
+                verificationState = null
+                onPaymentSuccess(selectedPlan, confirmedPhone)
+            }
+        )
     }
 }
 
@@ -810,6 +918,8 @@ fun AccountScreen(
         var isProcessing by remember { mutableStateOf(false) }
         var bottomStatusMessage by remember { mutableStateOf<String?>(null) }
         var bottomErrorMessage by remember { mutableStateOf<String?>(null) }
+        var bottomVerificationState by remember { mutableStateOf<PaymentVerificationState?>(null) }
+        var bottomPollingJob by remember { mutableStateOf<Job?>(null) }
 
         ModalBottomSheet(
             onDismissRequest = {
@@ -1094,8 +1204,20 @@ fun AccountScreen(
                         }
                         isProcessing = true
                         bottomErrorMessage = null
-                        bottomStatusMessage = "Sending STK push prompt to $cleanPhone ($selectedNetwork)..."
-                        coroutineScope.launch {
+                        bottomStatusMessage = null
+
+                        val initialVerification = PaymentVerificationState(
+                            stage = MarzPayVerificationStage.PROCESSING,
+                            phoneNumber = cleanPhone,
+                            networkProvider = selectedNetwork,
+                            planDuration = targetPlan.duration,
+                            amountUgx = targetPlan.priceUgx.toLong(),
+                            statusMessage = "Initiating payment with MarzPay Gateway..."
+                        )
+                        bottomVerificationState = initialVerification
+
+                        bottomPollingJob?.cancel()
+                        bottomPollingJob = coroutineScope.launch {
                             val initResult = com.example.data.MarzPayPaymentService.initiateSubscriptionPayment(
                                 phoneNumber = cleanPhone,
                                 studentName = studentName,
@@ -1107,46 +1229,74 @@ fun AccountScreen(
                             when (initResult) {
                                 is com.example.data.PaymentResult.Success -> {
                                     isProcessing = false
-                                    bottomStatusMessage = null
-                                    currentActiveDuration = targetPlan.duration
-                                    currentActiveExpiry = "Valid for 30 days"
-                                    onPlanUpdated(targetPlan)
-                                    selectedPlanForPayment = null
-                                    snackbarHostState.showSnackbar("Payment received! Plan updated to ${targetPlan.duration}.")
-                                }
-                                is com.example.data.PaymentResult.Pending -> {
-                                    bottomStatusMessage = "STK push prompt sent! Please enter your Mobile Money PIN on your phone..."
-                                    var pollSuccess = false
-                                    for (attempt in 1..5) {
-                                        delay(3000L)
-                                        val check = com.example.data.MarzPayPaymentService.checkPaymentStatus(
-                                            transactionId = initResult.transactionId,
-                                            marzpayTxId = initResult.marzpayTxId,
-                                            email = studentEmail,
-                                            phone = cleanPhone
-                                        )
-                                        if (check?.isCompleted == true) {
-                                            pollSuccess = true
-                                            break
-                                        } else if (check?.isFailed == true) {
-                                            bottomErrorMessage = check.error ?: "Payment was cancelled or failed."
-                                            break
-                                        }
-                                    }
-                                    isProcessing = false
-                                    bottomStatusMessage = null
-                                    if (pollSuccess || bottomErrorMessage == null) {
-                                        currentActiveDuration = targetPlan.duration
-                                        currentActiveExpiry = "Valid for 30 days"
-                                        onPlanUpdated(targetPlan)
-                                        selectedPlanForPayment = null
-                                        snackbarHostState.showSnackbar("Payment received! Plan updated to ${targetPlan.duration}.")
-                                    }
+                                    bottomVerificationState = bottomVerificationState?.copy(
+                                        stage = MarzPayVerificationStage.SUCCESS,
+                                        transactionId = initResult.transactionId,
+                                        statusMessage = "Payment confirmed by MarzPay!"
+                                    )
                                 }
                                 is com.example.data.PaymentResult.Failed -> {
                                     isProcessing = false
-                                    bottomStatusMessage = null
-                                    bottomErrorMessage = initResult.error
+                                    bottomVerificationState = bottomVerificationState?.copy(
+                                        stage = MarzPayVerificationStage.FAILED,
+                                        errorMessage = initResult.error,
+                                        statusMessage = "Payment failed on MarzPay."
+                                    )
+                                }
+                                is com.example.data.PaymentResult.Pending -> {
+                                    val txId = initResult.transactionId
+                                    val marzTxId = initResult.marzpayTxId
+                                    bottomVerificationState = bottomVerificationState?.copy(
+                                        stage = MarzPayVerificationStage.PENDING,
+                                        transactionId = txId,
+                                        marzpayTxId = marzTxId,
+                                        currentCheckAttempt = 1,
+                                        statusMessage = "STK push sent! Please enter your PIN on your phone."
+                                    )
+
+                                    for (attempt in 1..12) {
+                                        delay(3500L)
+                                        if (bottomVerificationState?.stage != MarzPayVerificationStage.PENDING) break
+
+                                        bottomVerificationState = bottomVerificationState?.copy(
+                                            currentCheckAttempt = attempt,
+                                            isCheckingNow = true
+                                        )
+
+                                        val check = com.example.data.MarzPayPaymentService.checkPaymentStatus(
+                                            transactionId = txId,
+                                            marzpayTxId = marzTxId,
+                                            email = studentEmail,
+                                            phone = cleanPhone
+                                        )
+
+                                        bottomVerificationState = bottomVerificationState?.copy(isCheckingNow = false)
+
+                                        if (check?.isCompleted == true) {
+                                            isProcessing = false
+                                            bottomVerificationState = bottomVerificationState?.copy(
+                                                stage = MarzPayVerificationStage.SUCCESS,
+                                                transactionId = check.transactionId ?: txId,
+                                                statusMessage = "Payment confirmed by MarzPay!"
+                                            )
+                                            break
+                                        } else if (check?.isFailed == true) {
+                                            isProcessing = false
+                                            bottomVerificationState = bottomVerificationState?.copy(
+                                                stage = MarzPayVerificationStage.FAILED,
+                                                errorMessage = check.error ?: "Payment was cancelled, declined, or timed out on your phone.",
+                                                statusMessage = "Payment failed."
+                                            )
+                                            break
+                                        } else if (attempt == 12) {
+                                            isProcessing = false
+                                            bottomVerificationState = bottomVerificationState?.copy(
+                                                stage = MarzPayVerificationStage.FAILED,
+                                                errorMessage = "Payment approval timed out awaiting PIN confirmation. If you approved it, tap 'I Entered My PIN — Check Now' or retry.",
+                                                statusMessage = "Timed out."
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1170,7 +1320,7 @@ fun AccountScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Waiting for PIN approval...",
+                            text = "Verifying with MarzPay...",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1A1A1A)
@@ -1185,6 +1335,79 @@ fun AccountScreen(
                     }
                 }
             }
+        }
+
+        bottomVerificationState?.let { vState ->
+            PaymentVerificationDialog(
+                state = vState,
+                onDismiss = {
+                    bottomPollingJob?.cancel()
+                    isProcessing = false
+                    bottomVerificationState = null
+                },
+                onCheckNow = {
+                    coroutineScope.launch {
+                        val curr = bottomVerificationState ?: return@launch
+                        bottomVerificationState = curr.copy(isCheckingNow = true)
+                        val check = com.example.data.MarzPayPaymentService.checkPaymentStatus(
+                            transactionId = curr.transactionId,
+                            marzpayTxId = curr.marzpayTxId,
+                            email = studentEmail,
+                            phone = curr.phoneNumber
+                        )
+                        if (check?.isCompleted == true) {
+                            isProcessing = false
+                            bottomVerificationState = curr.copy(
+                                stage = MarzPayVerificationStage.SUCCESS,
+                                transactionId = check.transactionId ?: curr.transactionId,
+                                isCheckingNow = false,
+                                statusMessage = "Payment confirmed by MarzPay!"
+                            )
+                        } else if (check?.isFailed == true) {
+                            isProcessing = false
+                            bottomVerificationState = curr.copy(
+                                stage = MarzPayVerificationStage.FAILED,
+                                isCheckingNow = false,
+                                errorMessage = check.error ?: "Payment failed on MarzPay."
+                            )
+                        } else {
+                            bottomVerificationState = curr.copy(
+                                isCheckingNow = false,
+                                statusMessage = "Still awaiting PIN approval from telecom..."
+                            )
+                        }
+                    }
+                },
+                onRetry = {
+                    bottomPollingJob?.cancel()
+                    isProcessing = false
+                    bottomVerificationState = null
+                },
+                onConfirmedSuccess = {
+                    val confirmedPhone = vState.phoneNumber.ifBlank { phoneNumber.trim() }
+                    bottomPollingJob?.cancel()
+                    isProcessing = false
+                    bottomVerificationState = null
+                    currentActiveDuration = targetPlan.duration
+                    currentActiveExpiry = "Valid for 30 days"
+                    onPlanUpdated(targetPlan)
+                    selectedPlanForPayment = null
+                    val todayStr = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
+                    coroutineScope.launch {
+                        com.example.data.SupabaseRepository.recordStudentPayment(
+                            studentName = studentName,
+                            phoneNumber = confirmedPhone,
+                            planDuration = targetPlan.duration,
+                            amountUgx = targetPlan.priceUgx.toLong(),
+                            transactionDate = todayStr,
+                            accountEmail = studentEmail
+                        )
+                    }
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("Payment confirmed by MarzPay! Plan updated to ${targetPlan.duration}.")
+                    }
+                }
+            )
         }
     }
 }

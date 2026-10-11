@@ -77,6 +77,7 @@ import com.example.ui.theme.IconGrey
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
 import com.example.ui.theme.NavyTile
+import com.example.ui.theme.SoftLavenderGrey
 import com.example.ui.theme.TealTile
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
@@ -358,6 +359,17 @@ fun AdminSettingsScreen(
                                 onClick = { showCommissionDialog = true },
                                 testTag = "action_referral_commission"
                             )
+                            AdminSettingsDivider()
+                            AdminSettingsActionRow(
+                                title = "Online Classroom Feature",
+                                value = if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) "Active" else "Disabled (Preserved)",
+                                onClick = {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Online classroom is temporarily disabled. Underlying code & data preserved.")
+                                    }
+                                },
+                                testTag = "action_online_classes_status"
+                            )
                         }
                     }
                 }
@@ -399,11 +411,42 @@ fun AdminSettingsScreen(
                             AdminSettingsDivider()
                             AdminSettingsSwitchRow(
                                 title = "Live Payment Webhooks",
-                                subtitle = "MTN MoMo & Airtel Money real-time IPN listener",
+                                subtitle = "MarzPay IPN webhook: whsec_BtNjMmQvMaRxylJBw8Wd0uUUY0zgWm0hUbLJLdbe",
                                 checked = liveGatewayWebhooks,
                                 onCheckedChange = { liveGatewayWebhooks = it },
                                 testTag = "switch_live_webhooks"
                             )
+                            if (liveGatewayWebhooks) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = SoftLavenderGrey,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderGrey)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text(
+                                            text = "MarzPay Webhook Secret (Verified)",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = IndigoPurple
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = "whsec_BtNjMmQvMaRxylJBw8Wd0uUUY0zgWm0hUbLJLdbe",
+                                            fontSize = 11.sp,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            color = TextDark
+                                        )
+                                        Text(
+                                            text = "Edge Function Endpoint: /functions/v1/marzpay-webhook",
+                                            fontSize = 10.sp,
+                                            color = TextMuted
+                                        )
+                                    }
+                                }
+                            }
                             AdminSettingsDivider()
                             AdminSettingsActionRow(
                                 title = "Platform Currency",

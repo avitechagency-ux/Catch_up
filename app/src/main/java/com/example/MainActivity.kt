@@ -694,24 +694,26 @@ class MainActivity : ComponentActivity() {
                             pendingNotificationIntent = null
                         }
                         notifType == NotificationHelper.TYPE_LIVE_CLASS_SCHEDULED -> {
-                            currentScreen = AppScreen.STUDENT_LIVE_CLASSES
-
+                            if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                            }
                             activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
                             pendingNotificationIntent = null
                         }
                         notifType == NotificationHelper.TYPE_LIVE_CLASS_STARTED -> {
-                            val liveId = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_ID)
-                            val liveTitle = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_TITLE) ?: "Live Class"
-                            val liveSubj = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_SUBJECT) ?: "Lesson"
-                            if (!liveId.isNullOrBlank()) {
-                                activeLiveClassId = liveId
-                                activeLiveClassTitle = liveTitle
-                                activeLiveClassSubject = liveSubj
-                                currentScreen = AppScreen.STUDENT_LIVE_SESSION
-                            } else {
-                                currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                            if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                val liveId = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_ID)
+                                val liveTitle = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_TITLE) ?: "Live Class"
+                                val liveSubj = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_SUBJECT) ?: "Lesson"
+                                if (!liveId.isNullOrBlank()) {
+                                    activeLiveClassId = liveId
+                                    activeLiveClassTitle = liveTitle
+                                    activeLiveClassSubject = liveSubj
+                                    currentScreen = AppScreen.STUDENT_LIVE_SESSION
+                                } else {
+                                    currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                                }
                             }
-
                             activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
                             pendingNotificationIntent = null
                         }
@@ -978,7 +980,9 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.PDF_VIEWER
                             },
                             onNavigateToLiveClasses = {
-                                currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                                if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                    currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                                }
                             },
                             onNavigateToTeacher = {
                                 currentScreen = AppScreen.TEACHER_HOME
@@ -1301,10 +1305,14 @@ class MainActivity : ComponentActivity() {
                                     currentScreen = AppScreen.TEACHER_MY_SUBJECTS
                                 },
                                 onNavigateToLiveClasses = {
-                                    currentScreen = AppScreen.TEACHER_LIVE_CLASSES
+                                    if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                        currentScreen = AppScreen.TEACHER_LIVE_CLASSES
+                                    }
                                 },
                                 onCreateLiveClassClick = {
-                                    currentScreen = AppScreen.CREATE_LIVE_CLASS
+                                    if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                        currentScreen = AppScreen.CREATE_LIVE_CLASS
+                                    }
                                 },
                                 onNavigateToUploads = {
                                     currentScreen = AppScreen.TEACHER_UPLOADS
@@ -1692,72 +1700,100 @@ class MainActivity : ComponentActivity() {
                             onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
                             onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
                         )
-                        AppScreen.STUDENT_LIVE_CLASSES -> StudentLiveClassesScreen(
-                            studentClass = academicClass,
-                            studentStream = prefs.getString("student_stream_only", "") ?: "",
-                            studentName = studentName,
-                            studentId = studentPhone.ifBlank { "std_${studentName.lowercase().replace(" ", "_")}" },
-                            onNavigateBack = { currentScreen = AppScreen.HOME },
-                            onJoinLiveClass = { classId, title, subject, teacher ->
-                                activeLiveClassId = classId
-                                activeLiveClassTitle = title
-                                activeLiveClassSubject = subject
-                                activeLiveClassTeacherName = teacher
-                                currentScreen = AppScreen.STUDENT_LIVE_SESSION
+                        AppScreen.STUDENT_LIVE_CLASSES -> {
+                            if (!com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                currentScreen = AppScreen.HOME
+                            } else {
+                                StudentLiveClassesScreen(
+                                    studentClass = academicClass,
+                                    studentStream = prefs.getString("student_stream_only", "") ?: "",
+                                    studentName = studentName,
+                                    studentId = studentPhone.ifBlank { "std_${studentName.lowercase().replace(" ", "_")}" },
+                                    onNavigateBack = { currentScreen = AppScreen.HOME },
+                                    onJoinLiveClass = { classId, title, subject, teacher ->
+                                        activeLiveClassId = classId
+                                        activeLiveClassTitle = title
+                                        activeLiveClassSubject = subject
+                                        activeLiveClassTeacherName = teacher
+                                        currentScreen = AppScreen.STUDENT_LIVE_SESSION
+                                    }
+                                )
                             }
-                        )
-                        AppScreen.STUDENT_LIVE_SESSION -> StudentLiveSessionScreen(
-                            classId = activeLiveClassId,
-                            title = activeLiveClassTitle,
-                            subject = activeLiveClassSubject,
-                            teacherName = activeLiveClassTeacherName.ifBlank { "Teacher" },
-                            studentId = studentPhone.ifBlank { "std_${studentName.lowercase().replace(" ", "_")}" },
-                            studentName = studentName,
-                            onLeaveClass = {
-                                currentScreen = AppScreen.STUDENT_LIVE_CLASSES
-                            }
-                        )
-                        AppScreen.TEACHER_LIVE_CLASSES -> TeacherLiveClassesScreen(
-                            teacherId = teacherIdCode,
-                            teacherName = teacherName,
-                            onNavigateBack = { currentScreen = AppScreen.TEACHER_HOME },
-                            onCreateLiveClassClick = { currentScreen = AppScreen.CREATE_LIVE_CLASS },
-                            onStartOrResumeClass = { classId, title, subject ->
-                                activeLiveClassId = classId
-                                activeLiveClassTitle = title
-                                activeLiveClassSubject = subject
-                                currentScreen = AppScreen.TEACHER_LIVE_SESSION
-                            }
-                        )
-                        AppScreen.CREATE_LIVE_CLASS -> {
-                            val activeTeacherSubjects = resolveTeacherSubjectItems(teacherSubjectsTaught).map { it.name }
-                            CreateLiveClassScreen(
-                                teacherId = teacherIdCode,
-                                teacherName = teacherName,
-                                assignedSubjects = activeTeacherSubjects.ifEmpty { listOf("Physics", "Mathematics", "Geography", "Biology") },
-                                assignedClasses = com.example.ui.UgandanSecondaryClasses,
-                                onNavigateBack = { currentScreen = AppScreen.TEACHER_LIVE_CLASSES },
-                                onClassScheduled = { scheduledClass ->
-                                    currentScreen = AppScreen.TEACHER_LIVE_CLASSES
-                                },
-                                onStartImmediately = { classId, title, subject ->
-                                    activeLiveClassId = classId
-                                    activeLiveClassTitle = title
-                                    activeLiveClassSubject = subject
-                                    currentScreen = AppScreen.TEACHER_LIVE_SESSION
-                                }
-                            )
                         }
-                        AppScreen.TEACHER_LIVE_SESSION -> TeacherLiveSessionScreen(
-                            classId = activeLiveClassId,
-                            title = activeLiveClassTitle,
-                            subject = activeLiveClassSubject,
-                            teacherId = teacherIdCode,
-                            teacherName = teacherName,
-                            onEndClass = {
-                                currentScreen = AppScreen.TEACHER_LIVE_CLASSES
+                        AppScreen.STUDENT_LIVE_SESSION -> {
+                            if (!com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                currentScreen = AppScreen.HOME
+                            } else {
+                                StudentLiveSessionScreen(
+                                    classId = activeLiveClassId,
+                                    title = activeLiveClassTitle,
+                                    subject = activeLiveClassSubject,
+                                    teacherName = activeLiveClassTeacherName.ifBlank { "Teacher" },
+                                    studentId = studentPhone.ifBlank { "std_${studentName.lowercase().replace(" ", "_")}" },
+                                    studentName = studentName,
+                                    onLeaveClass = {
+                                        currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                                    }
+                                )
                             }
-                        )
+                        }
+                        AppScreen.TEACHER_LIVE_CLASSES -> {
+                            if (!com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                currentScreen = AppScreen.TEACHER_HOME
+                            } else {
+                                TeacherLiveClassesScreen(
+                                    teacherId = teacherIdCode,
+                                    teacherName = teacherName,
+                                    onNavigateBack = { currentScreen = AppScreen.TEACHER_HOME },
+                                    onCreateLiveClassClick = { currentScreen = AppScreen.CREATE_LIVE_CLASS },
+                                    onStartOrResumeClass = { classId, title, subject ->
+                                        activeLiveClassId = classId
+                                        activeLiveClassTitle = title
+                                        activeLiveClassSubject = subject
+                                        currentScreen = AppScreen.TEACHER_LIVE_SESSION
+                                    }
+                                )
+                            }
+                        }
+                        AppScreen.CREATE_LIVE_CLASS -> {
+                            if (!com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                currentScreen = AppScreen.TEACHER_HOME
+                            } else {
+                                val activeTeacherSubjects = resolveTeacherSubjectItems(teacherSubjectsTaught).map { it.name }
+                                CreateLiveClassScreen(
+                                    teacherId = teacherIdCode,
+                                    teacherName = teacherName,
+                                    assignedSubjects = activeTeacherSubjects.ifEmpty { listOf("Physics", "Mathematics", "Geography", "Biology") },
+                                    assignedClasses = com.example.ui.UgandanSecondaryClasses,
+                                    onNavigateBack = { currentScreen = AppScreen.TEACHER_LIVE_CLASSES },
+                                    onClassScheduled = { scheduledClass ->
+                                        currentScreen = AppScreen.TEACHER_LIVE_CLASSES
+                                    },
+                                    onStartImmediately = { classId, title, subject ->
+                                        activeLiveClassId = classId
+                                        activeLiveClassTitle = title
+                                        activeLiveClassSubject = subject
+                                        currentScreen = AppScreen.TEACHER_LIVE_SESSION
+                                    }
+                                )
+                            }
+                        }
+                        AppScreen.TEACHER_LIVE_SESSION -> {
+                            if (!com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                                currentScreen = AppScreen.TEACHER_HOME
+                            } else {
+                                TeacherLiveSessionScreen(
+                                    classId = activeLiveClassId,
+                                    title = activeLiveClassTitle,
+                                    subject = activeLiveClassSubject,
+                                    teacherId = teacherIdCode,
+                                    teacherName = teacherName,
+                                    onEndClass = {
+                                        currentScreen = AppScreen.TEACHER_LIVE_CLASSES
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }

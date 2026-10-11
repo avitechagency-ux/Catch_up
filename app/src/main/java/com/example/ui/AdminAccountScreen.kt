@@ -170,7 +170,7 @@ fun AdminAccountScreen(
     androidx.compose.runtime.LaunchedEffect(Unit) {
         val stats = com.example.data.SupabaseRepository.fetchAdminOverviewStats()
         if (stats != null) {
-            liveBalance = stats.formattedRevenue
+            liveBalance = if (stats.formattedMarzpayBalance != "0") stats.formattedMarzpayBalance else stats.formattedRevenue
             liveTax = stats.taxReserveFormatted
             liveDb = stats.dbReserveFormatted
         }

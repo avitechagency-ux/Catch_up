@@ -537,10 +537,11 @@ fun WhiteBody(
             onSelectOrManagePlan = onSelectOrManagePlan
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Section: Live Audio Classes
-        LiveClassesBannerSection(onNavigateToLiveClasses = onNavigateToLiveClasses)
+        // Section: Live Audio Classes (Governed by central feature flag)
+        if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+            Spacer(modifier = Modifier.height(24.dp))
+            LiveClassesBannerSection(onNavigateToLiveClasses = onNavigateToLiveClasses)
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 

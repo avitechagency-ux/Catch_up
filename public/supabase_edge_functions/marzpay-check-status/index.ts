@@ -129,15 +129,23 @@ Deno.serve(async (req: Request) => {
         .eq("id", currentTx.id);
     }
 
+    const isCompleted = finalStatus === "COMPLETED" || finalStatus === "SUCCESS" || finalStatus === "PAID";
+    const isFailed = finalStatus === "FAILED" || finalStatus === "CANCELLED" || finalStatus === "DECLINED" || finalStatus === "REJECTED";
+    const isPending = !isCompleted && !isFailed;
+
     return new Response(
       JSON.stringify({
         success: true,
         status: finalStatus,
+        is_completed: isCompleted,
+        is_failed: isFailed,
+        is_pending: isPending,
         transaction_id: currentTx?.id || txId,
         reference_code: currentTx?.reference_code || marzpayTxId,
         student_name: currentTx?.user_name || "Student",
         amount_ugx: currentTx?.amount_ugx || 0,
         provider: currentTx?.provider || "Mobile Money",
+        error: isFailed ? "Payment was cancelled, declined or timed out on MarzPay." : null,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

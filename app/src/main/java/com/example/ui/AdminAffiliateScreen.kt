@@ -30,6 +30,8 @@ import androidx.compose.material.icons.outlined.MonetizationOn
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -65,6 +67,7 @@ import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.PurpleTile
 import com.example.ui.theme.TealTile
 import com.example.ui.theme.TextDark
+import com.example.ui.theme.TextMuted
 import kotlinx.coroutines.launch
 
 /**
@@ -88,9 +91,21 @@ fun AdminAffiliateScreen(
 ) {
     var affiliatesList by remember(initialAffiliates) { mutableStateOf(initialAffiliates) }
     var searchQuery by remember { mutableStateOf("") }
+    var isRefreshingAffiliates by remember { mutableStateOf(false) }
+
+    suspend fun loadLiveAffiliates() {
+        isRefreshingAffiliates = true
+        val remote = com.example.data.SupabaseRepository.fetchAllAffiliates()
+        if (remote.isNotEmpty()) {
+            affiliatesList = remote
+        } else if (initialAffiliates.isNotEmpty()) {
+            affiliatesList = initialAffiliates
+        }
+        isRefreshingAffiliates = false
+    }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        affiliatesList = com.example.data.SupabaseRepository.fetchAllAffiliates()
+        loadLiveAffiliates()
     }
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -183,6 +198,33 @@ fun AdminAffiliateScreen(
                             .align(Alignment.Center)
                             .testTag("admin_affiliate_title")
                     )
+
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                loadLiveAffiliates()
+                                snackbarHostState.showSnackbar("Synced ${affiliatesList.size} live affiliates")
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .testTag("admin_affiliate_refresh_button")
+                    ) {
+                        if (isRefreshingAffiliates) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Outlined.Refresh,
+                                contentDescription = "Refresh Affiliates",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
@@ -317,16 +359,43 @@ fun AdminAffiliateScreen(
                 // 3. COLORFUL, SIMPLE AFFILIATE CARDS (NO HEAVY DETAILS)
                 // Strictly: User Name, Referral Code, Referrals, Total Earned
                 // ==========================================
-                items(filteredAffiliates, key = { it.id }) { user ->
-                    SimpleAffiliateCard(
-                        user = user,
-                        onCopyCode = {
-                            clipboardManager.setText(AnnotatedString(user.referralCode))
-                            coroutineScope.launch {
-                                snackbarHostState.showSnackbar("Copied: ${user.referralCode}")
+                if (filteredAffiliates.isEmpty()) {
+                    item {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color.White
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = if (searchQuery.isNotEmpty()) "No affiliates match '$searchQuery'" else "No affiliates found in database",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center
+                                )
                             }
                         }
-                    )
+                    }
+                } else {
+                    items(filteredAffiliates, key = { it.id }) { user ->
+                        SimpleAffiliateCard(
+                            user = user,
+                            onCopyCode = {
+                                clipboardManager.setText(AnnotatedString(user.referralCode))
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Copied: ${user.referralCode}")
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }

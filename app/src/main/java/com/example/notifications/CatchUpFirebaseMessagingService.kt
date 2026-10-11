@@ -334,6 +334,10 @@ object NotificationHelper {
         scheduledTime: String,
         targetClass: String
     ): Boolean {
+        if (!com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+            Log.d(TAG, "Suppressing live class notification: online classes are temporarily disabled across the platform.")
+            return false
+        }
         createNotificationChannels(context)
 
         val intent = Intent(context, com.example.MainActivity::class.java).apply {
@@ -376,6 +380,10 @@ object NotificationHelper {
         title: String,
         teacherName: String
     ): Boolean {
+        if (!com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+            Log.d(TAG, "Suppressing live class started notification: online classes are temporarily disabled across the platform.")
+            return false
+        }
         createNotificationChannels(context)
 
         val intent = Intent(context, com.example.MainActivity::class.java).apply {

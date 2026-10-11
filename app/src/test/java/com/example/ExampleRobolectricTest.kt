@@ -153,9 +153,9 @@ class ExampleRobolectricTest {
   @Test
   fun `verify about screen story and creators text`() {
     assertTrue(ABOUT_STORY_TEXT.contains("Our Story"))
-    assertTrue(ABOUT_STORY_TEXT.contains("I am a teacher."))
-    assertTrue(ABOUT_STORY_TEXT.contains("Less time copying. More time learning."))
-    assertTrue(ABOUT_STORY_TEXT.contains("That is where Cachap began."))
+    assertTrue(ABOUT_STORY_TEXT.contains("Helping every student keep up"))
+    assertTrue(ABOUT_STORY_TEXT.contains("Our Mission"))
+    assertTrue(ABOUT_STORY_TEXT.contains("Empowering Teachers"))
   }
 
   @Test
@@ -898,7 +898,7 @@ class ExampleRobolectricTest {
 
   @Test
   fun `verify supabase free plan 1gb storage and upload size calculations`() {
-    assertEquals(1024.0, com.example.data.SUPABASE_FREE_PLAN_STORAGE_MB, 0.001)
+    assertEquals(10240.0, com.example.data.SUPABASE_FREE_PLAN_STORAGE_MB, 0.001)
     assertEquals(0.0, com.example.data.SupabaseRepository.parseFileSizeToMb(""), 0.001)
     assertEquals(2.4, com.example.data.SupabaseRepository.parseFileSizeToMb("2.4 MB"), 0.001)
     assertEquals(0.5, com.example.data.SupabaseRepository.parseFileSizeToMb("512 KB"), 0.001)
@@ -909,9 +909,9 @@ class ExampleRobolectricTest {
     assertEquals("1,021.6 MB", com.example.data.SupabaseRepository.formatStorageMb(1024.0 - 2.4))
     assertEquals("1 GB", com.example.data.SupabaseRepository.formatStorageMb(1024.0))
 
-    assertEquals("0%", com.example.data.SupabaseRepository.formatStoragePercent(0.0, 1024.0))
-    assertEquals("0.23%", com.example.data.SupabaseRepository.formatStoragePercent(2.4, 1024.0))
-    assertEquals("50%", com.example.data.SupabaseRepository.formatStoragePercent(512.0, 1024.0))
+    assertEquals("0%", com.example.data.SupabaseRepository.formatStoragePercent(0.0, 10240.0))
+    assertEquals("0.02%", com.example.data.SupabaseRepository.formatStoragePercent(2.4, 10240.0))
+    assertEquals("5.0%", com.example.data.SupabaseRepository.formatStoragePercent(512.0, 10240.0))
   }
 
   @Test
@@ -1229,5 +1229,58 @@ class ExampleRobolectricTest {
     )
     assertEquals("Withdrew", disburseReq.type)
     assertEquals(50000L, disburseReq.amountUgx)
+  }
+
+  @Test
+  fun testMarzPayAntiFraudVerificationFlow() {
+    // 1. Pending check
+    val pendingCheck = com.example.data.CheckStatusResponse(
+      success = true,
+      transactionId = "TX-8A1ECBB5",
+      status = "PENDING"
+    )
+    assertTrue(pendingCheck.isPending)
+    assertFalse(pendingCheck.isCompleted)
+    assertFalse(pendingCheck.isFailed)
+
+    // 2. Processing check
+    val processingCheck = com.example.data.CheckStatusResponse(
+      success = true,
+      transactionId = "TX-8A1ECBB5",
+      status = "PROCESSING"
+    )
+    assertTrue(processingCheck.isPending)
+    assertFalse(processingCheck.isCompleted)
+    assertFalse(processingCheck.isFailed)
+
+    // 3. Failed check (Fake / rejected payment from MarzPay)
+    val failedCheck = com.example.data.CheckStatusResponse(
+      success = true,
+      transactionId = "TX-8A1ECBB5",
+      status = "FAILED"
+    )
+    assertTrue(failedCheck.isFailed)
+    assertFalse(failedCheck.isCompleted)
+    assertFalse(failedCheck.isPending)
+
+    // 4. Successful confirmed payment
+    val successCheck = com.example.data.CheckStatusResponse(
+      success = true,
+      transactionId = "TX-8A1ECBB5",
+      status = "COMPLETED"
+    )
+    assertTrue(successCheck.isCompleted)
+    assertFalse(successCheck.isFailed)
+    assertFalse(successCheck.isPending)
+
+    // 5. Verification stages
+    val state = com.example.ui.PaymentVerificationState(
+      stage = com.example.ui.MarzPayVerificationStage.PENDING,
+      transactionId = "TX-8A1ECBB5",
+      phoneNumber = "+256770000000",
+      amountUgx = 1000L
+    )
+    assertEquals(com.example.ui.MarzPayVerificationStage.PENDING, state.stage)
+    assertEquals(1000L, state.amountUgx)
   }
 }

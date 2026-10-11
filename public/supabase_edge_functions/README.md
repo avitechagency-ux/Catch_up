@@ -12,6 +12,7 @@ In your terminal with Supabase CLI:
 supabase secrets set MARZPAY_API_USER="your-marzpay-api-user"
 supabase secrets set MARZPAY_API_KEY="your-marzpay-api-key"
 supabase secrets set MARZPAY_BASE_URL="https://wallet.wearemarz.com/api/v1"
+supabase secrets set MARZPAY_WEBHOOK_SECRET="whsec_BtNjMmQvMaRxylJBw8Wd0uUUY0zgWm0hUbLJLdbe"
 ```
 
 Or configure them in the Supabase Dashboard under:
@@ -19,7 +20,7 @@ Or configure them in the Supabase Dashboard under:
 
 ## 2. Deploying the Functions
 
-Deploy the three functions to your Supabase project:
+Deploy the functions to your Supabase project:
 
 ```bash
 # 1. Create Payment Function (STK Push initiation)
@@ -30,6 +31,9 @@ supabase functions deploy marzpay-check-status --no-verify-jwt
 
 # 3. Disburse Funds Function (Admin Send / Withdraw to mobile money)
 supabase functions deploy marzpay-disburse-payment --no-verify-jwt
+
+# 4. Webhook IPN Listener (Verifies incoming payment webhooks with secret)
+supabase functions deploy marzpay-webhook --no-verify-jwt
 ```
 
 ## 3. Function Endpoints
@@ -38,6 +42,7 @@ Once deployed, the functions will be accessible at:
 - `https://<your-project>.supabase.co/functions/v1/marzpay-create-payment`
 - `https://<your-project>.supabase.co/functions/v1/marzpay-check-status`
 - `https://<your-project>.supabase.co/functions/v1/marzpay-disburse-payment`
+- `https://<your-project>.supabase.co/functions/v1/marzpay-webhook` (Webhook Secret: `whsec_BtNjMmQvMaRxylJBw8Wd0uUUY0zgWm0hUbLJLdbe`)
 
 The Android app will automatically call these endpoints and synchronize real-time status updates directly into `public.payments_transactions` and `public.users`.
 

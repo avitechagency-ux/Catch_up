@@ -33,6 +33,10 @@ import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.TableChart
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -73,6 +77,8 @@ import com.example.ui.theme.IconGrey
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.LightLavender
 import com.example.ui.theme.NavyTile
+import com.example.ui.theme.NoteCountGreen
+import com.example.ui.theme.AmberTile
 import com.example.ui.theme.PeachOrange
 import com.example.ui.theme.PurpleTile
 import com.example.ui.theme.SoftLavenderGrey
@@ -80,6 +86,7 @@ import com.example.ui.theme.TealTile
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TrackPurple
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -419,8 +426,14 @@ fun AdminAnalysisScreen(
     var liveStudentsCount by remember { mutableIntStateOf(0) }
     var liveTeachersCount by remember { mutableIntStateOf(0) }
     var liveAffiliatesList by remember(affiliatesList) { mutableStateOf(affiliatesList) }
+    var liveTransactionsList by remember { mutableStateOf<List<AdminPlatformTransaction>>(emptyList()) }
+    var liveNotesUploadsList by remember { mutableStateOf<List<com.example.data.SupabaseNoteUploadDto>>(emptyList()) }
+    var isRefreshingAnalysis by remember { mutableStateOf(false) }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+
+    suspend fun loadLiveAnalysisData() {
+        isRefreshingAnalysis = true
         val stats = com.example.data.SupabaseRepository.fetchAdminOverviewStats()
         if (stats != null) {
             liveRevenueUgx = stats.revenueBalanceUgx
@@ -440,6 +453,13 @@ fun AdminAnalysisScreen(
                     earningsFormatted = formatUgxPrice(aff.totalEarnedUgx)
                 )
             }
+        liveTransactionsList = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
+        liveNotesUploadsList = com.example.data.SupabaseRepository.fetchAllNotes()
+        isRefreshingAnalysis = false
+    }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        loadLiveAnalysisData()
     }
 
     val activeRevenueData = remember(revenueTimeRange, liveRevenueUgx) {
@@ -531,29 +551,56 @@ fun AdminAnalysisScreen(
                             .testTag("admin_analysis_title")
                     )
 
-                    Surface(
+                    Row(
                         modifier = Modifier.align(Alignment.CenterEnd),
-                        shape = RoundedCornerShape(12.dp),
-                        color = AnalysisGold.copy(alpha = 0.22f),
-                        border = BorderStroke(1.dp, AnalysisBrightGold.copy(alpha = 0.45f))
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        Surface(
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.16f),
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clickable {
+                                    coroutineScope.launch {
+                                        loadLiveAnalysisData()
+                                    }
+                                }
+                                .testTag("admin_analysis_refresh_button")
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(AnalysisBrightGold)
-                            )
-                            Text(
-                                text = "2026",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = AnalysisBrightGold
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Refresh,
+                                    contentDescription = "Refresh live analysis",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = AnalysisGold.copy(alpha = 0.22f),
+                            border = BorderStroke(1.dp, AnalysisBrightGold.copy(alpha = 0.45f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(AnalysisBrightGold)
+                                )
+                                Text(
+                                    text = if (isRefreshingAnalysis) "SYNC" else "LIVE",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = AnalysisBrightGold
+                                )
+                            }
                         }
                     }
                 }
@@ -824,6 +871,54 @@ fun AdminAnalysisScreen(
                 // Top Affiliates Ranked Horizontal Bar Chart Card
                 AffiliatesHorizontalBarChartCard(
                     affiliates = liveAffiliatesList,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // ------------------------------------------
+                // SECTION 4: LIVE DATABASE BREAKDOWN & TRANSACTIONS TABLE
+                // ------------------------------------------
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .width(5.dp)
+                                .height(20.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(TealTile)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Live Activity Table",
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = TextDark,
+                            modifier = Modifier.testTag("admin_analysis_table_section_label")
+                        )
+                    }
+
+                    Text(
+                        text = "Supabase Real-Time",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextMuted
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Live Data Analysis Table Card
+                LiveAnalysisDataTableCard(
+                    transactions = liveTransactionsList,
+                    notesCount = liveNotesUploadsList.size,
+                    studentsCount = liveStudentsCount,
+                    teachersCount = liveTeachersCount,
+                    totalRevenueUgx = liveRevenueUgx,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -1978,3 +2073,324 @@ private fun AffiliateRankRow(
         }
     }
 }
+
+// ==========================================
+// SECTION 4: LIVE ACTIVITY & TRANSACTIONS DATA TABLE
+// ==========================================
+@Composable
+fun LiveAnalysisDataTableCard(
+    transactions: List<AdminPlatformTransaction>,
+    notesCount: Int,
+    studentsCount: Int,
+    teachersCount: Int,
+    totalRevenueUgx: Long,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .shadow(
+                elevation = 4.dp,
+                shape = RoundedCornerShape(22.dp),
+                ambientColor = IndigoPurple.copy(alpha = 0.18f),
+                spotColor = Color(0x20000000)
+            )
+            .border(1.dp, IndigoPurple.copy(alpha = 0.12f), RoundedCornerShape(22.dp))
+            .testTag("admin_analysis_data_table_card"),
+        shape = RoundedCornerShape(22.dp),
+        color = Color.White
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            // Table Header Card Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = TealTile,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Outlined.TableChart,
+                                contentDescription = "Live Activity Table",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Live Activity & Financials",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                        Text(
+                            text = "Synchronized live from Supabase & MarzPay",
+                            fontSize = 12.sp,
+                            color = TextMuted
+                        )
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = NoteCountGreen
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                        )
+                        Text(
+                            text = "ACTIVE",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // 4-Column Live Metric Summary Strip
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TableSummaryPill(
+                    label = "Tx Count",
+                    value = "${transactions.size}",
+                    color = IndigoPurple,
+                    modifier = Modifier.weight(1f)
+                )
+                TableSummaryPill(
+                    label = "Revenue",
+                    value = formatUgxShort(totalRevenueUgx),
+                    color = TealTile,
+                    modifier = Modifier.weight(1f)
+                )
+                TableSummaryPill(
+                    label = "Students",
+                    value = "$studentsCount",
+                    color = BlueTile,
+                    modifier = Modifier.weight(1f)
+                )
+                TableSummaryPill(
+                    label = "Notes",
+                    value = "$notesCount",
+                    color = PeachOrange,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Table Column Headers
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = SoftLavenderGrey,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "USER / ITEM",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IndigoPurple,
+                        modifier = Modifier.weight(1.4f)
+                    )
+                    Text(
+                        text = "TYPE",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IndigoPurple,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "STATUS",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IndigoPurple,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "AMOUNT",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IndigoPurple,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.weight(1.1f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Table Rows
+            if (transactions.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No live transactions recorded in database yet.",
+                        fontSize = 13.sp,
+                        color = TextMuted
+                    )
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    transactions.take(8).forEachIndexed { index, tx ->
+                        val isEven = index % 2 == 0
+                        val isSuccess = tx.status == PlatformTransactionStatus.COMPLETED
+                        val isFailed = tx.status == PlatformTransactionStatus.FAILED
+                        val statusColor = when {
+                            isSuccess -> NoteCountGreen
+                            isFailed -> CoralTile
+                            else -> AmberTile
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isEven) Color.Transparent else SoftLavenderGrey.copy(alpha = 0.4f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("analysis_table_row_${tx.id}")
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1.4f)) {
+                                    Text(
+                                        text = tx.userName.ifBlank { "Student" },
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextDark,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = tx.date.ifBlank { "Today" },
+                                        fontSize = 10.sp,
+                                        color = TextMuted
+                                    )
+                                }
+
+                                Text(
+                                    text = when (tx.category) {
+                                        PlatformTransactionCategory.SUBSCRIPTION -> "Sub"
+                                        PlatformTransactionCategory.AFFILIATE_COMMISSION -> "Comm"
+                                        PlatformTransactionCategory.AFFILIATE_WITHDRAWAL -> "Payout"
+                                        PlatformTransactionCategory.TEACHER_ROYALTY -> "Royalty"
+                                        PlatformTransactionCategory.TAX_OPS -> "Ops"
+                                        else -> "Sub"
+                                    },
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = TextMuted,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = statusColor.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = tx.status.name,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = statusColor,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = if (tx.amountUgx >= 0) "+${formatUgxPrice(tx.amountUgx.toInt())}" else formatUgxPrice(tx.amountUgx.toInt()),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (tx.amountUgx >= 0) IndigoPurple else CoralTile,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.weight(1.1f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TableSummaryPill(
+    label: String,
+    value: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.25f)),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = color,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextDark,
+                maxLines = 1
+            )
+        }
+    }
+}
+

@@ -193,6 +193,7 @@ data class SupabasePlanDto(
 data class SupabasePaymentTransactionDto(
     @Json(name = "id") val id: String? = null,
     @Json(name = "reference_number") val referenceNumber: String = "",
+    @Json(name = "reference_code") val referenceCode: String = "",
     @Json(name = "title") val title: String = "Plan Subscription",
     @Json(name = "user_name") val userName: String,
     @Json(name = "user_role") val userRole: String = "Student",
@@ -244,24 +245,28 @@ data class SupabaseAdminOverviewStats(
     val teachersCount: Int,
     val notesCount: Int,
     val assignmentsCount: Int,
-    val affiliatesCount: Int
+    val affiliatesCount: Int,
+    val marzpayBalanceUgx: Long = 0L,
+    val formattedMarzpayBalance: String = "0"
 )
 
 /**
- * Supabase Free Plan Storage Quota: 1 GB = 1,024 MB (plus 500 MB Database).
+ * Upgraded Storage Provider Quota: Cloudflare R2 (10 GB = 10,240 MB) + Supabase (500 MB Database).
  */
-const val SUPABASE_FREE_PLAN_STORAGE_MB: Double = 1024.0
+const val CLOUDFLARE_R2_STORAGE_MB: Double = 10240.0
+const val SUPABASE_FREE_PLAN_STORAGE_MB: Double = 10240.0
 const val SUPABASE_FREE_PLAN_DB_MB: Double = 500.0
 
 data class SupabasePlatformHealthStats(
     val isHealthy: Boolean = true,
     val platformUptime: String = "100%",
+    val storageProvider: String = "Cloudflare R2",
     val storageUsedMb: Double = 0.0,
-    val storageFreeMb: Double = SUPABASE_FREE_PLAN_STORAGE_MB,
-    val storageTotalMb: Double = SUPABASE_FREE_PLAN_STORAGE_MB,
+    val storageFreeMb: Double = CLOUDFLARE_R2_STORAGE_MB,
+    val storageTotalMb: Double = CLOUDFLARE_R2_STORAGE_MB,
     val storageUsedFormatted: String = "0 MB",
-    val storageFreeFormatted: String = "1,024 MB",
-    val storageTotalFormatted: String = "1 GB",
+    val storageFreeFormatted: String = "10 GB",
+    val storageTotalFormatted: String = "10 GB",
     val storagePercent: Float = 0f,
     val storagePercentFormatted: String = "0%",
     val totalUploadsCount: Int = 0,
@@ -685,7 +690,32 @@ interface SupabasePostgrestApi {
         @Query("select") select: String = "*",
         @Query("order") order: String = "created_at.asc"
     ): Response<List<LiveClassSignalingDto>>
+    @GET("platform_settings")
+    suspend fun getPlatformSetting(
+        @Query("setting_key") keyFilter: String,
+        @Query("select") select: String = "*"
+    ): Response<List<SupabasePlatformSettingDto>>
+
+    @Headers("Prefer: return=representation")
+    @PATCH("platform_settings")
+    suspend fun updatePlatformSetting(
+        @Query("setting_key") keyFilter: String,
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<List<SupabasePlatformSettingDto>>
+
+    @Headers("Prefer: return=representation")
+    @PATCH("payments_transactions")
+    suspend fun updatePaymentTransaction(
+        @Query("id") idFilter: String,
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
+    ): Response<List<SupabasePaymentTransactionDto>>
 }
+
+data class SupabasePlatformSettingDto(
+    @Json(name = "setting_key") val settingKey: String,
+    @Json(name = "setting_value") val settingValue: String,
+    @Json(name = "updated_at") val updatedAt: String? = null
+)
 
 data class SupabaseCreateBucketDto(
     @Json(name = "id") val id: String = "notes_files",
@@ -1063,20 +1093,6 @@ object SupabaseRepository {
                             status = "ACTIVE"
                         )
                     )
-                }
-                runCatching {
-                    val existingTxs = api.getTransactionsByPhone("eq.$cleanPhone").body().orEmpty()
-                    if (existingTxs.isEmpty()) {
-                        val todayStr = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
-                            .format(java.util.Date())
-                        recordStudentPayment(
-                            studentName = cleanName,
-                            phoneNumber = cleanPhone,
-                            planDuration = planDuration.ifBlank { "1 Month" },
-                            amountUgx = 1000L,
-                            transactionDate = todayStr
-                        )
-                    }
                 }
             }
 
@@ -1778,6 +1794,23 @@ object SupabaseRepository {
     }
 
     /**
+     * Fetches all uploaded notes & assignments from Supabase `public.notes_uploads` and local memory cache.
+     */
+    suspend fun fetchAllNotes(): List<SupabaseNoteUploadDto> = withContext(Dispatchers.IO) {
+        val remoteList = if (SupabaseConfig.isConfigured()) {
+            try {
+                val response = api.getAllNotes()
+                if (response.isSuccessful) response.body().orEmpty() else emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+        } else {
+            emptyList()
+        }
+        mergeWithRecentUploadedNotes(remoteList)
+    }
+
+    /**
      * Fetches real note counts per subject from Supabase `public.notes_uploads`.
      */
     suspend fun fetchNoteCountsBySubject(): Map<String, Int> = withContext(Dispatchers.IO) {
@@ -2425,10 +2458,10 @@ object SupabaseRepository {
                         "TAX_OPS" -> PlatformTransactionCategory.TAX_OPS
                         else -> PlatformTransactionCategory.SUBSCRIPTION
                     }
-                    val status = when (dto.status.uppercase()) {
-                        "PENDING" -> PlatformTransactionStatus.PENDING
-                        "FAILED" -> PlatformTransactionStatus.FAILED
-                        else -> PlatformTransactionStatus.COMPLETED
+                    val status = when (dto.status.trim().uppercase()) {
+                        "COMPLETED", "SUCCESS", "PAID" -> PlatformTransactionStatus.COMPLETED
+                        "FAILED", "CANCELLED", "DECLINED", "REJECTED" -> PlatformTransactionStatus.FAILED
+                        else -> PlatformTransactionStatus.PENDING
                     }
                     AdminPlatformTransaction(
                         id = dto.id ?: "TX-SUP-$index",
@@ -2648,8 +2681,9 @@ object SupabaseRepository {
     }
 
     /**
-     * Aggregates real counts & revenue balance from Supabase (`users`, `notes_uploads`, `payments_transactions`, `affiliates`)
+     * Aggregates real counts & revenue balance from Supabase (`users`, `notes_uploads`, `payments_transactions`, `affiliates`, `platform_settings`)
      * for Admin Home, Admin Account, and Admin Analysis screens.
+     * Incorporates live MarzPay wallet balance synced from backend/gateway.
      */
     suspend fun fetchAdminOverviewStats(): SupabaseAdminOverviewStats? =
         withContext(Dispatchers.IO) {
@@ -2660,11 +2694,17 @@ object SupabaseRepository {
                     val notesDeferred = async { runCatching { api.getAllNotes().body().orEmpty() }.getOrDefault(emptyList()) }
                     val txsDeferred = async { runCatching { api.getAllTransactions().body().orEmpty() }.getOrDefault(emptyList()) }
                     val affiliatesDeferred = async { runCatching { api.getAllAffiliates().body().orEmpty() }.getOrDefault(emptyList()) }
+                    val marzpaySettingDeferred = async {
+                        runCatching {
+                            api.getPlatformSetting("eq.marzpay_live_balance_ugx").body()?.firstOrNull()?.settingValue?.toLongOrNull()
+                        }.getOrNull()
+                    }
 
                     val users = usersDeferred.await()
                     val notes = mergeWithRecentUploadedNotes(notesDeferred.await())
                     val txs = txsDeferred.await()
                     val affiliates = affiliatesDeferred.await()
+                    val customMarzpayBalance = marzpaySettingDeferred.await()
 
                     val studentsCount = users.count { it.role.equals("student", ignoreCase = true) }
                     val teachersCount = users.count { it.role.equals("teacher", ignoreCase = true) }
@@ -2673,10 +2713,18 @@ object SupabaseRepository {
                     val totalRevenueUgx = txs.filter { it.amountUgx > 0 }.sumOf { it.amountUgx }
                     val netBalanceUgx = txs.sumOf { it.netAmountUgx }.coerceAtLeast(0L)
                     val studentSignupBalanceUgx = studentsCount * 1000L
-                    val effectiveBalance = maxOf(
-                        if (netBalanceUgx > 0L) netBalanceUgx else totalRevenueUgx,
-                        studentSignupBalanceUgx
-                    )
+
+                    // MarzPay balance priority:
+                    // If custom setting exists in database, use it. Otherwise, use net transactions balance.
+                    val marzpayBalance = customMarzpayBalance ?: netBalanceUgx
+                    val effectiveBalance = if (customMarzpayBalance != null) {
+                        customMarzpayBalance
+                    } else {
+                        maxOf(
+                            if (netBalanceUgx > 0L) netBalanceUgx else totalRevenueUgx,
+                            studentSignupBalanceUgx
+                        )
+                    }
                     val taxUgx = (effectiveBalance * 0.05).toLong()
 
                     SupabaseAdminOverviewStats(
@@ -2688,13 +2736,76 @@ object SupabaseRepository {
                         teachersCount = teachersCount,
                         notesCount = notesOnlyCount,
                         assignmentsCount = assignmentsCount,
-                        affiliatesCount = affiliates.size
+                        affiliatesCount = affiliates.size,
+                        marzpayBalanceUgx = marzpayBalance,
+                        formattedMarzpayBalance = if (marzpayBalance > 0L) formatUgxPrice(marzpayBalance.toInt()) else "0"
                     )
                 }
             } catch (_: Exception) {
                 null
             }
         }
+
+    /**
+     * Updates the synchronized MarzPay balance setting in Supabase `platform_settings`.
+     */
+    suspend fun updateMarzPayLiveBalance(newBalanceUgx: Long): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val res = api.updatePlatformSetting(
+                    keyFilter = "eq.marzpay_live_balance_ugx",
+                    fields = mapOf(
+                        "setting_value" to newBalanceUgx.toString()
+                    )
+                )
+                res.isSuccessful
+            } catch (_: Exception) {
+                false
+            }
+        }
+
+    /**
+     * Updates transaction status in `payments_transactions` (e.g. from Webhook verification).
+     */
+    suspend fun updateTransactionStatus(
+        reference: String,
+        newStatus: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (!SupabaseConfig.isConfigured() || reference.isBlank()) return@withContext false
+        try {
+            val allTxs = api.getAllTransactions().body().orEmpty()
+            val matched = allTxs.firstOrNull {
+                it.id.equals(reference, ignoreCase = true) ||
+                    it.referenceCode.equals(reference, ignoreCase = true) ||
+                    it.referenceNumber.equals(reference, ignoreCase = true)
+            } ?: return@withContext false
+
+            val res = api.updatePaymentTransaction(
+                idFilter = "eq.${matched.id}",
+                fields = mapOf("status" to newStatus.uppercase())
+            )
+            res.isSuccessful
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Fetches current transaction status from Supabase `payments_transactions`.
+     */
+    suspend fun fetchTransactionStatus(txId: String, marzpayTxId: String = ""): String? = withContext(Dispatchers.IO) {
+        if (!SupabaseConfig.isConfigured() || (txId.isBlank() && marzpayTxId.isBlank())) return@withContext null
+        try {
+            val allTxs = api.getAllTransactions().body().orEmpty()
+            val matched = allTxs.firstOrNull {
+                (txId.isNotBlank() && (it.id.equals(txId, ignoreCase = true) || it.referenceNumber.equals(txId, ignoreCase = true))) ||
+                (marzpayTxId.isNotBlank() && (it.referenceCode.equals(marzpayTxId, ignoreCase = true) || it.id.equals(marzpayTxId, ignoreCase = true)))
+            }
+            matched?.status?.uppercase()
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     // ========================================================================
     // 8. PLATFORM HEALTH (SUPABASE FREE PLAN 1 GB STORAGE) & SYSTEM AUDIT LOGS
@@ -2843,11 +2954,11 @@ object SupabaseRepository {
                 affiliatesList = aDef.await()
             }
 
-            // Exact storage calculation based on uploads in public.notes_uploads against 1 GB (1,024 MB) Supabase Free Plan
+            // Exact storage calculation based on uploads in public.notes_uploads against Cloudflare R2 10 GB quota (10,240 MB)
             val totalMbUsed = notes.sumOf { dto ->
                 parseFileSizeToMb(dto.fileSize.ifBlank { "2.4 MB" })
             }
-            val totalMbQuota = SUPABASE_FREE_PLAN_STORAGE_MB // 1,024 MB (1 GB Free Plan)
+            val totalMbQuota = CLOUDFLARE_R2_STORAGE_MB // 10,240 MB (10 GB Cloudflare R2 Storage)
             val freeMb = (totalMbQuota - totalMbUsed).coerceAtLeast(0.0)
             val usedFraction = (totalMbUsed / totalMbQuota).toFloat().coerceIn(0f, 1f)
 
@@ -2864,12 +2975,13 @@ object SupabaseRepository {
             SupabasePlatformHealthStats(
                 isHealthy = isHealthy,
                 platformUptime = if (endpointsSuccess == 4) "99.9%" else if (endpointsSuccess > 0) "${successRatePct}.0%" else "0%",
+                storageProvider = "Cloudflare R2",
                 storageUsedMb = totalMbUsed,
                 storageFreeMb = freeMb,
                 storageTotalMb = totalMbQuota,
                 storageUsedFormatted = formatStorageMb(totalMbUsed),
                 storageFreeFormatted = formatStorageMb(freeMb),
-                storageTotalFormatted = "1 GB",
+                storageTotalFormatted = "10 GB",
                 storagePercent = usedFraction * 100f,
                 storagePercentFormatted = formatStoragePercent(totalMbUsed, totalMbQuota),
                 totalUploadsCount = notes.size,

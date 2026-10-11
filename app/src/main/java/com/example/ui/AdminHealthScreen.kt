@@ -266,7 +266,7 @@ fun AdminHealthScreen(
                                             }
                                         }
                                         Text(
-                                            text = "Platform Uptime • Free Plan",
+                                            text = "Platform Uptime • Cloudflare R2",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
                                             color = LightLavender
@@ -314,7 +314,7 @@ fun AdminHealthScreen(
                     // 2. STORAGE USED SECTION (Cloudflare R2 Storage • Zero Egress CDN)
                     // ------------------------------------------
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionTitle(title = "Cloudflare R2 Storage (Zero Egress CDN)")
+                        SectionTitle(title = "Cloudflare R2 Storage (10 GB Zero Egress CDN)")
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -339,7 +339,7 @@ fun AdminHealthScreen(
                             SolidMetricCard(
                                 modifier = Modifier.weight(1f),
                                 value = healthStats.storageTotalFormatted,
-                                label = "Total (1,024 MB)",
+                                label = "Total (10 GB)",
                                 icon = Icons.Outlined.Folder,
                                 color = PurpleTile,
                                 testTag = "tile_storage_total"
@@ -363,7 +363,7 @@ fun AdminHealthScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "Capacity Used (${healthStats.storageUsedFormatted} / 1,024 MB)",
+                                        text = "Capacity Used (${healthStats.storageUsedFormatted} / 10 GB)",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = TextMuted

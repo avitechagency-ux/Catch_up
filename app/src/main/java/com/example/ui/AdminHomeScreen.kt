@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material3.DropdownMenu
@@ -272,17 +274,25 @@ fun AdminHomeScreen(
     var liveNotesCount by remember(notesCount) { mutableStateOf(notesCount) }
     var liveAssignmentsCount by remember(assignmentsCount) { mutableStateOf(assignmentsCount) }
     var liveAffiliatesCount by remember(affiliatesCount) { mutableStateOf(affiliatesCount) }
+    var isSyncingBalance by remember { mutableStateOf(false) }
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+    suspend fun syncOverviewStats() {
+        isSyncingBalance = true
         val stats = com.example.data.SupabaseRepository.fetchAdminOverviewStats()
         if (stats != null) {
-            liveRevenueBalance = stats.formattedRevenue
+            // Live MarzPay balance synced with Admin Homepage Balance card
+            liveRevenueBalance = if (stats.formattedMarzpayBalance != "0") stats.formattedMarzpayBalance else stats.formattedRevenue
             liveStudentsCount = stats.studentsCount.toString()
             liveTeachersCount = stats.teachersCount.toString()
             liveNotesCount = stats.notesCount.toString()
             liveAssignmentsCount = stats.assignmentsCount.toString()
             liveAffiliatesCount = stats.affiliatesCount.toString()
         }
+        isSyncingBalance = false
+    }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        syncOverviewStats()
     }
 
     Scaffold(
@@ -464,36 +474,72 @@ fun AdminHomeScreen(
                                             }
                                         }
                                         Spacer(modifier = Modifier.width(10.dp))
-                                        Text(
-                                            text = "Balance",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = LightLavender,
-                                            modifier = Modifier.testTag("admin_revenue_balance_label")
-                                        )
+                                        Column {
+                                            Text(
+                                                text = "Balance",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = LightLavender,
+                                                modifier = Modifier.testTag("admin_revenue_balance_label")
+                                            )
+                                            Text(
+                                                text = "MarzPay Live Sync",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Normal,
+                                                color = Color.White.copy(alpha = 0.80f)
+                                            )
+                                        }
                                     }
 
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = Color.White.copy(alpha = 0.20f)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color.White.copy(alpha = 0.20f),
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clickable {
+                                                    coroutineScope.launch {
+                                                        syncOverviewStats()
+                                                        snackbarHostState.showSnackbar("MarzPay balance synced: $liveRevenueBalance")
+                                                    }
+                                                }
+                                                .testTag("admin_sync_marzpay_button")
                                         ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.TrendingUp,
-                                                contentDescription = "Growth",
-                                                tint = Color.White,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "0%",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Refresh,
+                                                    contentDescription = "Sync MarzPay Balance",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = Color.White.copy(alpha = 0.20f)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.TrendingUp,
+                                                    contentDescription = "Growth",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = if (isSyncingBalance) "Syncing..." else "MarzPay",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
                                         }
                                     }
                                 }

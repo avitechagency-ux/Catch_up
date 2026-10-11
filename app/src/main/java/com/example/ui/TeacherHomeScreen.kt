@@ -456,65 +456,65 @@ fun TeacherHomeScreen(
                     }
                 }
 
-                // 24dp spacing between sections
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // SECTION — Live Classes (Primary teacher live teaching hub)
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onNavigateToLiveClasses() }
-                        .testTag("teacher_live_classes_card"),
-                    shape = RoundedCornerShape(16.dp),
-                    color = DeepMaroon,
-                    border = BorderStroke(1.dp, GoldMustard.copy(alpha = 0.6f)),
-                    shadowElevation = 2.dp
-                ) {
-                    Row(
+                // SECTION — Live Classes (Governed by central feature flag)
+                if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 18.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { onNavigateToLiveClasses() }
+                            .testTag("teacher_live_classes_card"),
+                        shape = RoundedCornerShape(16.dp),
+                        color = DeepMaroon,
+                        border = BorderStroke(1.dp, GoldMustard.copy(alpha = 0.6f)),
+                        shadowElevation = 2.dp
                     ) {
                         Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = GoldMustard,
-                                modifier = Modifier.size(38.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.VolumeUp,
-                                        contentDescription = null,
-                                        tint = DeepMaroon,
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                Surface(
+                                    shape = CircleShape,
+                                    color = GoldMustard,
+                                    modifier = Modifier.size(38.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.VolumeUp,
+                                            contentDescription = null,
+                                            tint = DeepMaroon,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
+
+                                Text(
+                                    text = "Live Audio Classes",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
                             }
 
-                            Text(
-                                text = "Live Audio Classes",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-
-                        Button(
-                            onClick = onNavigateToLiveClasses,
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = GoldMustard,
-                                contentColor = DeepMaroon
-                            )
-                        ) {
-                            Text("Open", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Button(
+                                onClick = onNavigateToLiveClasses,
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = GoldMustard,
+                                    contentColor = DeepMaroon
+                                )
+                            ) {
+                                Text("Open", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
                         }
                     }
                 }

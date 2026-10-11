@@ -21,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,18 +37,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.IndigoPurple
-import com.example.ui.theme.LightLavender
 import com.example.ui.theme.SoftLavenderGrey
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
 
 /**
  * Dedicated Privacy Policy Page for Catch Up.
- * Reached by tapping "Privacy Policy" on Profile screens (No popups).
+ * Reached by tapping "Privacy Policy" on Profile screens.
  */
 @Composable
 fun PrivacyPolicyScreen(
@@ -72,7 +69,6 @@ fun PrivacyPolicyScreen(
         ) {
             // ======================================
             // HEADER CARD
-            // Signature deep indigo-purple #4B3F8F card header
             // ======================================
             Column(
                 modifier = Modifier
@@ -155,67 +151,28 @@ fun PrivacyPolicyScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Cachap Privacy Policy",
+                                    text = "Cachup Privacy Policy",
                                     fontSize = 17.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = TextDark
                                 )
                                 Text(
-                                    text = "Last Updated: September 23, 2026",
+                                    text = "Last updated: 11 October 2026",
                                     fontSize = 12.sp,
                                     color = IndigoPurple,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Text(
-                            text = "Cachap (“Cachap,” “we,” “our,” or “us”) is an educational platform designed to help schools and teachers share learning notes with students digitally.",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF2D2D2D)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(
-                            text = "This Privacy Policy explains what information we collect, how we use it, how we protect it, and the choices available to users of the Cachap application.",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF2D2D2D)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Text(
-                            text = "By using Cachap, you agree to the practices described in this Privacy Policy.",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IndigoPurple
-                        )
                     }
                 }
 
-                // Section 1
+                // 1. Introduction
                 PrivacySectionCard(
-                    title = "1. Who This Policy Applies To",
+                    title = "1. Introduction",
                     content = {
                         Text(
-                            text = "This Privacy Policy applies to users of the Cachap mobile application, including:",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("Students")
-                        PrivacyBulletPoint("Teachers")
-                        PrivacyBulletPoint("School administrators")
-                        PrivacyBulletPoint("Other authorized school users")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Cachap is intended to be used within participating schools. Accounts may be created or authorized by the school or through the registration process provided by Cachap.",
+                            text = "Cachup is an educational platform built by Ssenyonga Moses to help teachers share learning materials digitally and help students access notes, revise lessons, and improve their academic experience.\n\nCachup was created to address a common challenge in classrooms: students spending too much lesson time copying notes from the board instead of concentrating on understanding what their teachers are teaching.\n\nWe value the privacy of our users and are committed to handling personal information responsibly. This Privacy Policy explains how Cachup collects, uses, stores, and shares information when students, teachers, and authorised school administrators use the platform.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -223,98 +180,47 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 2
+                // 2. Information We Collect
                 PrivacySectionCard(
                     title = "2. Information We Collect",
                     content = {
                         Text(
-                            text = "Depending on how Cachap is configured by your school, we may collect the following information.",
+                            text = "The information we collect depends on how you use Cachup and which features are available to your account.",
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            color = Color(0xFF333333)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(text = "Account information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = IndigoPurple)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        PrivacyBulletPoint("Name and account identification details.")
+                        PrivacyBulletPoint("Email address or other login information, where applicable.")
+                        PrivacyBulletPoint("Account role, such as student, teacher, or administrator.")
+                        PrivacyBulletPoint("School, class, and subject information associated with your account.")
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(text = "Educational information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = IndigoPurple)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        PrivacyBulletPoint("Notes and learning materials uploaded by teachers.")
+                        PrivacyBulletPoint("Class and subject assignments.")
+                        PrivacyBulletPoint("Information needed to organise and provide access to educational resources.")
+                        PrivacyBulletPoint("Other learning-related information you submit through available features.")
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(text = "Payment information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = IndigoPurple)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "When you make a payment for a Cachup service, payment processing is facilitated through MarzPay.\n\nDepending on the transaction and the information returned by the payment provider, Cachup may process payment references, transaction status, amounts, timestamps, and account details needed to verify payments and manage access to paid services.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Account Information",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IndigoPurple
-                        )
-                        Text(
-                            text = "When an account is created, we may collect:",
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp,
-                            color = Color(0xFF333333)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("Full name")
-                        PrivacyBulletPoint("Email address, where applicable")
-                        PrivacyBulletPoint("Phone number, where applicable")
-                        PrivacyBulletPoint("Password or authentication information")
-                        PrivacyBulletPoint("User role, such as student or teacher")
-                        PrivacyBulletPoint("School")
-                        PrivacyBulletPoint("Class or year group")
-                        PrivacyBulletPoint("Subjects or teacher assignments")
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(
-                            text = "Learning and App Information",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IndigoPurple
-                        )
-                        Text(
-                            text = "We may collect information related to your use of Cachap, such as:",
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp,
-                            color = Color(0xFF333333)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("Notes and documents accessed")
-                        PrivacyBulletPoint("Subjects and classes accessed")
-                        PrivacyBulletPoint("Recently viewed notes")
-                        PrivacyBulletPoint("Saved notes, if the feature is enabled")
-                        PrivacyBulletPoint("Notifications delivered through the app")
-                        PrivacyBulletPoint("Basic app activity needed to provide and improve the service")
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(
-                            text = "Teacher-Uploaded Content",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IndigoPurple
-                        )
-                        Text(
-                            text = "Teachers may upload educational materials such as:",
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp,
-                            color = Color(0xFF333333)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("PDF notes")
-                        PrivacyBulletPoint("Class materials")
-                        PrivacyBulletPoint("Diagrams")
-                        PrivacyBulletPoint("Tables")
-                        PrivacyBulletPoint("Images")
-                        PrivacyBulletPoint("Other educational documents")
+                        Text(text = "Technical information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = IndigoPurple)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "These materials are stored so that authorized students can access them.",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Text(
-                            text = "Payment Information",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IndigoPurple
-                        )
-                        Text(
-                            text = "If Cachap provides paid subscriptions or access, payment transactions may be processed through a third-party payment provider.\n\nCachap does not intend to store users' mobile money PINs, card PINs, or other sensitive payment credentials.\n\nPayment providers may collect and process information necessary to complete a transaction according to their own privacy policies and terms.",
+                            text = "Cachup and its service providers may process authentication records, security logs, diagnostic information, and other technical information necessary to operate and protect the platform.\n\nWe aim to collect only the information reasonably necessary to provide and improve our educational services.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -322,64 +228,24 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 3
+                // 3. How We Use Your Information
                 PrivacySectionCard(
-                    title = "3. How We Use Information",
+                    title = "3. How We Use Your Information",
                     content = {
-                        Text(
-                            text = "We use collected information to:",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
+                        Text(text = "Cachup may use collected information to:", fontSize = 14.sp, lineHeight = 22.sp, color = Color(0xFF333333))
                         Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("Create and manage user accounts")
-                        PrivacyBulletPoint("Verify users and their school access")
-                        PrivacyBulletPoint("Provide access to appropriate classes and subjects")
-                        PrivacyBulletPoint("Deliver educational notes and materials")
-                        PrivacyBulletPoint("Allow teachers to share notes with their students")
-                        PrivacyBulletPoint("Process subscriptions and payments")
-                        PrivacyBulletPoint("Send important notifications")
-                        PrivacyBulletPoint("Maintain the security of the platform")
-                        PrivacyBulletPoint("Prevent unauthorized access or misuse")
-                        PrivacyBulletPoint("Troubleshoot technical problems")
-                        PrivacyBulletPoint("Improve the performance and functionality of Cachap")
-                        PrivacyBulletPoint("Maintain records necessary to operate the service")
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = IndigoPurple.copy(alpha = 0.08f),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text(
-                                text = "We do not sell users' personal information.",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = IndigoPurple,
-                                modifier = Modifier.padding(12.dp)
-                            )
-                        }
-                    }
-                )
-
-                // Section 4
-                PrivacySectionCard(
-                    title = "4. School and Classroom Access",
-                    content = {
-                        Text(
-                            text = "Cachap is designed so that users only receive access appropriate to their role and school.\n\nFor example:",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("Students may access notes made available to their school, class, or subjects.")
-                        PrivacyBulletPoint("Teachers may upload and manage materials for classes or subjects assigned to them.")
-                        PrivacyBulletPoint("School administrators may have additional administrative access where enabled.")
+                        PrivacyBulletPoint("Create and manage user accounts.")
+                        PrivacyBulletPoint("Connect students to their appropriate classes, subjects, and teachers.")
+                        PrivacyBulletPoint("Allow teachers to upload and share learning materials.")
+                        PrivacyBulletPoint("Help students access notes and revise lessons.")
+                        PrivacyBulletPoint("Manage school accounts, roles, and permissions.")
+                        PrivacyBulletPoint("Verify payments and manage access to paid features.")
+                        PrivacyBulletPoint("Protect accounts and detect suspicious activity.")
+                        PrivacyBulletPoint("Troubleshoot technical problems and maintain platform reliability.")
+                        PrivacyBulletPoint("Respond to support requests and fulfil applicable legal obligations.")
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Schools are responsible for ensuring that information they provide to Cachap is appropriate for the intended educational use of the platform.",
+                            text = "We do not use personal information for purposes unrelated to the operation of Cachup unless the appropriate legal basis or permission exists.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -387,12 +253,12 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 5
+                // 4. How Learning Materials Are Accessed
                 PrivacySectionCard(
-                    title = "5. Educational Materials",
+                    title = "4. How Learning Materials Are Accessed",
                     content = {
                         Text(
-                            text = "Notes uploaded by teachers remain educational materials provided by the relevant teacher or school.\n\nCachap provides the technology used to store and deliver these materials and does not claim ownership of teachers' original educational content.\n\nTeachers and schools should ensure that uploaded materials do not unlawfully contain private information or copyrighted material that they do not have permission to share.",
+                            text = "Cachup is designed to help students access educational materials shared by their teachers.\n\nAccess to notes and other resources may depend on a user's account, class, subject, and permissions.\n\nTeachers should ensure that they have the necessary rights and permissions to upload and share learning materials. Users should not upload confidential student records or other people's sensitive information unless the platform explicitly supports that use and the required permissions have been obtained.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -400,69 +266,12 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 6
+                // 5. Database, Hosting, and Data Storage
                 PrivacySectionCard(
-                    title = "6. How We Share Information",
+                    title = "5. Database, Hosting, and Data Storage",
                     content = {
                         Text(
-                            text = "We may share or provide access to information when necessary to operate Cachap, including with:",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "Participating Schools",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IndigoPurple
-                        )
-                        Text(
-                            text = "Schools may receive access to information necessary to administer their Cachap accounts and educational services.",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "Service Providers",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IndigoPurple
-                        )
-                        Text(
-                            text = "We may use trusted third-party service providers for services such as:",
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp,
-                            color = Color(0xFF333333)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("Database hosting")
-                        PrivacyBulletPoint("Authentication")
-                        PrivacyBulletPoint("File storage")
-                        PrivacyBulletPoint("Cloud infrastructure")
-                        PrivacyBulletPoint("Payment processing")
-                        PrivacyBulletPoint("Notifications")
-                        PrivacyBulletPoint("Security and technical operations")
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "These providers only receive information necessary to provide their services.",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "Legal Requirements",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = IndigoPurple
-                        )
-                        Text(
-                            text = "We may disclose information where required by applicable law, regulation, court order, or lawful government request.\n\nWe may also disclose information where reasonably necessary to protect the security, rights, or property of Cachap, our users, schools, or others.",
+                            text = "Cachup uses third-party technology services to support its operation, including Supabase for relevant backend services such as database and authentication functionality.\n\nInformation processed through these services may be stored on infrastructure operated by the relevant providers. Depending on the features in use, service providers may process information to authenticate accounts, store records, enforce permissions, maintain security, and deliver platform functionality.\n\nWe apply appropriate access restrictions and security measures intended to protect stored information. However, no internet-based system can guarantee absolute security.\n\nUsers should protect their account credentials and report suspected unauthorised access.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -470,26 +279,33 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 7
+                // 6. Payments Through MarzPay
                 PrivacySectionCard(
-                    title = "7. Third-Party Services",
+                    title = "6. Payments Through MarzPay",
                     content = {
                         Text(
-                            text = "Cachap may use third-party technology providers to operate parts of the platform.\n\nThese may include services for:",
+                            text = "Cachup uses MarzPay to facilitate supported mobile money payments, including MTN Mobile Money and Airtel Money transactions in Uganda, where available.\n\nWhen a payment is initiated, MarzPay and the relevant mobile money provider may process the information required to complete or verify the transaction.\n\nCachup may receive or store transaction references, payment confirmations, amounts, timestamps, and related information needed to determine whether a payment was successful and whether the relevant service should be made available.\n\nPayment processing and verification may involve secure backend operations, including server-side functions.\n\nUsers should consult MarzPay's applicable privacy terms for information about how MarzPay independently handles personal information. Cachup does not intend to collect or store mobile money PINs.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
                         )
+                    }
+                )
+
+                // 7. How We Share Information
+                PrivacySectionCard(
+                    title = "7. How We Share Information",
+                    content = {
+                        Text(text = "Cachup does not sell users' personal information.\n\nInformation may be disclosed where necessary to:", fontSize = 14.sp, lineHeight = 22.sp, color = Color(0xFF333333))
                         Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("Authentication")
-                        PrivacyBulletPoint("Database management")
-                        PrivacyBulletPoint("Cloud hosting")
-                        PrivacyBulletPoint("File storage")
-                        PrivacyBulletPoint("Payment processing")
-                        PrivacyBulletPoint("Analytics or technical monitoring")
+                        PrivacyBulletPoint("Authorised school users: Provide students, teachers, and administrators with the information and learning resources their roles permit them to access.")
+                        PrivacyBulletPoint("Technology providers: Operate the platform through services such as Supabase and associated hosting or infrastructure providers.")
+                        PrivacyBulletPoint("Payment providers: Process and verify transactions through MarzPay and relevant mobile money services.")
+                        PrivacyBulletPoint("Legal authorities: Comply with applicable laws, lawful requests, or legal obligations.")
+                        PrivacyBulletPoint("Security and protection: Investigate fraud, address security incidents, or protect users and the platform.")
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Third-party providers may process information according to their own privacy policies and terms.\n\nWe encourage users to review the privacy policies of third-party services where appropriate.",
+                            text = "We aim to limit disclosures to information reasonably necessary for the relevant purpose.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -497,27 +313,12 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 8
+                // 8. Children's Privacy
                 PrivacySectionCard(
-                    title = "8. Data Security",
+                    title = "8. Children's Privacy",
                     content = {
                         Text(
-                            text = "We take reasonable technical and organizational measures to protect information stored and processed through Cachap.\n\nThese measures may include:",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("Secure authentication")
-                        PrivacyBulletPoint("Access controls")
-                        PrivacyBulletPoint("Database security rules")
-                        PrivacyBulletPoint("Encrypted connections")
-                        PrivacyBulletPoint("Restricted administrative access")
-                        PrivacyBulletPoint("Server-side protection of sensitive credentials")
-                        PrivacyBulletPoint("Security monitoring and maintenance")
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "However, no internet-based service can guarantee absolute security.\n\nUsers should keep their passwords and account credentials confidential and should notify the school or Cachap if they believe their account has been accessed without authorization.",
+                            text = "Cachup recognises that many of its student users may be under the age of 18 and that children's personal information requires particular care.\n\nCachup is designed to support educational activities. We aim to limit personal information collection to what is reasonably necessary for the platform's educational functions.\n\nSchools, parents, guardians, and other responsible parties should ensure that children's use of the platform is appropriate and that any consent, authorisation, or other legal requirements are met.\n\nWe do not intend to use children's personal information for unrelated advertising or profiling.\n\nWhere legally required, appropriate consent or other valid legal grounds must be established before processing children's personal information.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -525,12 +326,12 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 9
+                // 9. Data Security
                 PrivacySectionCard(
-                    title = "9. Children's and Students' Privacy",
+                    title = "9. Data Security",
                     content = {
                         Text(
-                            text = "Cachap may be used by secondary-school students, including students who may be under the age of 18.\n\nWe aim to collect only information reasonably necessary to provide the educational service.\n\nWhere required, schools, parents, guardians, or other authorized adults may be involved in the creation or management of student accounts.\n\nWe do not intentionally use student information for targeted advertising.\n\nIf a parent, guardian, student, teacher, or school believes that we have collected information that is not necessary for the service, they may contact us using the details below.",
+                            text = "Cachup takes reasonable steps to protect personal information against unauthorised access, disclosure, alteration, loss, or destruction.\n\nThese measures may include account authentication, access restrictions, appropriate database permissions, and secure backend operations.\n\nUsers must also take reasonable steps to protect their accounts.\n\nAlthough we work to protect personal information, we cannot guarantee that any system or internet transmission will always be completely secure.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -538,12 +339,12 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 10
+                // 10. Data Retention and Deletion
                 PrivacySectionCard(
-                    title = "10. Data Retention",
+                    title = "10. Data Retention and Deletion",
                     content = {
                         Text(
-                            text = "We retain personal information for as long as reasonably necessary to provide Cachap and maintain legitimate school, account, security, payment, and operational records.\n\nWhen information is no longer required, we may delete, anonymize, or securely dispose of it, subject to applicable legal or operational requirements.\n\nSchools may request information about their users or request appropriate account changes through the Cachap support process.",
+                            text = "Cachup retains personal information for as long as reasonably necessary to provide its services, maintain school and user accounts, manage educational resources, verify transactions, address disputes, and comply with applicable legal obligations.\n\nWhen information is no longer needed, it may be deleted or anonymised where appropriate, subject to legitimate retention requirements and technical limitations such as temporary backup retention.\n\nUsers may request access to, correction of, or deletion of their personal information, subject to applicable law.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -551,25 +352,21 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 11
+                // 11. Your Privacy Rights
                 PrivacySectionCard(
                     title = "11. Your Privacy Rights",
                     content = {
-                        Text(
-                            text = "Depending on applicable law, users may have rights relating to their personal information, including the ability to:",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
+                        Text(text = "Depending on applicable Ugandan law and other relevant legal requirements, you may have rights relating to your personal information, including the right to:", fontSize = 14.sp, lineHeight = 22.sp, color = Color(0xFF333333))
                         Spacer(modifier = Modifier.height(6.dp))
-                        PrivacyBulletPoint("Request access to personal information we hold about them")
-                        PrivacyBulletPoint("Request correction of inaccurate information")
-                        PrivacyBulletPoint("Request deletion of information where appropriate")
-                        PrivacyBulletPoint("Ask questions about how their information is used")
-                        PrivacyBulletPoint("Withdraw consent where processing is based on consent, subject to applicable limitations")
+                        PrivacyBulletPoint("Request access to your personal information.")
+                        PrivacyBulletPoint("Request correction of inaccurate or incomplete information.")
+                        PrivacyBulletPoint("Request deletion where legally applicable.")
+                        PrivacyBulletPoint("Object to or seek restriction of certain processing where applicable.")
+                        PrivacyBulletPoint("Withdraw consent where processing relies on consent.")
+                        PrivacyBulletPoint("Raise a complaint with the relevant data protection authority.")
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Some information may need to be retained where required by law or necessary to provide the service.",
+                            text = "To exercise these rights, contact Cachup through the official support contact provided in the application.\n\nSome requests may require identity verification or involvement from an authorised school representative.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -577,12 +374,31 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 12
+                // 12. Third-Party Services
                 PrivacySectionCard(
-                    title = "12. Account Deletion",
+                    title = "12. Third-Party Services",
+                    content = {
+                        Text(text = "Cachup relies on third-party services to provide certain platform functions. These services may process information according to their own privacy policies, terms, and contractual arrangements.\n\nRelevant providers include:", fontSize = 14.sp, lineHeight = 22.sp, color = Color(0xFF333333))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        PrivacyBulletPoint("Supabase — backend services, including database and authentication functionality.")
+                        PrivacyBulletPoint("MarzPay — supported payment processing and transaction verification.")
+                        PrivacyBulletPoint("Relevant mobile money providers — processing mobile money transactions through the payment service.")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "The specific information processed depends on the features used and the requirements of each service.",
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            color = Color(0xFF333333)
+                        )
+                    }
+                )
+
+                // 13. International Data Processing
+                PrivacySectionCard(
+                    title = "13. International Data Processing",
                     content = {
                         Text(
-                            text = "Users or authorized school representatives may request deletion of an account or personal information by contacting Cachap.\n\nWhen an account is deleted, information may be removed or anonymized where appropriate.\n\nCertain records, including transaction or security records, may need to be retained for legitimate legal, accounting, fraud-prevention, or operational purposes.",
+                            text = "Some third-party service providers may process or store information outside Uganda.\n\nWhere personal information is transferred across borders, Cachup aims to ensure that the transfer and processing comply with applicable data protection requirements.\n\nUsers should be aware that data protection rules may differ between jurisdictions.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -590,25 +406,25 @@ fun PrivacyPolicyScreen(
                     }
                 )
 
-                // Section 13
-                PrivacySectionCard(
-                    title = "13. Cookies and Similar Technologies",
-                    content = {
-                        Text(
-                            text = "The Cachap mobile application may use technologies necessary to maintain login sessions, security, preferences, and basic functionality.\n\nIf we introduce analytics or other tracking technologies, this Privacy Policy may be updated to explain their use.",
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = Color(0xFF333333)
-                        )
-                    }
-                )
-
-                // Section 14
+                // 14. Changes to This Privacy Policy
                 PrivacySectionCard(
                     title = "14. Changes to This Privacy Policy",
                     content = {
                         Text(
-                            text = "We may update this Privacy Policy when Cachap introduces new features, changes how information is processed, or when legal or regulatory requirements change.\n\nWhen we make significant changes, we may provide notice through the application, website, or other appropriate communication channels.\n\nThe “Last Updated” date at the beginning of this policy indicates when the policy was most recently updated.",
+                            text = "We may update this Privacy Policy when Cachup introduces new features, changes its service providers, improves its security practices, or responds to legal requirements.\n\nMaterial changes will be communicated through an appropriate channel where required.\n\nThe latest version will be made available within the Cachup application.",
+                            fontSize = 14.sp,
+                            lineHeight = 22.sp,
+                            color = Color(0xFF333333)
+                        )
+                    }
+                )
+
+                // 15. Contact and Privacy Requests
+                PrivacySectionCard(
+                    title = "15. Contact and Privacy Requests",
+                    content = {
+                        Text(
+                            text = "For questions about this Privacy Policy, requests relating to personal information, or concerns about data handling, contact:\n\nPlatform: Cachup\nDeveloper: Ssenyonga Moses\nContact: Use the official support contact provided within the Cachup application.\n\nWe are committed to building technology that supports education while respecting the privacy, dignity, and security of students and teachers.\n\nCachup — Learn today. Catch up tomorrow. Move forward always.",
                             fontSize = 14.sp,
                             lineHeight = 22.sp,
                             color = Color(0xFF333333)
@@ -631,7 +447,7 @@ fun PrivacyPolicyScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.School,
-                            contentDescription = "Cachap Logo",
+                            contentDescription = "Cachup Logo",
                             tint = Color.White,
                             modifier = Modifier.size(26.dp)
                         )
@@ -640,7 +456,7 @@ fun PrivacyPolicyScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "Cachap",
+                        text = "Cachup",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF1A1A1A)
@@ -649,7 +465,7 @@ fun PrivacyPolicyScreen(
                     Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
-                        text = "Less time copying. More time learning.",
+                        text = "Learn today. Catch up tomorrow. Move forward always.",
                         fontSize = 13.sp,
                         fontStyle = FontStyle.Italic,
                         color = TextMuted
