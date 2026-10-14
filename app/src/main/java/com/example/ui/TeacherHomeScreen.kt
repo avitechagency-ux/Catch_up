@@ -35,7 +35,6 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.VolumeUp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -194,7 +193,8 @@ fun TeacherHomeScreen(
     onUploadNotesClick: () -> Unit = {},
     onRecentNoteClick: (TeacherRecentUpload) -> Unit = {},
     onSeeAllRecentClick: () -> Unit = {},
-    onSwitchToStudentView: () -> Unit = {}
+    onSwitchToStudentView: () -> Unit = {},
+    onNavigateToStudents: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -204,7 +204,6 @@ fun TeacherHomeScreen(
         val candidate = teacherIdCode.trim().uppercase()
         if (isValidTeacherIdCode(candidate)) candidate else generateTeacherIdCode(teacherName)
     }
-    var showStudentsDialog by remember { mutableStateOf(false) }
     val studentsCount = if (connectedStudents.isNotEmpty()) connectedStudents.size else classesCount
 
     Scaffold(
@@ -414,7 +413,7 @@ fun TeacherHomeScreen(
                             .weight(1f)
                             .height(90.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .clickable { showStudentsDialog = true }
+                            .clickable { onNavigateToStudents() }
                             .testTag("teacher_stat_card_classes"),
                         shape = RoundedCornerShape(16.dp),
                         color = Color(0xFF4361EE)
@@ -640,211 +639,6 @@ fun TeacherHomeScreen(
         }
     }
 
-    if (showStudentsDialog) {
-        Dialog(onDismissRequest = { showStudentsDialog = false }) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .testTag("teacher_students_dialog"),
-                shape = RoundedCornerShape(20.dp),
-                color = Color.White,
-                shadowElevation = 8.dp
-            ) {
-                var selectedClassFilter by remember { mutableStateOf("S4") }
-                val classOptions = listOf("S1", "S2", "S3", "S4", "S5", "S6")
-
-                val streamsForSelectedClass = remember(connectedStudents, selectedClassFilter) {
-                    connectedStudents
-                        .filter { normalizeSecondaryClass(it.studentClass) == normalizeSecondaryClass(selectedClassFilter) }
-                        .map { com.example.data.normalizeStream(it.stream) }
-                        .filter { it.isNotBlank() }
-                        .distinct()
-                        .sorted()
-                }
-
-                var selectedStreamFilter by remember(selectedClassFilter, streamsForSelectedClass) {
-                    mutableStateOf(if (streamsForSelectedClass.isNotEmpty()) streamsForSelectedClass.first() else "ALL")
-                }
-
-                val filteredStudents = remember(connectedStudents, selectedClassFilter, selectedStreamFilter) {
-                    connectedStudents.filter { student ->
-                        val classMatches = normalizeSecondaryClass(student.studentClass) == normalizeSecondaryClass(selectedClassFilter)
-                        val streamMatches = selectedStreamFilter == "ALL" ||
-                            com.example.data.normalizeStream(student.stream) == com.example.data.normalizeStream(selectedStreamFilter)
-                        classMatches && streamMatches
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Connected Students",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextDark
-                            )
-                            Text(
-                                text = "Teacher ID: $normalizedTeacherId",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = IndigoPurple
-                            )
-                        }
-                        IconButton(
-                            onClick = { showStudentsDialog = false },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(SoftLavenderGrey)
-                                .testTag("teacher_students_dialog_close")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Close,
-                                contentDescription = "Close",
-                                tint = TextDark,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // CLASS PILLS (S1 - S6)
-                    Text(
-                        text = "CLASS",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMuted
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        classOptions.forEach { cls ->
-                            val isSelected = normalizeSecondaryClass(cls) == normalizeSecondaryClass(selectedClassFilter)
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { selectedClassFilter = cls }
-                                    .testTag("class_pill_$cls"),
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) DeepMaroon else SoftLavenderGrey,
-                                border = if (isSelected) null else BorderStroke(1.dp, BorderGrey)
-                            ) {
-                                Text(
-                                    text = cls,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else TextDark,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // STREAM PILLS
-                    Text(
-                        text = "STREAM",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextMuted
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    val streamList = (listOf("ALL") + streamsForSelectedClass).distinct()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        streamList.forEach { st ->
-                            val isSelected = com.example.data.normalizeStream(st) == com.example.data.normalizeStream(selectedStreamFilter)
-                            Surface(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable { selectedStreamFilter = st }
-                                    .testTag("stream_pill_$st"),
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) GoldMustard else SoftLavenderGrey,
-                                border = if (isSelected) null else BorderStroke(1.dp, BorderGrey)
-                            ) {
-                                Text(
-                                    text = st,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) DeepMaroon else TextDark,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // HEADER SUMMARY
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${normalizeSecondaryClass(selectedClassFilter)} • ${com.example.data.normalizeStream(selectedStreamFilter).ifBlank { "ALL" }}",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DeepMaroon
-                        )
-                        Text(
-                            text = "${filteredStudents.size} Students",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextMuted
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    if (filteredStudents.isEmpty()) {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            color = SoftLavenderGrey
-                        ) {
-                            Text(
-                                text = "No students found in ${normalizeSecondaryClass(selectedClassFilter)} ${com.example.data.normalizeStream(selectedStreamFilter)}.",
-                                fontSize = 13.sp,
-                                color = TextMuted,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    } else {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            filteredStudents.forEach { student ->
-                                TeacherConnectedStudentCard(student = student)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 /**

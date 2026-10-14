@@ -1702,21 +1702,61 @@ object SupabaseRepository {
             try {
                 val cleanCode = teacherIdCode.trim().uppercase()
                 val response = api.getConnectedStudentsForTeacher("eq.$cleanCode")
-                if (response.isSuccessful) {
-                    response.body().orEmpty().map { dto ->
-                        ConnectedStudent(
-                            id = "${dto.studentName.lowercase().replace(" ", "_")}_${dto.subjectName.lowercase()}_${dto.teacherIdCode}",
-                            studentName = dto.studentName,
-                            studentClass = dto.studentClass,
-                            subjectName = dto.subjectName,
-                            teacherIdCode = dto.teacherIdCode,
-                            connectedDate = dto.connectedDate,
-                            stream = com.example.data.normalizeStream(dto.stream)
-                        )
-                    }
-                } else {
-                    emptyList()
+                val linkRecords = if (response.isSuccessful) response.body().orEmpty() else emptyList()
+
+                // Fetch registered users to resolve student streams and classes if missing
+                val allUsers = try { api.getAllUsers().body().orEmpty() } catch (_: Exception) { emptyList() }
+                val studentUsers = allUsers.filter { it.role.equals("student", ignoreCase = true) }
+
+                val streamByPhone = studentUsers.filter { it.phoneNumber.isNotBlank() }.associate {
+                    it.phoneNumber.trim() to com.example.data.normalizeStream(it.stream)
                 }
+                val streamByName = studentUsers.associate {
+                    it.fullName.trim().lowercase() to com.example.data.normalizeStream(it.stream)
+                }
+                val classByName = studentUsers.associate {
+                    it.fullName.trim().lowercase() to it.academicClass.trim()
+                }
+
+                val fromLinks = linkRecords.map { dto ->
+                    val cleanPhone = dto.studentPhone.trim()
+                    val cleanName = dto.studentName.trim().lowercase()
+                    val resolvedStream = com.example.data.normalizeStream(dto.stream).ifBlank {
+                        streamByPhone[cleanPhone]?.ifBlank { null }
+                            ?: streamByName[cleanName]
+                            ?: ""
+                    }
+                    val resolvedClass = dto.studentClass.ifBlank {
+                        classByName[cleanName] ?: "S.1"
+                    }
+                    ConnectedStudent(
+                        id = "${dto.studentName.lowercase().replace(" ", "_")}_${dto.subjectName.lowercase()}_${dto.teacherIdCode}",
+                        studentName = dto.studentName,
+                        studentClass = resolvedClass,
+                        subjectName = dto.subjectName,
+                        teacherIdCode = dto.teacherIdCode,
+                        connectedDate = dto.connectedDate,
+                        stream = resolvedStream
+                    )
+                }
+
+                // Also include any students who registered with this teacher code directly in public.users
+                val fromUsers = studentUsers.filter {
+                    it.teacherIdCode?.trim()?.uppercase() == cleanCode
+                }.map { u ->
+                    ConnectedStudent(
+                        id = "${u.fullName.lowercase().replace(" ", "_")}_user_${cleanCode}",
+                        studentName = u.fullName.trim().ifBlank { "Student" },
+                        studentClass = u.academicClass.trim().ifBlank { "S.1" },
+                        subjectName = "Connected Student",
+                        teacherIdCode = cleanCode,
+                        connectedDate = u.createdAt?.take(10) ?: "Recent",
+                        stream = com.example.data.normalizeStream(u.stream)
+                    )
+                }
+
+                (fromLinks + fromUsers)
+                    .distinctBy { "${it.studentName.lowercase()}_${it.teacherIdCode.uppercase()}_${it.studentClass.lowercase()}_${it.stream.uppercase()}" }
             } catch (_: Exception) {
                 emptyList()
             }

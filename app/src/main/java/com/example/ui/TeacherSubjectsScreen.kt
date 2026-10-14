@@ -296,67 +296,100 @@ fun TeacherSubjectsScreen(
                 }
             }
 
-            // White Body with Subject Cards (matching Student SubjectsScreen grid & card layout)
-            if (subjects.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = SoftLavenderGrey
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.School,
-                                contentDescription = null,
-                                tint = IndigoPurple,
-                                modifier = Modifier.size(36.dp)
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = "No subjects assigned yet",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextDark,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Open Profile → Account to select the subjects you teach.",
-                                fontSize = 13.sp,
-                                color = TextMuted,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+            // White Body with Search and Subject Cards
+            var searchQuery by remember { mutableStateOf("") }
+            val filteredSubjects = remember(subjects, searchQuery) {
+                if (searchQuery.isBlank()) subjects
+                else {
+                    val q = searchQuery.trim().lowercase()
+                    subjects.filter {
+                        it.name.lowercase().contains(q) ||
+                            it.classes.lowercase().contains(q)
                     }
                 }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("teacher_subjects_grid"),
-                    contentPadding = PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
-                        top = 20.dp,
-                        bottom = 20.dp
-                    ),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(subjects, key = { it.id }) { subjectItem ->
-                        TeacherSubjectCard(
-                            subject = subjectItem,
-                            onClick = { onSubjectClick(subjectItem) }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 16.dp)
+            ) {
+
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                if (subjects.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = SoftLavenderGrey
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.School,
+                                    contentDescription = null,
+                                    tint = IndigoPurple,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "No subjects assigned yet",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextDark,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Open Profile → Account to select the subjects you teach.",
+                                    fontSize = 13.sp,
+                                    color = TextMuted,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                } else if (filteredSubjects.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No subjects match \"$searchQuery\"",
+                            fontSize = 14.sp,
+                            color = TextMuted
                         )
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("teacher_subjects_grid"),
+                        contentPadding = PaddingValues(
+                            bottom = 20.dp
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(filteredSubjects, key = { it.id }) { subjectItem ->
+                            TeacherSubjectCard(
+                                subject = subjectItem,
+                                onClick = { onSubjectClick(subjectItem) }
+                            )
+                        }
                     }
                 }
             }
@@ -383,7 +416,7 @@ fun TeacherSubjectCard(
         modifier = modifier
             .height(145.dp)
             .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
+            .bounceClick(onClick = onClick)
             .testTag("teacher_subject_card_${subject.name.lowercase()}"),
         shape = RoundedCornerShape(18.dp),
         color = subject.color
@@ -404,16 +437,18 @@ fun TeacherSubjectCard(
                     .testTag("teacher_subject_icon_${subject.name.lowercase()}")
             )
 
-            // Bottom-left subject name
-            Text(
-                text = subject.name,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .testTag("teacher_subject_name_${subject.name.lowercase()}")
-            )
+            // Bottom-left subject name only
+            Column(
+                modifier = Modifier.align(Alignment.BottomStart)
+            ) {
+                Text(
+                    text = subject.name,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.testTag("teacher_subject_name_${subject.name.lowercase()}")
+                )
+            }
         }
     }
 }
@@ -600,87 +635,27 @@ fun TeacherSubjectConfigScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        // Single Upload Action Button
+                        Button(
+                            onClick = onUploadNotesClick,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .testTag("action_upload_button"),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple)
                         ) {
-                            // Upload Notes Button Card
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(100.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable { onUploadNotesClick() }
-                                    .testTag("action_upload_notes_card"),
-                                shape = RoundedCornerShape(16.dp),
-                                color = IndigoPurple
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(14.dp),
-                                    verticalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.CloudUpload,
-                                        contentDescription = "Upload Notes",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Column {
-                                        Text(
-                                            text = "Upload Notes",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = "Share DOCX notes",
-                                            fontSize = 11.sp,
-                                            color = LightLavender
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Upload Assignment Button Card
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(100.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable { showUploadAssignmentDialog = true }
-                                    .testTag("action_upload_assignment_card"),
-                                shape = RoundedCornerShape(16.dp),
-                                color = subject.color
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(14.dp),
-                                    verticalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Assignment,
-                                        contentDescription = "Upload Assignment",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Column {
-                                        Text(
-                                            text = "New Assignment",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = "Set tasks & due dates",
-                                            fontSize = 11.sp,
-                                            color = Color.White.copy(alpha = 0.85f)
-                                        )
-                                    }
-                                }
-                            }
+                            Icon(
+                                imageVector = Icons.Outlined.CloudUpload,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Upload Notes or Assignment",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }

@@ -175,4 +175,58 @@ class AcademicGroupArchitectureTest {
         assertTrue(doesContentTargetStudent(noteS4AllStreams.targetClass, noteS4AllStreams.targetStreams, peter.studentClass, peter.stream))
         assertFalse(doesContentTargetStudent(noteS4AllStreams.targetClass, noteS4AllStreams.targetStreams, sarah.studentClass, sarah.stream))
     }
+
+    @Test
+    fun `test canonical class mapping and stream dynamic grouping`() {
+        assertEquals("S.1", com.example.ui.toCanonicalClassId("Senior One"))
+        assertEquals("S.2", com.example.ui.toCanonicalClassId("Senior Two"))
+        assertEquals("S.3", com.example.ui.toCanonicalClassId("Senior Three"))
+        assertEquals("S.4", com.example.ui.toCanonicalClassId("Senior Four"))
+        assertEquals("S.5", com.example.ui.toCanonicalClassId("Senior Five"))
+        assertEquals("S.6", com.example.ui.toCanonicalClassId("Senior Six"))
+
+        val student1 = ConnectedStudent(
+            id = "s1",
+            studentName = "Alice",
+            studentClass = "Senior One",
+            subjectName = "Physics",
+            teacherIdCode = "K7M4P9",
+            connectedDate = "Oct 12, 2026",
+            stream = "BLUE"
+        )
+        val student2 = ConnectedStudent(
+            id = "s2",
+            studentName = "Bob",
+            studentClass = "S.1",
+            subjectName = "Physics",
+            teacherIdCode = "K7M4P9",
+            connectedDate = "Oct 12, 2026",
+            stream = "BLUE"
+        )
+        val student3 = ConnectedStudent(
+            id = "s3",
+            studentName = "Charlie",
+            studentClass = "Senior One",
+            subjectName = "Physics",
+            teacherIdCode = "K7M4P9",
+            connectedDate = "Oct 12, 2026",
+            stream = "WHITE"
+        )
+
+        val students = listOf(student1, student2, student3)
+        val s1Students = students.filter { com.example.ui.toCanonicalClassId(it.studentClass) == "S.1" }
+        assertEquals(3, s1Students.size)
+
+        val streamGroups = s1Students.groupBy { normalizeStream(it.stream) }
+        assertEquals(2, streamGroups.size)
+        assertEquals(2, streamGroups["BLUE"]?.size)
+        assertEquals(1, streamGroups["WHITE"]?.size)
+
+        // Verifying filtering to specific stream only returns that stream's students
+        val blueStreamStudents = s1Students.filter { normalizeStream(it.stream) == "BLUE" }
+        assertEquals(listOf("Alice", "Bob"), blueStreamStudents.map { it.studentName })
+
+        val whiteStreamStudents = s1Students.filter { normalizeStream(it.stream) == "WHITE" }
+        assertEquals(listOf("Charlie"), whiteStreamStudents.map { it.studentName })
+    }
 }

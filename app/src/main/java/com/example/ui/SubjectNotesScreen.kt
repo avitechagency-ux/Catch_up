@@ -589,7 +589,7 @@ fun TopicCard(
                 ambientColor = Color(0x18000000),
                 spotColor = Color(0x18000000)
             )
-            .clickable(onClick = onClick)
+            .bounceClick(onClick = onClick)
             .testTag("topic_card_${topic.id}"),
         shape = RoundedCornerShape(12.dp),
         color = backgroundColor,

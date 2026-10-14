@@ -83,6 +83,7 @@ import com.example.ui.theme.TealTile
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
 import kotlinx.coroutines.launch
+import com.example.ui.pencilSketchBorder
 
 private val AccountGoldAccent = Color(0xFFFFB300)
 private val AccountBrightGold = Color(0xFFFFD54F)
@@ -442,10 +443,11 @@ fun TeacherAccountScreen(
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .pencilSketchBorder()
                                     .testTag("teacher_account_name_input"),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = IndigoPurple,
-                                    unfocusedBorderColor = BorderGrey,
+                                    focusedBorderColor = Color.Transparent,
+                                    unfocusedBorderColor = Color.Transparent,
                                     focusedLabelColor = IndigoPurple,
                                     unfocusedContainerColor = AccountFieldBg,
                                     focusedContainerColor = Color.White
@@ -469,10 +471,11 @@ fun TeacherAccountScreen(
                                 shape = RoundedCornerShape(14.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .pencilSketchBorder()
                                     .testTag("teacher_account_school_input"),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = TealTile,
-                                    unfocusedBorderColor = BorderGrey,
+                                    focusedBorderColor = Color.Transparent,
+                                    unfocusedBorderColor = Color.Transparent,
                                     focusedLabelColor = TealTile,
                                     unfocusedContainerColor = AccountFieldBg,
                                     focusedContainerColor = Color.White

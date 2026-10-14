@@ -79,6 +79,10 @@ import com.example.ui.TeacherRecentUpload
 import com.example.ui.TeacherSubjectConfigScreen
 import com.example.ui.TeacherSubjectItem
 import com.example.ui.TeacherSubjectsScreen
+import com.example.ui.TeacherStudentsClassesScreen
+import com.example.ui.TeacherClassStreamsScreen
+import com.example.ui.TeacherStreamStudentsScreen
+import com.example.ui.TeacherStudentDetailScreen
 import com.example.ui.resolveTeacherSubjectItems
 import com.example.ui.DefaultTeacherAllUploads
 import com.example.ui.TeacherUploadItem
@@ -126,6 +130,10 @@ enum class AppScreen {
     TEACHER_UPLOADS,
     TEACHER_PROFILE,
     TEACHER_ACCOUNT,
+    TEACHER_STUDENTS_CLASSES,
+    TEACHER_CLASS_STREAMS,
+    TEACHER_STREAM_STUDENTS,
+    TEACHER_STUDENT_DETAIL,
     STUDENT_LIVE_CLASSES,
     TEACHER_LIVE_CLASSES,
     CREATE_LIVE_CLASS,
@@ -353,6 +361,9 @@ class MainActivity : ComponentActivity() {
                 var teacherSubjectsTaught by remember {
                     mutableStateOf(prefs.getString("teacher_subjects", "Secondary Curriculum") ?: "Secondary Curriculum")
                 }
+                var selectedTeacherClassId by remember { mutableStateOf("S.1") }
+                var selectedTeacherClassName by remember { mutableStateOf("Senior One") }
+                var selectedTeacherStreamName by remember { mutableStateOf("") }
 
                 var linkedSubjectTeachers by remember {
                     val raw = prefs.getString("student_linked_subject_teachers", "") ?: ""
@@ -419,7 +430,15 @@ class MainActivity : ComponentActivity() {
                     currentScreen == AppScreen.TEACHER_SUBJECT_CONFIG ||
                     currentScreen == AppScreen.TEACHER_UPLOADS ||
                     currentScreen == AppScreen.TEACHER_PROFILE ||
-                    currentScreen == AppScreen.TEACHER_ACCOUNT
+                    currentScreen == AppScreen.TEACHER_ACCOUNT ||
+                    currentScreen == AppScreen.TEACHER_STUDENTS_CLASSES ||
+                    currentScreen == AppScreen.TEACHER_CLASS_STREAMS ||
+                    currentScreen == AppScreen.TEACHER_STREAM_STUDENTS ||
+                    currentScreen == AppScreen.TEACHER_STUDENT_DETAIL
+
+                var selectedTeacherStudentDetail by remember {
+                    mutableStateOf<ConnectedStudent?>(null)
+                }
 
                 var selectedTeacherSubjectItem by remember {
                     mutableStateOf(DefaultTeacherSubjects.first())
@@ -749,6 +768,10 @@ class MainActivity : ComponentActivity() {
                         AppScreen.TEACHER_UPLOADS -> AppScreen.TEACHER_HOME
                         AppScreen.TEACHER_ACCOUNT -> AppScreen.TEACHER_PROFILE
                         AppScreen.TEACHER_PROFILE -> AppScreen.TEACHER_HOME
+                        AppScreen.TEACHER_STUDENTS_CLASSES -> AppScreen.TEACHER_HOME
+                        AppScreen.TEACHER_CLASS_STREAMS -> AppScreen.TEACHER_STUDENTS_CLASSES
+                        AppScreen.TEACHER_STREAM_STUDENTS -> AppScreen.TEACHER_CLASS_STREAMS
+                        AppScreen.TEACHER_STUDENT_DETAIL -> AppScreen.TEACHER_STREAM_STUDENTS
                         AppScreen.TEACHER_HOME -> AppScreen.PROFILE
                         AppScreen.ADMIN_ANALYSIS -> AppScreen.ADMIN_HOME
                         AppScreen.ADMIN_USERS -> AppScreen.ADMIN_HOME
@@ -1337,6 +1360,9 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onSwitchToStudentView = {
                                     currentScreen = AppScreen.PROFILE
+                                },
+                                onNavigateToStudents = {
+                                    currentScreen = AppScreen.TEACHER_STUDENTS_CLASSES
                                 }
                             )
                         }
@@ -1583,6 +1609,84 @@ class MainActivity : ComponentActivity() {
                             onUpdateProfile = onSaveTeacherProfile,
                             onSwitchToStudentView = { currentScreen = AppScreen.PROFILE }
                         )
+                        AppScreen.TEACHER_STUDENTS_CLASSES -> {
+                            val teacherConnectedStudents = connectedStudentsList.filter {
+                                it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)
+                            }.ifEmpty { connectedStudentsList }
+                            TeacherStudentsClassesScreen(
+                                teacherName = teacherName,
+                                teacherIdCode = teacherIdCode,
+                                connectedStudents = teacherConnectedStudents,
+                                onSelectClass = { classId, className ->
+                                    selectedTeacherClassId = classId
+                                    selectedTeacherClassName = className
+                                    currentScreen = AppScreen.TEACHER_CLASS_STREAMS
+                                },
+                                onNavigateBack = {
+                                    currentScreen = AppScreen.TEACHER_HOME
+                                }
+                            )
+                        }
+                        AppScreen.TEACHER_CLASS_STREAMS -> {
+                            val teacherConnectedStudents = connectedStudentsList.filter {
+                                it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)
+                            }.ifEmpty { connectedStudentsList }
+                            TeacherClassStreamsScreen(
+                                classId = selectedTeacherClassId,
+                                className = selectedTeacherClassName,
+                                teacherIdCode = teacherIdCode,
+                                connectedStudents = teacherConnectedStudents,
+                                onSelectStream = { streamName ->
+                                    selectedTeacherStreamName = streamName
+                                    currentScreen = AppScreen.TEACHER_STREAM_STUDENTS
+                                },
+                                onNavigateBack = {
+                                    currentScreen = AppScreen.TEACHER_STUDENTS_CLASSES
+                                }
+                            )
+                        }
+                        AppScreen.TEACHER_STREAM_STUDENTS -> {
+                            val teacherConnectedStudents = connectedStudentsList.filter {
+                                it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)
+                            }.ifEmpty { connectedStudentsList }
+                            TeacherStreamStudentsScreen(
+                                classId = selectedTeacherClassId,
+                                className = selectedTeacherClassName,
+                                streamName = selectedTeacherStreamName,
+                                teacherIdCode = teacherIdCode,
+                                connectedStudents = teacherConnectedStudents,
+                                onSelectStudent = { student ->
+                                    selectedTeacherStudentDetail = student
+                                    currentScreen = AppScreen.TEACHER_STUDENT_DETAIL
+                                },
+                                onNavigateBackToStreams = {
+                                    currentScreen = AppScreen.TEACHER_CLASS_STREAMS
+                                },
+                                onNavigateBackToClasses = {
+                                    currentScreen = AppScreen.TEACHER_STUDENTS_CLASSES
+                                }
+                            )
+                        }
+                        AppScreen.TEACHER_STUDENT_DETAIL -> {
+                            selectedTeacherStudentDetail?.let { student ->
+                                TeacherStudentDetailScreen(
+                                    student = student,
+                                    className = selectedTeacherClassName,
+                                    streamName = selectedTeacherStreamName,
+                                    onNavigateBack = {
+                                        currentScreen = AppScreen.TEACHER_STREAM_STUDENTS
+                                    },
+                                    onNavigateToClasses = {
+                                        currentScreen = AppScreen.TEACHER_STUDENTS_CLASSES
+                                    },
+                                    onNavigateToStreams = {
+                                        currentScreen = AppScreen.TEACHER_CLASS_STREAMS
+                                    }
+                                )
+                            } ?: run {
+                                currentScreen = AppScreen.TEACHER_STREAM_STUDENTS
+                            }
+                        }
                         AppScreen.ADMIN_HOME -> AdminHomeScreen(
                             revenueBalance = "0",
                             studentsCount = "0",
