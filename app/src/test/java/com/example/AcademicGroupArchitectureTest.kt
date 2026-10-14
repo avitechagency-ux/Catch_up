@@ -229,4 +229,117 @@ class AcademicGroupArchitectureTest {
         val whiteStreamStudents = s1Students.filter { normalizeStream(it.stream) == "WHITE" }
         assertEquals(listOf("Charlie"), whiteStreamStudents.map { it.studentName })
     }
+
+    @Test
+    fun `test teacher upload streams dropdown logic filters by class and isolates recipients with no due date`() {
+        val teacherCode = "TR999"
+        val s1BlueStudent = ConnectedStudent(
+            id = "s1_b",
+            studentName = "Alice S1",
+            studentClass = "S.1",
+            subjectName = "Geography",
+            teacherIdCode = teacherCode,
+            connectedDate = "Oct 14, 2026",
+            stream = "BLUE"
+        )
+        val s1RedStudent = ConnectedStudent(
+            id = "s1_r",
+            studentName = "Bob S1",
+            studentClass = "S.1",
+            subjectName = "Geography",
+            teacherIdCode = teacherCode,
+            connectedDate = "Oct 14, 2026",
+            stream = "RED"
+        )
+        val s2GoldStudent = ConnectedStudent(
+            id = "s2_g",
+            studentName = "Grace S2",
+            studentClass = "S.2",
+            subjectName = "Geography",
+            teacherIdCode = teacherCode,
+            connectedDate = "Oct 14, 2026",
+            stream = "GOLD"
+        )
+        val otherTeacherStudent = ConnectedStudent(
+            id = "other_s",
+            studentName = "Other Student",
+            studentClass = "S.1",
+            subjectName = "Geography",
+            teacherIdCode = "DIFFERENT_CODE",
+            connectedDate = "Oct 14, 2026",
+            stream = "GREEN"
+        )
+
+        val allStudents = listOf(s1BlueStudent, s1RedStudent, s2GoldStudent, otherTeacherStudent)
+
+        // 1. Teacher selects S.1 -> streams for S.1 must only be BLUE and RED (GOLD from S.2 or GREEN from other teacher must not appear)
+        val cleanTeacherCode = teacherCode.trim().uppercase()
+        val s1Streams = allStudents
+            .filter { it.teacherIdCode.trim().uppercase() == cleanTeacherCode }
+            .filter { com.example.ui.toCanonicalClassId(it.studentClass) == "S.1" }
+            .map { normalizeStream(it.stream) }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+
+        assertEquals(listOf("BLUE", "RED"), s1Streams)
+        assertFalse(s1Streams.contains("GOLD"))
+        assertFalse(s1Streams.contains("GREEN"))
+
+        // 2. Teacher selects S.3 where no streams/students are connected yet -> shows empty (No streams)
+        val s3Streams = allStudents
+            .filter { it.teacherIdCode.trim().uppercase() == cleanTeacherCode }
+            .filter { com.example.ui.toCanonicalClassId(it.studentClass) == "S.3" }
+            .map { normalizeStream(it.stream) }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+
+        assertTrue(s3Streams.isEmpty())
+
+        // 3. Teacher uploads work targeting S.1 with stream BLUE selected
+        val uploadItem = SubjectUploadItem(
+            id = "up_123",
+            title = "Plate Tectonics Revision",
+            subject = "Geography",
+            targetClass = "S.1",
+            targetStreams = "BLUE",
+            type = "Assignment",
+            dateUploaded = "Oct 14, 2026",
+            dueDate = null // Due date removed for student revision work
+        )
+
+        // S.1 BLUE student receives it
+        assertTrue(
+            doesContentTargetStudent(
+                targetClass = uploadItem.targetClass,
+                targetStreams = uploadItem.targetStreams,
+                studentClass = s1BlueStudent.studentClass,
+                studentStream = s1BlueStudent.stream
+            )
+        )
+
+        // S.1 RED student does NOT receive it
+        assertFalse(
+            doesContentTargetStudent(
+                targetClass = uploadItem.targetClass,
+                targetStreams = uploadItem.targetStreams,
+                studentClass = s1RedStudent.studentClass,
+                studentStream = s1RedStudent.stream
+            )
+        )
+
+        // S.2 GOLD student does NOT receive it
+        assertFalse(
+            doesContentTargetStudent(
+                targetClass = uploadItem.targetClass,
+                targetStreams = uploadItem.targetStreams,
+                studentClass = s2GoldStudent.studentClass,
+                studentStream = s2GoldStudent.stream
+            )
+        )
+
+        // 4. Due date is verified null
+        assertEquals(null, uploadItem.dueDate)
+    }
 }

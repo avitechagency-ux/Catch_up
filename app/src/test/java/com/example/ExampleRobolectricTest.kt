@@ -1283,4 +1283,128 @@ class ExampleRobolectricTest {
     assertEquals(com.example.ui.MarzPayVerificationStage.PENDING, state.stage)
     assertEquals(1000L, state.amountUgx)
   }
+
+  @Test
+  fun `verify account security vault role authorization and screen isolation`() {
+    val teacherScreens = com.example.data.AccountSecurityVault.TEACHER_EXCLUSIVE_SCREENS
+    val studentScreens = com.example.data.AccountSecurityVault.STUDENT_EXCLUSIVE_SCREENS
+    val adminScreens = com.example.data.AccountSecurityVault.ADMIN_EXCLUSIVE_SCREENS
+
+    // Teacher cannot access any student-exclusive screens
+    for (screen in studentScreens) {
+      assertFalse(
+        "Teacher must NOT be authorized for student screen $screen",
+        com.example.data.AccountSecurityVault.isScreenAuthorized(screen, com.example.data.AccountSecurityVault.UserRole.TEACHER, isLoggedIn = true)
+      )
+    }
+
+    // Teacher cannot access admin screens
+    for (screen in adminScreens) {
+      assertFalse(
+        "Teacher must NOT be authorized for admin screen $screen",
+        com.example.data.AccountSecurityVault.isScreenAuthorized(screen, com.example.data.AccountSecurityVault.UserRole.TEACHER, isLoggedIn = true)
+      )
+    }
+
+    // Teacher is authorized for teacher screens
+    for (screen in teacherScreens) {
+      assertTrue(
+        "Teacher MUST be authorized for teacher screen $screen",
+        com.example.data.AccountSecurityVault.isScreenAuthorized(screen, com.example.data.AccountSecurityVault.UserRole.TEACHER, isLoggedIn = true)
+      )
+    }
+
+    // Student cannot access teacher screens or admin screens
+    for (screen in teacherScreens) {
+      assertFalse(
+        "Student must NOT be authorized for teacher screen $screen",
+        com.example.data.AccountSecurityVault.isScreenAuthorized(screen, com.example.data.AccountSecurityVault.UserRole.STUDENT, isLoggedIn = true)
+      )
+    }
+    for (screen in adminScreens) {
+      assertFalse(
+        "Student must NOT be authorized for admin screen $screen",
+        com.example.data.AccountSecurityVault.isScreenAuthorized(screen, com.example.data.AccountSecurityVault.UserRole.STUDENT, isLoggedIn = true)
+      )
+    }
+  }
+
+  @Test
+  fun `verify sanitizeScreenByName prevents teachers from opening student panel on restart`() {
+    val sanitizedHome = com.example.data.AccountSecurityVault.sanitizeScreenByName(
+      "HOME",
+      com.example.data.AccountSecurityVault.UserRole.TEACHER,
+      isLoggedIn = true
+    )
+    assertEquals(com.example.AppScreen.TEACHER_HOME, sanitizedHome)
+
+    val sanitizedProfile = com.example.data.AccountSecurityVault.sanitizeScreenByName(
+      "PROFILE",
+      com.example.data.AccountSecurityVault.UserRole.TEACHER,
+      isLoggedIn = true
+    )
+    assertEquals(com.example.AppScreen.TEACHER_HOME, sanitizedProfile)
+
+    val sanitizedNull = com.example.data.AccountSecurityVault.sanitizeScreenByName(
+      null,
+      com.example.data.AccountSecurityVault.UserRole.TEACHER,
+      isLoggedIn = true
+    )
+    assertEquals(com.example.AppScreen.TEACHER_HOME, sanitizedNull)
+
+    val validTeacherScreen = com.example.data.AccountSecurityVault.sanitizeScreenByName(
+      "TEACHER_MY_SUBJECTS",
+      com.example.data.AccountSecurityVault.UserRole.TEACHER,
+      isLoggedIn = true
+    )
+    assertEquals(com.example.AppScreen.TEACHER_MY_SUBJECTS, validTeacherScreen)
+  }
+
+  @Test
+  fun `verify root screen identification for safe app exit`() {
+    assertTrue(com.example.data.AccountSecurityVault.isRootScreen(com.example.AppScreen.TEACHER_HOME, com.example.data.AccountSecurityVault.UserRole.TEACHER))
+    assertFalse(com.example.data.AccountSecurityVault.isRootScreen(com.example.AppScreen.TEACHER_PROFILE, com.example.data.AccountSecurityVault.UserRole.TEACHER))
+
+    assertTrue(com.example.data.AccountSecurityVault.isRootScreen(com.example.AppScreen.HOME, com.example.data.AccountSecurityVault.UserRole.STUDENT))
+    assertFalse(com.example.data.AccountSecurityVault.isRootScreen(com.example.AppScreen.PROFILE, com.example.data.AccountSecurityVault.UserRole.STUDENT))
+
+    assertTrue(com.example.data.AccountSecurityVault.isRootScreen(com.example.AppScreen.ADMIN_HOME, com.example.data.AccountSecurityVault.UserRole.ADMIN))
+  }
+
+  @Test
+  fun `verify filterStudentsByTeacherCode strictly isolates students and never exposes unlinked students`() {
+    val students = listOf(
+      com.example.ui.ConnectedStudent(
+        id = "s1",
+        studentName = "Alice",
+        studentClass = "S.1",
+        subjectName = "Math",
+        teacherIdCode = "AAA111",
+        connectedDate = "Oct 1, 2026"
+      ),
+      com.example.ui.ConnectedStudent(
+        id = "s2",
+        studentName = "Bob",
+        studentClass = "S.2",
+        subjectName = "English",
+        teacherIdCode = "BBB222",
+        connectedDate = "Oct 2, 2026"
+      )
+    )
+
+    // For teacher with AAA111, should ONLY return Alice
+    val teacherAStudents = com.example.data.AccountSecurityVault.filterStudentsByTeacherCode(
+      students,
+      "AAA111"
+    ) { it.teacherIdCode }
+    assertEquals(1, teacherAStudents.size)
+    assertEquals("Alice", teacherAStudents[0].studentName)
+
+    // For teacher with NEW code CCC333 (no students yet), must return EMPTY LIST, never Alice or Bob
+    val teacherCStudents = com.example.data.AccountSecurityVault.filterStudentsByTeacherCode(
+      students,
+      "CCC333"
+    ) { it.teacherIdCode }
+    assertTrue(teacherCStudents.isEmpty())
+  }
 }

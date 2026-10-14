@@ -1,11 +1,13 @@
 package com.example
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,6 +15,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
+import com.example.data.AccountSecurityVault
+import com.example.data.AccountSecurityVault.UserRole
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -278,6 +282,13 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                var userRoleState by remember {
+                    mutableStateOf(AccountSecurityVault.parseUserRole(prefs.getString("user_role", "student")))
+                }
+                var isLoggedInState by remember {
+                    mutableStateOf(prefs.getBoolean("is_logged_in", false))
+                }
+
                 val initialScreen = remember {
                     val hasResetForV7 = prefs.getBoolean("onboarding_v7_reinstall_reset", false)
                     if (!hasResetForV7) {
@@ -290,22 +301,37 @@ class MainActivity : ComponentActivity() {
                     }
                     val isLoggedIn = prefs.getBoolean("is_logged_in", false)
                     val isFirstTime = prefs.getBoolean("is_first_time", true)
+                    val activeRole = AccountSecurityVault.parseUserRole(prefs.getString("user_role", "student"))
                     val savedScreen = prefs.getString("last_active_screen", null)
                     when {
                         isFirstTime -> AppScreen.ONBOARDING
                         !isLoggedIn -> AppScreen.WELCOME
-                        savedScreen != null -> {
-                            try { AppScreen.valueOf(savedScreen) } catch (e: Exception) { AppScreen.HOME }
-                        }
-                        else -> AppScreen.HOME
+                        else -> AccountSecurityVault.sanitizeScreenByName(savedScreen, activeRole, isLoggedIn)
                     }
                 }
                 var currentScreen by remember { mutableStateOf(initialScreen) }
-                var previousScreen by remember { mutableStateOf(AppScreen.TEACHER_HOME) }
+                var previousScreen by remember {
+                    mutableStateOf(AccountSecurityVault.getDefaultScreenForRole(userRoleState))
+                }
                 val coroutineScope = rememberCoroutineScope()
 
-                LaunchedEffect(currentScreen) {
-                    prefs.edit().putString("last_active_screen", currentScreen.name).apply()
+                // Continuous RBAC Route Guard: Validates every route transition in real-time
+                LaunchedEffect(currentScreen, userRoleState, isLoggedInState) {
+                    if (isLoggedInState) {
+                        val authorized = AccountSecurityVault.isScreenAuthorized(currentScreen, userRoleState, isLoggedInState)
+                        if (!authorized) {
+                            val safeFallback = AccountSecurityVault.getDefaultScreenForRole(userRoleState)
+                            android.util.Log.e("SecurityGuard", "Blocked unauthorized route attempt to $currentScreen for role $userRoleState. Redirecting to $safeFallback.")
+                            currentScreen = safeFallback
+                            return@LaunchedEffect
+                        }
+                    } else if (currentScreen !in AccountSecurityVault.UNAUTHENTICATED_SCREENS) {
+                        currentScreen = AppScreen.WELCOME
+                        return@LaunchedEffect
+                    }
+                    if (AccountSecurityVault.isScreenAuthorized(currentScreen, userRoleState, isLoggedInState)) {
+                        prefs.edit().putString("last_active_screen", currentScreen.name).apply()
+                    }
                 }
                 var selectedSubjectName by remember { mutableStateOf("Math") }
                 var subjectNotesPreviousScreen by remember { mutableStateOf(AppScreen.SUBJECTS) }
@@ -559,7 +585,8 @@ class MainActivity : ComponentActivity() {
                             connectedStudentsList = merged
                             prefs.edit().putString("teacher_connected_students", serializeConnectedStudents(merged)).apply()
                         }
-                    } else if (!currentScreen.name.startsWith("ADMIN_") &&
+                    } else if (userRoleState == UserRole.STUDENT &&
+                        !currentScreen.name.startsWith("ADMIN_") &&
                         currentScreen !in setOf(AppScreen.WELCOME, AppScreen.LOGIN, AppScreen.SIGNUP, AppScreen.ONBOARDING)
                     ) {
                         val accountPhone = studentPhone.ifBlank { prefs.getString("user_email", null).orEmpty() }.trim()
@@ -698,7 +725,7 @@ class MainActivity : ComponentActivity() {
                             selectedPdfTitle = targetTitle
                             selectedPdfSubject = targetSubject
                             recordRecentTopic(targetTitle, targetSubject, null)
-                            previousScreen = AppScreen.HOME
+                            previousScreen = AccountSecurityVault.getDefaultScreenForRole(userRoleState)
                             currentScreen = AppScreen.PDF_VIEWER
 
                             activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
@@ -706,15 +733,20 @@ class MainActivity : ComponentActivity() {
                             pendingNotificationIntent = null
                         }
                         notifType == NotificationHelper.TYPE_PAYMENT_REMINDER -> {
-                            accountPreviousScreen = AppScreen.HOME
-                            currentScreen = AppScreen.ACCOUNT
-
+                            if (userRoleState == UserRole.STUDENT) {
+                                accountPreviousScreen = AppScreen.HOME
+                                currentScreen = AppScreen.ACCOUNT
+                            }
                             activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
                             pendingNotificationIntent = null
                         }
                         notifType == NotificationHelper.TYPE_LIVE_CLASS_SCHEDULED -> {
                             if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
-                                currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                                currentScreen = if (userRoleState == UserRole.TEACHER) {
+                                    AppScreen.TEACHER_LIVE_CLASSES
+                                } else {
+                                    AppScreen.STUDENT_LIVE_CLASSES
+                                }
                             }
                             activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
                             pendingNotificationIntent = null
@@ -724,13 +756,17 @@ class MainActivity : ComponentActivity() {
                                 val liveId = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_ID)
                                 val liveTitle = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_TITLE) ?: "Live Class"
                                 val liveSubj = activeIntent.getStringExtra(NotificationHelper.EXTRA_LIVE_CLASS_SUBJECT) ?: "Lesson"
-                                if (!liveId.isNullOrBlank()) {
-                                    activeLiveClassId = liveId
-                                    activeLiveClassTitle = liveTitle
-                                    activeLiveClassSubject = liveSubj
-                                    currentScreen = AppScreen.STUDENT_LIVE_SESSION
+                                if (userRoleState == UserRole.TEACHER) {
+                                    currentScreen = AppScreen.TEACHER_LIVE_CLASSES
                                 } else {
-                                    currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                                    if (!liveId.isNullOrBlank()) {
+                                        activeLiveClassId = liveId
+                                        activeLiveClassTitle = liveTitle
+                                        activeLiveClassSubject = liveSubj
+                                        currentScreen = AppScreen.STUDENT_LIVE_SESSION
+                                    } else {
+                                        currentScreen = AppScreen.STUDENT_LIVE_CLASSES
+                                    }
                                 }
                             }
                             activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
@@ -739,30 +775,88 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                BackHandler(enabled = currentScreen != AppScreen.HOME) {
+                var lastRootBackPressMs by remember { mutableStateOf(0L) }
+                val isCurrentRootScreen = remember(currentScreen, userRoleState) {
+                    AccountSecurityVault.isRootScreen(currentScreen, userRoleState)
+                }
+
+                BackHandler(enabled = true) {
+                    if (isCurrentRootScreen) {
+                        // User is on their root home screen (TEACHER_HOME for Teacher, HOME for Student, ADMIN_HOME for Admin).
+                        // Safe app exit: never cross-navigate to another role's dashboard or profile!
+                        val now = System.currentTimeMillis()
+                        if (now - lastRootBackPressMs < 2000L) {
+                            (context as? Activity)?.finish()
+                        } else {
+                            lastRootBackPressMs = now
+                            Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                        }
+                        return@BackHandler
+                    }
+
                     currentScreen = when (currentScreen) {
                         AppScreen.LOGIN -> AppScreen.WELCOME
                         AppScreen.SIGNUP -> AppScreen.WELCOME
                         AppScreen.STUDENT_PAYMENT -> AppScreen.SIGNUP
                         AppScreen.WELCOME -> AppScreen.WELCOME
                         AppScreen.ONBOARDING -> AppScreen.ONBOARDING
-                        AppScreen.PDF_VIEWER -> previousScreen
+
+                        // Note Viewer: role-safe back destination
+                        AppScreen.PDF_VIEWER -> {
+                            when (userRoleState) {
+                                UserRole.TEACHER -> if (previousScreen in AccountSecurityVault.TEACHER_EXCLUSIVE_SCREENS) previousScreen else AppScreen.TEACHER_HOME
+                                UserRole.ADMIN -> AppScreen.ADMIN_HOME
+                                else -> if (previousScreen in AccountSecurityVault.STUDENT_EXCLUSIVE_SCREENS) previousScreen else AppScreen.HOME
+                            }
+                        }
+
+                        // Student Screens
                         AppScreen.SUBJECT_NOTES -> AppScreen.SUBJECTS
                         AppScreen.DOWNLOADS -> AppScreen.HOME
                         AppScreen.SUBJECTS -> AppScreen.HOME
                         AppScreen.PROFILE -> AppScreen.HOME
                         AppScreen.STUDENT_AFFILIATE -> AppScreen.PROFILE
-                        AppScreen.ACCOUNT -> accountPreviousScreen
-                        AppScreen.SETTINGS -> settingsPreviousScreen
-                        AppScreen.HELP_AND_SUPPORT -> helpPreviousScreen
-                        AppScreen.ABOUT -> aboutPreviousScreen
-                        AppScreen.PRIVACY_POLICY -> privacyPreviousScreen
+                        AppScreen.ACCOUNT -> if (accountPreviousScreen in AccountSecurityVault.STUDENT_EXCLUSIVE_SCREENS) accountPreviousScreen else AppScreen.HOME
                         AppScreen.STUDENT_LIVE_CLASSES -> AppScreen.HOME
                         AppScreen.STUDENT_LIVE_SESSION -> AppScreen.STUDENT_LIVE_CLASSES
+
+                        // Common Screens: strictly role-aware return destination
+                        AppScreen.SETTINGS -> {
+                            when (userRoleState) {
+                                UserRole.TEACHER -> AppScreen.TEACHER_PROFILE
+                                UserRole.ADMIN -> AppScreen.ADMIN_MORE
+                                else -> settingsPreviousScreen
+                            }
+                        }
+                        AppScreen.HELP_AND_SUPPORT -> {
+                            when (userRoleState) {
+                                UserRole.TEACHER -> AppScreen.TEACHER_PROFILE
+                                UserRole.ADMIN -> AppScreen.ADMIN_MORE
+                                else -> helpPreviousScreen
+                            }
+                        }
+                        AppScreen.ABOUT -> {
+                            when (userRoleState) {
+                                UserRole.TEACHER -> AppScreen.TEACHER_PROFILE
+                                UserRole.ADMIN -> AppScreen.ADMIN_MORE
+                                else -> aboutPreviousScreen
+                            }
+                        }
+                        AppScreen.PRIVACY_POLICY -> {
+                            when (userRoleState) {
+                                UserRole.TEACHER -> AppScreen.TEACHER_PROFILE
+                                UserRole.ADMIN -> AppScreen.ADMIN_MORE
+                                else -> privacyPreviousScreen
+                            }
+                        }
+
+                        // Teacher Screens: strictly contained within Teacher panel
                         AppScreen.TEACHER_LIVE_CLASSES -> AppScreen.TEACHER_HOME
                         AppScreen.CREATE_LIVE_CLASS -> AppScreen.TEACHER_LIVE_CLASSES
                         AppScreen.TEACHER_LIVE_SESSION -> AppScreen.TEACHER_LIVE_CLASSES
-                        AppScreen.TEACHER_UPLOAD_NOTES -> previousScreen
+                        AppScreen.TEACHER_UPLOAD_NOTES -> {
+                            if (previousScreen in AccountSecurityVault.TEACHER_EXCLUSIVE_SCREENS) previousScreen else AppScreen.TEACHER_HOME
+                        }
                         AppScreen.TEACHER_SUBJECT_CONFIG -> AppScreen.TEACHER_MY_SUBJECTS
                         AppScreen.TEACHER_MY_SUBJECTS -> AppScreen.TEACHER_HOME
                         AppScreen.TEACHER_UPLOADS -> AppScreen.TEACHER_HOME
@@ -772,7 +866,9 @@ class MainActivity : ComponentActivity() {
                         AppScreen.TEACHER_CLASS_STREAMS -> AppScreen.TEACHER_STUDENTS_CLASSES
                         AppScreen.TEACHER_STREAM_STUDENTS -> AppScreen.TEACHER_CLASS_STREAMS
                         AppScreen.TEACHER_STUDENT_DETAIL -> AppScreen.TEACHER_STREAM_STUDENTS
-                        AppScreen.TEACHER_HOME -> AppScreen.PROFILE
+                        AppScreen.TEACHER_HOME -> AppScreen.TEACHER_HOME
+
+                        // Admin Screens: strictly contained within Admin panel
                         AppScreen.ADMIN_ANALYSIS -> AppScreen.ADMIN_HOME
                         AppScreen.ADMIN_USERS -> AppScreen.ADMIN_HOME
                         AppScreen.ADMIN_MORE -> AppScreen.ADMIN_HOME
@@ -783,8 +879,10 @@ class MainActivity : ComponentActivity() {
                         AppScreen.ADMIN_SETTINGS -> AppScreen.ADMIN_MORE
                         AppScreen.ADMIN_HEALTH -> adminHealthPreviousScreen
                         AppScreen.ADMIN_LOGS -> adminLogsPreviousScreen
-                        AppScreen.ADMIN_HOME -> adminPreviousScreen
-                        else -> AppScreen.HOME
+                        AppScreen.ADMIN_HOME -> AppScreen.ADMIN_HOME
+
+                        // Security fallback: always return to active role's authorized default
+                        else -> AccountSecurityVault.getDefaultScreenForRole(userRoleState)
                     }
                 }
 
@@ -864,6 +962,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                                 editor.apply()
+                                userRoleState = AccountSecurityVault.parseUserRole(role)
+                                isLoggedInState = true
 
                                 currentScreen = when (role.lowercase()) {
                                     "teacher" -> AppScreen.TEACHER_HOME
@@ -922,6 +1022,8 @@ class MainActivity : ComponentActivity() {
                                         .putString("teacher_connected_students", "")
                                 }
                                 editor.apply()
+                                userRoleState = AccountSecurityVault.parseUserRole(role)
+                                isLoggedInState = true
 
                                 currentScreen = when (role.lowercase()) {
                                     "teacher" -> AppScreen.TEACHER_HOME
@@ -1224,7 +1326,9 @@ class MainActivity : ComponentActivity() {
                             },
                             onUpdateProfile = onSaveProfile,
                             onLogout = {
-                                prefs.edit().putBoolean("is_logged_in", false).apply()
+                                AccountSecurityVault.clearSessionOnLogout(prefs)
+                                userRoleState = UserRole.UNAUTHENTICATED
+                                isLoggedInState = false
                                 coroutineScope.launch { SupabaseRepository.revokeCurrentSession() }
                                 currentScreen = AppScreen.WELCOME
                             }
@@ -1302,9 +1406,10 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         AppScreen.TEACHER_HOME -> {
-                            val teacherConnectedStudents = connectedStudentsList.filter {
-                                it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)
-                            }.ifEmpty { connectedStudentsList }
+                            val teacherConnectedStudents = AccountSecurityVault.filterStudentsByTeacherCode(
+                                connectedStudentsList,
+                                teacherIdCode
+                            ) { it.teacherIdCode }
                             TeacherHomeScreen(
                                 teacherName = teacherName,
                                 teacherIdCode = teacherIdCode,
@@ -1359,7 +1464,7 @@ class MainActivity : ComponentActivity() {
                                     currentScreen = AppScreen.TEACHER_UPLOADS
                                 },
                                 onSwitchToStudentView = {
-                                    currentScreen = AppScreen.PROFILE
+                                    // Security: Direct cross-role access is strictly prohibited
                                 },
                                 onNavigateToStudents = {
                                     currentScreen = AppScreen.TEACHER_STUDENTS_CLASSES
@@ -1435,6 +1540,7 @@ class MainActivity : ComponentActivity() {
                                     title = quickItem.title,
                                     subject = quickItem.subject,
                                     targetClass = quickItem.targetClass,
+                                    targetStreams = quickItem.targetStreams,
                                     term = "Term 3",
                                     type = quickItem.type,
                                     dateUploaded = nowStr,
@@ -1442,7 +1548,7 @@ class MainActivity : ComponentActivity() {
                                     fileFormat = "DOCX",
                                     downloadCount = 0,
                                     viewCount = 0,
-                                    dueDate = quickItem.dueDate,
+                                    dueDate = null,
                                     status = if (quickItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published",
                                     teacherIdCode = teacherIdCode
                                 )
@@ -1466,11 +1572,17 @@ class MainActivity : ComponentActivity() {
                         )
                         AppScreen.TEACHER_UPLOAD_NOTES -> {
                             val activeTeacherSubjects = resolveTeacherSubjectItems(teacherSubjectsTaught)
+                            val teacherConnectedStudents = AccountSecurityVault.filterStudentsByTeacherCode(
+                                connectedStudentsList,
+                                teacherIdCode
+                            ) { it.teacherIdCode }
                             TeacherUploadNotesScreen(
                                 subjectName = selectedTeacherSubjectItem.name,
                                 subjectIcon = selectedTeacherSubjectItem.icon,
                                 availableSubjects = activeTeacherSubjects,
                                 assignedClasses = com.example.ui.UgandanSecondaryClasses,
+                                teacherIdCode = teacherIdCode,
+                                connectedStudents = teacherConnectedStudents,
                                 existingNote = teacherNoteToEdit,
                                 onNavigateBack = {
                                     currentScreen = previousScreen
@@ -1488,6 +1600,7 @@ class MainActivity : ComponentActivity() {
                                         title = savedItem.title,
                                         subject = savedItem.subject,
                                         targetClass = savedItem.targetClass,
+                                        targetStreams = savedItem.targetStreams,
                                         term = "Term 3",
                                         type = savedItem.type,
                                         dateUploaded = resolvedDate,
@@ -1495,7 +1608,7 @@ class MainActivity : ComponentActivity() {
                                         fileFormat = "DOCX",
                                         downloadCount = 0,
                                         viewCount = 0,
-                                        dueDate = savedItem.dueDate,
+                                        dueDate = null,
                                         status = if (savedItem.type.equals("Assignment", ignoreCase = true)) "Active Assignment" else "Published",
                                         teacherIdCode = teacherIdCode
                                     )
@@ -1515,7 +1628,8 @@ class MainActivity : ComponentActivity() {
                                                 updatedTitle = savedItem.title,
                                                 updatedTargetClass = savedItem.targetClass,
                                                 updatedType = savedItem.type,
-                                                updatedDueDate = savedItem.dueDate
+                                                updatedDueDate = null,
+                                                updatedTargetStreams = savedItem.targetStreams
                                             )
                                         } else {
                                             SupabaseRepository.uploadNoteAndFileToSupabase(
@@ -1593,9 +1707,13 @@ class MainActivity : ComponentActivity() {
                                 adminPreviousScreen = AppScreen.TEACHER_PROFILE
                                 currentScreen = AppScreen.ADMIN_HOME
                             },
-                            onSwitchToStudentView = { currentScreen = AppScreen.PROFILE },
+                            onSwitchToStudentView = {
+                                // Security: Cross-role switching is strictly disabled without authenticating
+                            },
                             onLogout = {
-                                prefs.edit().putBoolean("is_logged_in", false).apply()
+                                AccountSecurityVault.clearSessionOnLogout(prefs)
+                                userRoleState = UserRole.UNAUTHENTICATED
+                                isLoggedInState = false
                                 coroutineScope.launch { SupabaseRepository.revokeCurrentSession() }
                                 currentScreen = AppScreen.WELCOME
                             }
@@ -1607,12 +1725,15 @@ class MainActivity : ComponentActivity() {
                             schoolName = teacherSchool,
                             onNavigateBack = { currentScreen = AppScreen.TEACHER_PROFILE },
                             onUpdateProfile = onSaveTeacherProfile,
-                            onSwitchToStudentView = { currentScreen = AppScreen.PROFILE }
+                            onSwitchToStudentView = {
+                                // Security: Cross-role switching is strictly disabled without authenticating
+                            }
                         )
                         AppScreen.TEACHER_STUDENTS_CLASSES -> {
-                            val teacherConnectedStudents = connectedStudentsList.filter {
-                                it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)
-                            }.ifEmpty { connectedStudentsList }
+                            val teacherConnectedStudents = AccountSecurityVault.filterStudentsByTeacherCode(
+                                connectedStudentsList,
+                                teacherIdCode
+                            ) { it.teacherIdCode }
                             TeacherStudentsClassesScreen(
                                 teacherName = teacherName,
                                 teacherIdCode = teacherIdCode,
@@ -1628,9 +1749,10 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         AppScreen.TEACHER_CLASS_STREAMS -> {
-                            val teacherConnectedStudents = connectedStudentsList.filter {
-                                it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)
-                            }.ifEmpty { connectedStudentsList }
+                            val teacherConnectedStudents = AccountSecurityVault.filterStudentsByTeacherCode(
+                                connectedStudentsList,
+                                teacherIdCode
+                            ) { it.teacherIdCode }
                             TeacherClassStreamsScreen(
                                 classId = selectedTeacherClassId,
                                 className = selectedTeacherClassName,
@@ -1646,9 +1768,10 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         AppScreen.TEACHER_STREAM_STUDENTS -> {
-                            val teacherConnectedStudents = connectedStudentsList.filter {
-                                it.teacherIdCode.equals(teacherIdCode, ignoreCase = true)
-                            }.ifEmpty { connectedStudentsList }
+                            val teacherConnectedStudents = AccountSecurityVault.filterStudentsByTeacherCode(
+                                connectedStudentsList,
+                                teacherIdCode
+                            ) { it.teacherIdCode }
                             TeacherStreamStudentsScreen(
                                 classId = selectedTeacherClassId,
                                 className = selectedTeacherClassName,
@@ -1712,9 +1835,12 @@ class MainActivity : ComponentActivity() {
                             onNavigateToHome = { /* Already on Admin Home */ },
                             onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
                             onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
-                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE },
-                            onSwitchToStudentView = { currentScreen = AppScreen.HOME },
-                            onSwitchToTeacherView = { currentScreen = AppScreen.TEACHER_HOME }
+                            onSwitchToStudentView = {
+                                // Security: Admin role isolation - direct switching disabled
+                            },
+                            onSwitchToTeacherView = {
+                                // Security: Admin role isolation - direct switching disabled
+                            }
                         )
                         AppScreen.ADMIN_ANALYSIS -> AdminAnalysisScreen(
                             onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME },
@@ -1758,7 +1884,9 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.ADMIN_LOGS
                             },
                             onLogout = {
-                                prefs.edit().putBoolean("is_logged_in", false).apply()
+                                AccountSecurityVault.clearSessionOnLogout(prefs)
+                                userRoleState = UserRole.UNAUTHENTICATED
+                                isLoggedInState = false
                                 coroutineScope.launch { SupabaseRepository.revokeCurrentSession() }
                                 currentScreen = AppScreen.WELCOME
                             }

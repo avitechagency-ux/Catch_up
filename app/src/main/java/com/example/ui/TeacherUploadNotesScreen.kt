@@ -22,21 +22,26 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Assignment
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -124,6 +129,8 @@ fun TeacherUploadNotesScreen(
     subjectIcon: ImageVector = Icons.Outlined.Public,
     availableSubjects: List<TeacherSubjectItem> = DefaultTeacherSubjects,
     assignedClasses: List<String> = UgandanSecondaryClasses,
+    teacherIdCode: String = "",
+    connectedStudents: List<ConnectedStudent> = emptyList(),
     existingNote: SubjectUploadItem? = null,
     onNavigateBack: () -> Unit = {},
     onSaveSuccess: (SubjectUploadItem) -> Unit = {}
@@ -145,7 +152,6 @@ fun TeacherUploadNotesScreen(
     var noteTitle by remember(existingNote) { mutableStateOf(existingNote?.title ?: "") }
     var selectedSubject by remember(initialSubject) { mutableStateOf(initialSubject) }
     var uploadType by remember(existingNote) { mutableStateOf(existingNote?.type ?: "Notes") }
-    var dueDate by remember(existingNote) { mutableStateOf(existingNote?.dueDate ?: "Due in 7 days") }
     var noteDescription by remember(existingNote) { mutableStateOf(existingNote?.description ?: "") }
 
     val availableClassesForSubject = remember(assignedClasses) {
@@ -163,6 +169,19 @@ fun TeacherUploadNotesScreen(
         )
     }
 
+    // Dynamic stream resolution strictly based on the selected class and this teacher's connected students
+    val availableStreamsForClass = remember(connectedStudents, teacherIdCode, selectedClassStream) {
+        val cleanCode = teacherIdCode.trim().uppercase()
+        val canonicalClass = toCanonicalClassId(selectedClassStream)
+        connectedStudents
+            .filter { it.teacherIdCode.trim().uppercase() == cleanCode }
+            .filter { toCanonicalClassId(it.studentClass) == canonicalClass }
+            .map { com.example.data.normalizeStream(it.stream) }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+    }
+
     val initialTargetStreams = existingNote?.targetStreams ?: "ALL"
     val parsedInitialStreams = remember(initialTargetStreams) { com.example.data.parseTargetStreams(initialTargetStreams) }
     var isAllStreamsSelected by remember(initialTargetStreams) { mutableStateOf("ALL" in parsedInitialStreams) }
@@ -170,6 +189,20 @@ fun TeacherUploadNotesScreen(
         mutableStateListOf<String>().apply {
             if ("ALL" !in parsedInitialStreams) {
                 addAll(parsedInitialStreams)
+            }
+        }
+    }
+
+    // When target class changes, auto-clean streams that don't belong to the newly selected class
+    androidx.compose.runtime.LaunchedEffect(availableStreamsForClass) {
+        if (availableStreamsForClass.isEmpty()) {
+            isAllStreamsSelected = true
+            selectedStreamsList.clear()
+        } else {
+            val invalid = selectedStreamsList.filter { it !in availableStreamsForClass }
+            selectedStreamsList.removeAll(invalid)
+            if (selectedStreamsList.isEmpty() && !isAllStreamsSelected) {
+                isAllStreamsSelected = true
             }
         }
     }
@@ -182,6 +215,7 @@ fun TeacherUploadNotesScreen(
     var showSubjectSheet by remember { mutableStateOf(false) }
     var showClassDropdown by remember { mutableStateOf(false) }
     var showClassSheet by remember { mutableStateOf(false) }
+    var showStreamDropdown by remember { mutableStateOf(false) }
 
     // File Picker Launcher strictly for Word (.docx) documents
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -770,169 +804,213 @@ fun TeacherUploadNotesScreen(
                     }
                 }
 
-                // 5b. FIELD — STREAM TARGETING
+                // 5b. FIELD — STREAM TARGETING (Dropdown filtered by selected class and teacher's connected streams)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Target Streams",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextDark
-                    )
-
-                    // Option A: All Streams
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable {
-                                isAllStreamsSelected = true
-                                selectedStreamsList.clear()
-                            }
-                            .padding(vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(
-                            selected = isAllStreamsSelected,
-                            onClick = {
-                                isAllStreamsSelected = true
-                                selectedStreamsList.clear()
-                            },
-                            colors = RadioButtonDefaults.colors(selectedColor = IndigoPurple)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "All ${selectedClassStream} Streams",
+                            text = "Target Streams",
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.SemiBold,
                             color = TextDark
                         )
+                        if (availableStreamsForClass.isNotEmpty()) {
+                            Text(
+                                text = "${availableStreamsForClass.size} available in $selectedClassStream",
+                                fontSize = 12.sp,
+                                color = IndigoPurple,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
 
-                    // Option B: Select Specific Streams
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable {
-                                isAllStreamsSelected = false
-                                if (selectedStreamsList.isEmpty()) {
-                                    selectedStreamsList.add("NORTH")
-                                }
-                            }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = !isAllStreamsSelected,
-                            onClick = {
-                                isAllStreamsSelected = false
-                                if (selectedStreamsList.isEmpty()) {
-                                    selectedStreamsList.add("NORTH")
-                                }
-                            },
-                            colors = RadioButtonDefaults.colors(selectedColor = IndigoPurple)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Select Specific Streams",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextDark
-                        )
-                    }
-
-                    if (!isAllStreamsSelected) {
-                        Column(
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(SoftLavenderGrey, RoundedCornerShape(12.dp))
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    showStreamDropdown = true
+                                }
+                                .testTag("selector_target_stream"),
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (availableStreamsForClass.isEmpty()) SoftLavenderGrey.copy(alpha = 0.5f) else Color.White,
+                            border = BorderStroke(1.dp, BorderGrey)
                         ) {
-                            val defaultStreamOptions = listOf("NORTH", "SOUTH", "EAST", "WEST")
-                            defaultStreamOptions.forEach { st ->
-                                val isChecked = st in selectedStreamsList
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            if (isChecked) {
-                                                selectedStreamsList.remove(st)
-                                            } else {
-                                                selectedStreamsList.add(st)
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Group,
+                                        contentDescription = null,
+                                        tint = if (availableStreamsForClass.isEmpty()) IconGrey else IndigoPurple,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    if (availableStreamsForClass.isEmpty()) {
+                                        Text(
+                                            text = "No streams",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = TextMuted,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    } else {
+                                        val streamDisplayText = when {
+                                            isAllStreamsSelected || selectedStreamsList.isEmpty() -> "All Streams ($selectedClassStream)"
+                                            selectedStreamsList.size == 1 -> "Stream ${selectedStreamsList.first()}"
+                                            else -> "Streams: ${selectedStreamsList.joinToString(", ")}"
+                                        }
+                                        Text(
+                                            text = streamDisplayText,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = IndigoPurple,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                Icon(
+                                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                                    contentDescription = "Select Stream",
+                                    tint = IconGrey,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = showStreamDropdown,
+                            onDismissRequest = { showStreamDropdown = false },
+                            modifier = Modifier
+                                .background(Color.White)
+                                .testTag("dropdown_stream_selection")
+                        ) {
+                            if (availableStreamsForClass.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = "No streams",
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextDark
+                                            )
+                                            Text(
+                                                text = "No streams connected yet in $selectedClassStream",
+                                                fontSize = 11.sp,
+                                                color = TextMuted
+                                            )
+                                        }
+                                    },
+                                    onClick = { showStreamDropdown = false },
+                                    modifier = Modifier.testTag("stream_option_no_streams")
+                                )
+                            } else {
+                                val isAllActive = isAllStreamsSelected || selectedStreamsList.isEmpty()
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "All Streams ($selectedClassStream)",
+                                                fontSize = 14.sp,
+                                                fontWeight = if (isAllActive) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isAllActive) IndigoPurple else TextDark
+                                            )
+                                            if (isAllActive) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.CheckCircle,
+                                                    contentDescription = "Selected",
+                                                    tint = IndigoPurple,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
                                             }
                                         }
-                                        .padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = isChecked,
-                                        onCheckedChange = { checked ->
-                                            if (checked) selectedStreamsList.add(st) else selectedStreamsList.remove(st)
+                                    },
+                                    onClick = {
+                                        isAllStreamsSelected = true
+                                        selectedStreamsList.clear()
+                                        showStreamDropdown = false
+                                    },
+                                    modifier = Modifier.testTag("stream_option_all")
+                                )
+
+                                HorizontalDivider(color = BorderGrey.copy(alpha = 0.5f))
+
+                                availableStreamsForClass.forEach { streamOption ->
+                                    val isStreamChecked = !isAllStreamsSelected && streamOption in selectedStreamsList
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "Stream $streamOption",
+                                                    fontSize = 14.sp,
+                                                    fontWeight = if (isStreamChecked) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isStreamChecked) IndigoPurple else TextDark
+                                                )
+                                                if (isStreamChecked) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.CheckCircle,
+                                                        contentDescription = "Selected",
+                                                        tint = IndigoPurple,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
                                         },
-                                        colors = CheckboxDefaults.colors(checkedColor = IndigoPurple)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = st,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextDark
+                                        onClick = {
+                                            isAllStreamsSelected = false
+                                            selectedStreamsList.clear()
+                                            selectedStreamsList.add(streamOption)
+                                            showStreamDropdown = false
+                                        },
+                                        modifier = Modifier.testTag("stream_option_$streamOption")
                                     )
                                 }
                             }
                         }
                     }
-                }
 
-                // 6. FIELD — SUBMISSION DUE DATE (When Assignment is selected)
-                if (uploadType.equals("Assignment", ignoreCase = true)) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    if (availableStreamsForClass.isEmpty()) {
                         Text(
-                            text = "Submission Due Date",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextDark
+                            text = "No streams connected yet for $selectedClassStream. Notes will be sent to all students in $selectedClassStream.",
+                            fontSize = 12.sp,
+                            color = TextMuted
                         )
-                        OutlinedTextField(
-                            value = dueDate,
-                            onValueChange = { dueDate = it },
-                            placeholder = {
-                                Text(
-                                    text = "e.g., Due in 7 days or Oct 15, 2026",
-                                    color = TextMuted,
-                                    fontSize = 14.sp
-                                )
+                    } else {
+                        Text(
+                            text = if (isAllStreamsSelected || selectedStreamsList.isEmpty()) {
+                                "All students in $selectedClassStream will receive these ${uploadType.lowercase()}."
+                            } else {
+                                "Only students enrolled in $selectedClassStream (${selectedStreamsList.joinToString(", ")}) will receive these ${uploadType.lowercase()}."
                             },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.CalendarToday,
-                                    contentDescription = null,
-                                    tint = IndigoPurple,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = IndigoPurple,
-                                unfocusedBorderColor = BorderGrey,
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                cursorColor = IndigoPurple,
-                                focusedTextColor = TextDark,
-                                unfocusedTextColor = TextDark
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("input_due_date")
+                            fontSize = 12.sp,
+                            color = TextMuted
                         )
                     }
                 }
@@ -1022,11 +1100,7 @@ fun TeacherUploadNotesScreen(
                                     type = uploadType,
                                     dateUploaded = existingNote?.dateUploaded
                                         ?: SimpleDateFormat("dd/MM/yyyy", Locale.US).format(Date()),
-                                    dueDate = if (uploadType.equals("Assignment", ignoreCase = true)) {
-                                        dueDate.trim().ifBlank { "Due in 7 days" }
-                                    } else {
-                                        null
-                                    },
+                                    dueDate = null,
                                     description = resolvedDescription,
                                     fileName = currentFileName,
                                     fileSize = selectedFileSize ?: "1.2 MB",

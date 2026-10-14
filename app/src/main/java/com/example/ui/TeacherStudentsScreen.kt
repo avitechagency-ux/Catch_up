@@ -193,7 +193,6 @@ fun TeacherStudentsClassesScreen(
     val teacherStudents = remember(connectedStudents, teacherIdCode) {
         val cleanCode = teacherIdCode.trim().uppercase()
         connectedStudents.filter { it.teacherIdCode.trim().uppercase() == cleanCode }
-            .ifEmpty { connectedStudents }
     }
 
     Scaffold(
@@ -388,7 +387,6 @@ fun TeacherClassStreamsScreen(
         val cleanCode = teacherIdCode.trim().uppercase()
         connectedStudents
             .filter { it.teacherIdCode.trim().uppercase() == cleanCode }
-            .ifEmpty { connectedStudents }
             .filter { toCanonicalClassId(it.studentClass) == classId }
     }
 
@@ -765,7 +763,6 @@ fun TeacherStreamStudentsScreen(
         val cleanCode = teacherIdCode.trim().uppercase()
         connectedStudents
             .filter { it.teacherIdCode.trim().uppercase() == cleanCode }
-            .ifEmpty { connectedStudents }
             .filter { student ->
                 val classMatches = toCanonicalClassId(student.studentClass) == classId
                 val streamMatches = if (cleanStream == "GENERAL") {

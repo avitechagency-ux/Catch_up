@@ -2059,6 +2059,7 @@ object SupabaseRepository {
             description = resolvedDescription,
             subjectName = uploadItem.subject.trim(),
             targetClass = uploadItem.targetClass.trim(),
+            targetStreams = uploadItem.targetStreams.ifBlank { "ALL" },
             contentType = uploadItem.type.trim(),
             teacherIdCode = cleanCode,
             authorName = teacherName.trim().ifBlank { "Teacher" },
@@ -2182,7 +2183,8 @@ object SupabaseRepository {
         updatedTitle: String,
         updatedTargetClass: String,
         updatedType: String,
-        updatedDueDate: String?
+        updatedDueDate: String?,
+        updatedTargetStreams: String = "ALL"
     ): Boolean = withContext(Dispatchers.IO) {
         synchronized(recentUploadedNotes) {
             val idx = recentUploadedNotes.indexOfFirst {
@@ -2195,6 +2197,7 @@ object SupabaseRepository {
                 recentUploadedNotes[idx] = current.copy(
                     title = updatedTitle.trim(),
                     targetClass = updatedTargetClass.trim(),
+                    targetStreams = updatedTargetStreams.trim().ifBlank { "ALL" },
                     contentType = updatedType.trim(),
                     dueDate = updatedDueDate
                 )
@@ -2206,6 +2209,7 @@ object SupabaseRepository {
         val fields = mapOf<String, Any?>(
             "title" to updatedTitle.trim(),
             "target_class" to updatedTargetClass.trim(),
+            "target_streams" to updatedTargetStreams.trim().ifBlank { "ALL" },
             "content_type" to updatedType.trim(),
             "due_date" to updatedDueDate
         )

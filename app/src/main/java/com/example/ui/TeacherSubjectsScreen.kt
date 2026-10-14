@@ -970,7 +970,6 @@ fun TeacherSubjectConfigScreen(
         var assignmentTitle by remember { mutableStateOf("") }
         val availableClasses = remember { UgandanSecondaryClasses }
         var targetClass by remember(availableClasses) { mutableStateOf(availableClasses.firstOrNull() ?: "S.4") }
-        var dueDate by remember { mutableStateOf("Due in 7 days") }
 
         AlertDialog(
             onDismissRequest = { showUploadAssignmentDialog = false },
@@ -987,7 +986,7 @@ fun TeacherSubjectConfigScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Assign coursework, homework exercises or term project questions (.docx) with submission deadlines.",
+                        text = "Assign coursework, homework exercises or revision work (.docx) for student practice.",
                         fontSize = 13.sp,
                         color = TextMuted
                     )
@@ -1073,29 +1072,6 @@ fun TeacherSubjectConfigScreen(
                         }
                     }
 
-                    OutlinedTextField(
-                        value = dueDate,
-                        onValueChange = { dueDate = it },
-                        label = { Text("Submission Due Date") },
-                        leadingIcon = {
-                            Icon(
-                                imageVector = Icons.Outlined.CalendarToday,
-                                contentDescription = null,
-                                tint = IndigoPurple,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = IndigoPurple,
-                            unfocusedBorderColor = BorderGrey
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("input_assignment_due_date")
-                    )
-
                     // Attached Instructions Preview
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -1134,7 +1110,7 @@ fun TeacherSubjectConfigScreen(
                             targetClass = targetClass,
                             type = "Assignment",
                             dateUploaded = "Today",
-                            dueDate = dueDate
+                            dueDate = null
                         )
                         uploadsList = listOf(newUpload) + uploadsList
                         onQuickUpload(newUpload)
