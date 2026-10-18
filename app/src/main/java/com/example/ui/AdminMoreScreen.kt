@@ -103,7 +103,6 @@ fun AdminMoreScreen(
     onNavigateToTransactions: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
     onNavigateToHealth: () -> Unit = {},
-    onNavigateToAffiliate: () -> Unit = {},
     onNavigateToLogs: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
@@ -284,15 +283,7 @@ fun AdminMoreScreen(
                     onClick = onNavigateToHealth
                 )
 
-                // 5. Affiliate
-                AdminMenuPill(
-                    text = "Affiliate",
-                    icon = Icons.Outlined.CardGiftcard,
-                    testTag = "admin_more_item_affiliate",
-                    onClick = onNavigateToAffiliate
-                )
-
-                // 6. Logs
+                // 5. Logs
                 AdminMenuPill(
                     text = "Logs",
                     icon = Icons.Outlined.Article,

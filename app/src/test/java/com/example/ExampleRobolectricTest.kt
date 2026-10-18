@@ -24,7 +24,6 @@ import com.example.ui.DefaultStudentsList
 import com.example.ui.DefaultTeachersList
 import com.example.ui.mergeSignedUpAndDefaultUsers
 import com.example.ui.toAdminUserItem
-import com.example.ui.DefaultTopAffiliates
 import com.example.ui.DefaultUsersChartData
 import com.example.ui.MonthUsersChartData
 import com.example.ui.WeekRevenueChartData
@@ -32,18 +31,10 @@ import com.example.ui.WeekUsersChartData
 import com.example.ui.YearRevenueChartData
 import com.example.ui.YearUsersChartData
 import com.example.ui.UserRoleFilter
-import com.example.ui.AffiliateAccountStatus
-import com.example.ui.AffiliateTransaction
-import com.example.ui.AffiliateTransactionType
-import com.example.ui.AffiliateUser
-import com.example.ui.DefaultAffiliateUsersList
 import com.example.ui.DefaultPlanTiers
 import com.example.ui.DefaultPlatformTransactions
-import com.example.ui.DefaultStudentAffiliateTransactions
 import com.example.ui.PlatformTransactionCategory
 import com.example.ui.PlatformTransactionStatus
-import com.example.ui.UGX_PER_REFERRAL
-import com.example.ui.formatUgx
 import com.example.ui.defaultFaqItems
 import com.example.ui.getSubjectThemeColor
 import org.junit.Assert.assertEquals
@@ -128,7 +119,7 @@ class ExampleRobolectricTest {
 
     assertEquals("1 Month", plans[0].duration)
     assertEquals("Billed monthly", plans[0].caption)
-    assertEquals("UGX 1,000", plans[0].price)
+    assertEquals("UGX 2,000", plans[0].price)
   }
 
   @Test
@@ -263,27 +254,13 @@ class ExampleRobolectricTest {
       "Transactions",
       "Settings",
       "Health",
-      "Affiliate",
       "Logs",
       "LOG OUT"
     )
-    assertEquals(7, expectedOrder.size)
+    assertEquals(6, expectedOrder.size)
     assertTrue(expectedOrder.contains("Health"))
     assertTrue(expectedOrder.contains("Logs"))
-    assertTrue(expectedOrder.contains("Affiliate"))
     assertEquals("LOG OUT", expectedOrder.last())
-  }
-
-  @Test
-  fun `verify admin affiliate navigation from more and back`() {
-    var currentScreen = AppScreen.ADMIN_MORE
-    val onNavigateToAffiliate = { currentScreen = AppScreen.ADMIN_AFFILIATE }
-    onNavigateToAffiliate()
-    assertEquals(AppScreen.ADMIN_AFFILIATE, currentScreen)
-
-    val onNavigateBack = { currentScreen = AppScreen.ADMIN_MORE }
-    onNavigateBack()
-    assertEquals(AppScreen.ADMIN_MORE, currentScreen)
   }
 
   @Test
@@ -349,7 +326,7 @@ class ExampleRobolectricTest {
   fun `verify default admin plans list and pricing formatting`() {
     assertEquals(1, DefaultAdminPlans.size)
     assertEquals("1 Month", DefaultAdminPlans[0].duration)
-    assertEquals("UGX 1,000", DefaultAdminPlans[0].price)
+    assertEquals("UGX 2,000", DefaultAdminPlans[0].price)
 
     assertEquals("UGX 5,000", formatUgxPrice(5000))
     assertEquals("UGX 100,000", formatUgxPrice(100000))
@@ -422,108 +399,11 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify admin analysis top affiliates ranking list`() {
-    assertEquals(5, DefaultTopAffiliates.size)
-    val names = DefaultTopAffiliates.map { it.name }
-    assertEquals(listOf("Moses", "Mary", "John", "Martin", "May"), names)
-    assertEquals(listOf(142, 118, 95, 74, 62), DefaultTopAffiliates.map { it.referralCount })
-    assertEquals(listOf(1, 2, 3, 4, 5), DefaultTopAffiliates.map { it.rank })
-  }
-
-  @Test
-  fun `verify affiliate reward rate and earning calculation`() {
-    assertEquals(100, UGX_PER_REFERRAL)
-
-    val user = AffiliateUser(
-      id = "test_user",
-      name = "Test Student",
-      email = "test@catchup.ug",
-      referralCode = "TEST100",
-      referralCount = 10,
-      totalEarnedUgx = 10 * UGX_PER_REFERRAL,
-      currentBalanceUgx = 1000
-    )
-
-    assertEquals(1000, user.totalEarnedUgx)
-    assertEquals(1000, user.currentBalanceUgx)
-
-    // Simulate 1 referral use (+100 UGX)
-    val updatedUser = user.copy(
-      referralCount = user.referralCount + 1,
-      totalEarnedUgx = (user.referralCount + 1) * UGX_PER_REFERRAL,
-      currentBalanceUgx = user.currentBalanceUgx + UGX_PER_REFERRAL
-    )
-
-    assertEquals(11, updatedUser.referralCount)
-    assertEquals(1100, updatedUser.totalEarnedUgx)
-    assertEquals(1100, updatedUser.currentBalanceUgx)
-  }
-
-  @Test
-  fun `verify admin affiliate list and cancel account operation`() {
-    var affiliates = DefaultAffiliateUsersList
-    assertTrue(affiliates.size >= 8)
-
-    val moses = affiliates.first { it.referralCode == "MOSES100" }
-    assertEquals(142, moses.referralCount)
-    assertEquals(14200, moses.totalEarnedUgx)
-    assertEquals(AffiliateAccountStatus.ACTIVE, moses.status)
-
-    // Admin cancels an account
-    affiliates = affiliates.map {
-      if (it.id == moses.id) it.copy(status = AffiliateAccountStatus.CANCELLED) else it
-    }
-
-    val cancelledMoses = affiliates.first { it.id == moses.id }
-    assertEquals(AffiliateAccountStatus.CANCELLED, cancelledMoses.status)
-
-    // Admin reactivates account
-    affiliates = affiliates.map {
-      if (it.id == moses.id) it.copy(status = AffiliateAccountStatus.ACTIVE) else it
-    }
-    assertEquals(AffiliateAccountStatus.ACTIVE, affiliates.first { it.id == moses.id }.status)
-  }
-
-  @Test
-  fun `verify student affiliate wallet withdrawals and plan purchases`() {
-    var balance = 1500
-    val withdrawalAmount = 500
-
-    // Withdraw 500 UGX to Mobile Money
-    assertTrue(balance >= withdrawalAmount)
-    balance -= withdrawalAmount
-    assertEquals(1000, balance)
-
-    // Pay for 1 Month Pass (UGX 1,000)
-    val planPrice = 1000
-    assertTrue(balance >= planPrice)
-    balance -= planPrice
-    assertEquals(0, balance)
-
-    // Format helper
-    assertEquals("UGX 100", formatUgx(100))
-    assertEquals("UGX 1,500", formatUgx(1500))
-    assertEquals("UGX 10,000", formatUgx(10000))
-
-    // Transactions list verification
-    assertTrue(DefaultStudentAffiliateTransactions.isNotEmpty())
-    val referralTx = DefaultStudentAffiliateTransactions.first { it.type == AffiliateTransactionType.REFERRAL_EARNING }
-    assertTrue(referralTx.isCredit)
-    assertEquals(100, referralTx.amountUgx)
-    assertEquals("+UGX 100", referralTx.formattedAmount)
-
-    val planTx = DefaultStudentAffiliateTransactions.first { it.type == AffiliateTransactionType.PLAN_PAYMENT }
-    assertFalse(planTx.isCredit)
-    assertEquals(-1000, planTx.amountUgx)
-    assertEquals("-UGX 1,000", planTx.formattedAmount)
-  }
-
-  @Test
   fun `verify payment subscription plan tiers configuration`() {
     assertEquals(1, DefaultPlanTiers.size)
     assertEquals("1 Month", DefaultPlanTiers[0].duration)
-    assertEquals("UGX 1,000", DefaultPlanTiers[0].price)
-    assertEquals(1000, DefaultPlanTiers[0].priceUgx)
+    assertEquals("UGX 2,000", DefaultPlanTiers[0].price)
+    assertEquals(2000, DefaultPlanTiers[0].priceUgx)
   }
 
   @Test
@@ -535,11 +415,9 @@ class ExampleRobolectricTest {
     assertTrue(subscriptionTxs.all { it.isCredit })
     assertTrue(subscriptionTxs.any { it.userName == "Amina Namukasa" && it.amountUgx == 35000L })
 
-    val withdrawalTxs = DefaultPlatformTransactions.filter { it.category == PlatformTransactionCategory.AFFILIATE_WITHDRAWAL }
-    assertTrue(withdrawalTxs.all { !it.isCredit })
-    assertTrue(withdrawalTxs.any { it.userName == "Denis Mukasa" && it.amountUgx == -50000L })
-
     val teacherTxs = DefaultPlatformTransactions.filter { it.category == PlatformTransactionCategory.TEACHER_ROYALTY }
+    assertTrue(teacherTxs.all { !it.isCredit })
+    assertTrue(teacherTxs.any { it.userName == "Denis Mukasa" && it.amountUgx == -50000L })
     assertTrue(teacherTxs.any { it.userName == "Tr. Emmanuel Kato" && it.amountUgx == -250000L })
 
     val taxTxs = DefaultPlatformTransactions.filter { it.category == PlatformTransactionCategory.TAX_OPS }
@@ -1278,10 +1156,11 @@ class ExampleRobolectricTest {
       stage = com.example.ui.MarzPayVerificationStage.PENDING,
       transactionId = "TX-8A1ECBB5",
       phoneNumber = "+256770000000",
-      amountUgx = 1000L
+      amountUgx = 2000L
     )
     assertEquals(com.example.ui.MarzPayVerificationStage.PENDING, state.stage)
-    assertEquals(1000L, state.amountUgx)
+    assertEquals(2000L, state.amountUgx)
+    assertEquals(2000L, com.example.ui.PaymentVerificationState().amountUgx)
   }
 
   @Test

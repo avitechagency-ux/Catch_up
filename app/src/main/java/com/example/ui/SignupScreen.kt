@@ -689,7 +689,7 @@ fun SignupScreen(
                         )
                     }
 
-                    // Selected Monthly Plan (UGX 1,000 / Month)
+                    // Selected Monthly Plan (UGX 2,000 / Month)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
                             text = "Selected Plan",
@@ -708,8 +708,8 @@ fun SignupScreen(
                         ) {
                             Row(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -743,7 +743,7 @@ fun SignupScreen(
                                 }
 
                                 Text(
-                                    text = "UGX 1,000",
+                                    text = "UGX 2,000",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = PaymentBrightGold

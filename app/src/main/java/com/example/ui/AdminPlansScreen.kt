@@ -88,8 +88,8 @@ val DefaultAdminPlans = listOf(
     AdminPlanItem(
         id = "plan_1_month",
         duration = "1 Month",
-        price = "UGX 1,000",
-        priceUgx = 1000
+        price = "UGX 2,000",
+        priceUgx = 2000
     )
 )
 

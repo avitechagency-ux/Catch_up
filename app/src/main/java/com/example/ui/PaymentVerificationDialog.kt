@@ -1,7 +1,8 @@
 package com.example.ui
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -9,8 +10,13 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,20 +30,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.HourglassTop
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -46,9 +49,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,16 +62,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import java.text.NumberFormat
+import java.util.Locale
 
 /**
  * Real-time MarzPay payment verification stages.
  */
 enum class MarzPayVerificationStage {
     IDLE,
-    PROCESSING, // Communicating with MarzPay API to initiate mobile money STK push
-    PENDING,    // STK prompt dispatched to phone; waiting for user PIN approval & active polling
-    SUCCESS,    // Officially confirmed by MarzPay as COMPLETED/PAID
-    FAILED      // Officially reported by MarzPay as FAILED, CANCELLED, DECLINED, or TIMED OUT
+    PROCESSING, // Background communication with MarzPay API to dispatch STK push
+    PENDING,    // STK prompt dispatched to phone; waiting for user PIN approval & background polling
+    SUCCESS,    // Confirmed completed & receipt verified
+    FAILED      // Reported as failed, cancelled, declined, or timed out
 }
 
 /**
@@ -78,8 +86,8 @@ data class PaymentVerificationState(
     val phoneNumber: String = "",
     val networkProvider: String = "Mobile Money",
     val planDuration: String = "1 Month",
-    val amountUgx: Long = 1000L,
-    val statusMessage: String = "Connecting to MarzPay Gateway...",
+    val amountUgx: Long = 2000L,
+    val statusMessage: String = "Processing payment in background...",
     val errorMessage: String? = null,
     val currentCheckAttempt: Int = 0,
     val maxCheckAttempts: Int = 12,
@@ -87,7 +95,8 @@ data class PaymentVerificationState(
 )
 
 /**
- * Full verification modal dialog enforcing zero-fake payments with MarzPay.
+ * Modern, animated payment verification popup that performs network operations
+ * and polling cleanly in the background while displaying an engaging, creative animated loader.
  */
 @Composable
 fun PaymentVerificationDialog(
@@ -98,14 +107,16 @@ fun PaymentVerificationDialog(
     onConfirmedSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isFinished = state.stage == MarzPayVerificationStage.SUCCESS || state.stage == MarzPayVerificationStage.FAILED
+
     Dialog(
         onDismissRequest = {
-            if (state.stage == MarzPayVerificationStage.SUCCESS || state.stage == MarzPayVerificationStage.FAILED) {
+            if (isFinished) {
                 onDismiss()
             }
         },
         properties = DialogProperties(
-            dismissOnBackPress = state.stage != MarzPayVerificationStage.PROCESSING && state.stage != MarzPayVerificationStage.PENDING,
+            dismissOnBackPress = isFinished,
             dismissOnClickOutside = false
         )
     ) {
@@ -114,114 +125,90 @@ fun PaymentVerificationDialog(
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp)
                 .testTag("payment_verification_dialog"),
-            shape = RoundedCornerShape(24.dp),
-            color = Color(0xFF1E1630),
+            shape = RoundedCornerShape(30.dp),
+            color = Color(0xFF170F28),
             border = BorderStroke(
                 width = 1.5.dp,
-                color = when (state.stage) {
-                    MarzPayVerificationStage.SUCCESS -> Color(0xFF00C853)
-                    MarzPayVerificationStage.FAILED -> Color(0xFFE53935)
-                    MarzPayVerificationStage.PENDING -> Color(0xFFFFB300)
-                    else -> Color(0xFF9575CD)
+                brush = when (state.stage) {
+                    MarzPayVerificationStage.SUCCESS -> Brush.linearGradient(
+                        listOf(Color(0xFF00E676), Color(0xFF10B981))
+                    )
+                    MarzPayVerificationStage.FAILED -> Brush.linearGradient(
+                        listOf(Color(0xFFFF5252), Color(0xFFEF4444))
+                    )
+                    else -> Brush.linearGradient(
+                        listOf(Color(0xFFFFB300), Color(0xFF8B5CF6), Color(0xFF38BDF8))
+                    )
                 }
             ),
-            shadowElevation = 16.dp
+            shadowElevation = 24.dp
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(22.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF22163D),
+                                Color(0xFF140D24)
+                            )
+                        )
+                    )
             ) {
-                // Top Header with Security Badge and Close button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                // Top-right close button (only available if completed or failed)
+                if (isFinished) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(14.dp)
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f))
+                            .testTag("close_verification_dialog")
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFF2E204D)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = "Secure",
-                                tint = Color(0xFFFFD54F),
-                                modifier = Modifier
-                                    .padding(6.dp)
-                                    .size(16.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "MARZPAY SECURE VERIFICATION",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFFFFD54F),
-                                letterSpacing = 0.8.sp
-                            )
-                            Text(
-                                text = "Direct Telecom Anti-Fraud System",
-                                fontSize = 9.sp,
-                                color = Color(0xFFB39DDB)
-                            )
-                        }
-                    }
-
-                    if (state.stage == MarzPayVerificationStage.SUCCESS || state.stage == MarzPayVerificationStage.FAILED) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.12f))
-                                .testTag("close_verification_dialog")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Close",
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 }
 
-                // Stage Stepper Bar
-                VerificationStepperBar(stage = state.stage)
-
-                // Central Status Content based on state
-                when (state.stage) {
-                    MarzPayVerificationStage.PROCESSING -> {
-                        ProcessingContent(state = state)
-                    }
-                    MarzPayVerificationStage.PENDING -> {
-                        PendingContent(
-                            state = state,
-                            onCheckNow = onCheckNow,
-                            onCancel = onDismiss
-                        )
-                    }
-                    MarzPayVerificationStage.SUCCESS -> {
-                        SuccessContent(
-                            state = state,
-                            onConfirmedSuccess = onConfirmedSuccess
-                        )
-                    }
-                    MarzPayVerificationStage.FAILED -> {
-                        FailedContent(
-                            state = state,
-                            onRetry = onRetry,
-                            onDismiss = onDismiss
-                        )
-                    }
-                    MarzPayVerificationStage.IDLE -> {
-                        ProcessingContent(state = state)
+                // Smooth animated transition between Verification Stages
+                AnimatedContent(
+                    targetState = state.stage,
+                    transitionSpec = {
+                        (fadeIn(animationSpec = tween(350)) + scaleIn(initialScale = 0.94f, animationSpec = tween(350)))
+                            .togetherWith(fadeOut(animationSpec = tween(200)) + scaleOut(targetScale = 0.96f, animationSpec = tween(200)))
+                    },
+                    label = "verification_stage_transition",
+                    modifier = Modifier.fillMaxWidth()
+                ) { currentStage ->
+                    when (currentStage) {
+                        MarzPayVerificationStage.SUCCESS -> {
+                            AnimatedSuccessContent(
+                                state = state,
+                                onConfirmedSuccess = onConfirmedSuccess
+                            )
+                        }
+                        MarzPayVerificationStage.FAILED -> {
+                            AnimatedFailedContent(
+                                state = state,
+                                onRetry = onRetry,
+                                onDismiss = onDismiss
+                            )
+                        }
+                        MarzPayVerificationStage.PROCESSING,
+                        MarzPayVerificationStage.PENDING,
+                        MarzPayVerificationStage.IDLE -> {
+                            AnimatedProcessingContent(
+                                state = state,
+                                onCheckNow = onCheckNow,
+                                onCancel = onDismiss
+                            )
+                        }
                     }
                 }
             }
@@ -229,310 +216,140 @@ fun PaymentVerificationDialog(
     }
 }
 
-@Composable
-private fun VerificationStepperBar(stage: MarzPayVerificationStage) {
-    val step1Active = true
-    val step2Active = stage == MarzPayVerificationStage.PENDING || stage == MarzPayVerificationStage.SUCCESS
-    val step3Active = stage == MarzPayVerificationStage.SUCCESS
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF140E22))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        StepItem(label = "1. Processing", isActive = step1Active, isDone = stage != MarzPayVerificationStage.PROCESSING)
-        Text(text = "›", color = Color(0xFF7E57C2), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        StepItem(label = "2. PIN Prompt", isActive = step2Active, isDone = stage == MarzPayVerificationStage.SUCCESS)
-        Text(text = "›", color = Color(0xFF7E57C2), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        StepItem(
-            label = if (stage == MarzPayVerificationStage.FAILED) "Failed" else "3. Confirmed",
-            isActive = stage == MarzPayVerificationStage.SUCCESS || stage == MarzPayVerificationStage.FAILED,
-            isDone = stage == MarzPayVerificationStage.SUCCESS,
-            isError = stage == MarzPayVerificationStage.FAILED
-        )
-    }
-}
+// ============================================================================
+// 1. CREATIVE ANIMATED PROCESSING & PIN APPROVAL CONTENT
+// ============================================================================
 
 @Composable
-private fun StepItem(
-    label: String,
-    isActive: Boolean,
-    isDone: Boolean,
-    isError: Boolean = false
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(
-                    when {
-                        isError -> Color(0xFFE53935)
-                        isDone -> Color(0xFF00C853)
-                        isActive -> Color(0xFFFFB300)
-                        else -> Color(0xFF5E35B1).copy(alpha = 0.4f)
-                    }
-                )
-        )
-        Text(
-            text = label,
-            fontSize = 10.sp,
-            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-            color = when {
-                isError -> Color(0xFFFF8A80)
-                isDone -> Color(0xFFB9F6CA)
-                isActive -> Color(0xFFFFD54F)
-                else -> Color(0xFF9E86C8).copy(alpha = 0.6f)
-            }
-        )
-    }
-}
-
-// ----------------------------------------------------------------------------
-// 1. PROCESSING CONTENT
-// ----------------------------------------------------------------------------
-@Composable
-private fun ProcessingContent(state: PaymentVerificationState) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scale"
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(72.dp)
-                .scale(scale)
-        ) {
-            CircularProgressIndicator(
-                color = Color(0xFFFFB300),
-                strokeWidth = 3.5.dp,
-                modifier = Modifier.size(68.dp)
-            )
-            Icon(
-                imageVector = Icons.Default.HourglassTop,
-                contentDescription = null,
-                tint = Color(0xFFFFD54F),
-                modifier = Modifier.size(30.dp)
-            )
-        }
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = "Initiating MarzPay STK Push",
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                text = "Connecting to telecom provider for ${state.phoneNumber.ifBlank { "Mobile Money" }}...",
-                fontSize = 12.sp,
-                color = Color(0xFFD1C4E9),
-                textAlign = TextAlign.Center
-            )
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF140E22)
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(text = "Amount to Pay", fontSize = 12.sp, color = Color(0xFFB39DDB))
-                Text(
-                    text = "UGX ${java.text.NumberFormat.getNumberInstance().format(state.amountUgx)}",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFFFFD54F)
-                )
-            }
-        }
-    }
-}
-
-// ----------------------------------------------------------------------------
-// 2. PENDING CONTENT (Awaiting PIN approval on user's handset)
-// ----------------------------------------------------------------------------
-@Composable
-private fun PendingContent(
+private fun AnimatedProcessingContent(
     state: PaymentVerificationState,
     onCheckNow: () -> Unit,
     onCancel: () -> Unit
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse_phone")
-    val alphaAnim by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(700, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
-    )
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        Surface(
-            shape = CircleShape,
-            color = Color(0xFFFFB300).copy(alpha = 0.18f),
-            border = BorderStroke(2.dp, Color(0xFFFFB300).copy(alpha = alphaAnim)),
-            modifier = Modifier.size(72.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.PhoneAndroid,
-                    contentDescription = null,
-                    tint = Color(0xFFFFD54F),
-                    modifier = Modifier.size(36.dp)
-                )
-            }
-        }
+        // Creative Animated Cosmic / Telecom Orb Loader
+        CosmicPaymentLoader(isCheckingNow = state.isCheckingNow)
 
+        // Status Header & Dynamic Amount Pill
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFFFFB300).copy(alpha = 0.16f),
+                border = BorderStroke(1.dp, Color(0xFFFFB300).copy(alpha = 0.45f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFFB300))
+                    )
+                    Text(
+                        text = "UGX ${NumberFormat.getNumberInstance(Locale.US).format(state.amountUgx)}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFFFFD54F),
+                        letterSpacing = 0.5.sp
+                    )
+                }
+            }
+
             Text(
-                text = "Approve on Your Phone",
-                fontSize = 18.sp,
+                text = if (state.stage == MarzPayVerificationStage.PROCESSING) {
+                    "Processing Payment"
+                } else {
+                    "Approve Prompt on Handset"
+                },
+                fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White
+                color = Color.White,
+                textAlign = TextAlign.Center
             )
+
             Text(
-                text = "A mobile money PIN prompt was sent to ${state.phoneNumber}. Enter your PIN to approve payment of UGX ${java.text.NumberFormat.getNumberInstance().format(state.amountUgx)}.",
-                fontSize = 12.sp,
+                text = if (state.phoneNumber.isNotBlank()) {
+                    "A Mobile Money prompt was sent to ${state.phoneNumber}. Please enter your PIN on your phone to complete authorization."
+                } else {
+                    "Connecting securely with Mobile Money. Please approve the prompt when it appears on your handset."
+                },
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
                 color = Color(0xFFD1C4E9),
                 textAlign = TextAlign.Center,
-                lineHeight = 17.sp
+                lineHeight = 19.sp
             )
         }
 
-        // Live Polling Status Indicator
+        // Live Background Checking Badge & Pulse Dots
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            color = Color(0xFF140E22),
-            border = BorderStroke(1.dp, Color(0xFF39285C))
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF130D23),
+            border = BorderStroke(1.dp, Color(0xFF38265C))
         ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (state.isCheckingNow) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(12.dp),
-                                strokeWidth = 1.5.dp,
-                                color = Color(0xFFFFB300)
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFFFB300))
-                            )
-                        }
-                        Text(
-                            text = if (state.isCheckingNow) "Confirming with MarzPay..." else "Awaiting PIN Approval",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFFD54F)
-                        )
-                    }
-
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = "Encrypted",
+                        tint = Color(0xFFFFD54F),
+                        modifier = Modifier.size(16.dp)
+                    )
                     Text(
-                        text = "Check ${state.currentCheckAttempt} of ${state.maxCheckAttempts}",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFB39DDB)
+                        text = if (state.isCheckingNow) {
+                            "Verifying transaction status..."
+                        } else {
+                            "Listening for PIN confirmation..."
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFE2D9F3)
                     )
                 }
 
-                val progress = (state.currentCheckAttempt.toFloat() / state.maxCheckAttempts.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp)),
-                    color = Color(0xFFFFB300),
-                    trackColor = Color(0xFF281C40),
-                )
-
-                if (state.transactionId.isNotBlank()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(text = "Reference ID", fontSize = 10.sp, color = Color(0xFF9E86C8))
-                        Text(
-                            text = state.transactionId,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                }
+                AnimatedPulsingDots()
             }
         }
 
-        // Action Buttons: "I Entered PIN — Check Now" & "Cancel"
+        // Action Buttons: "I Entered My PIN — Check Now" & "Cancel"
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Button(
                 onClick = onCheckNow,
                 enabled = !state.isCheckingNow,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFFFB300),
-                    contentColor = Color(0xFF140E22)
+                    contentColor = Color(0xFF140D24),
+                    disabledContainerColor = Color(0xFFFFB300).copy(alpha = 0.5f)
                 ),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .height(50.dp)
                     .testTag("check_payment_status_now_button")
             ) {
                 Icon(
@@ -542,9 +359,9 @@ private fun PendingContent(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = if (state.isCheckingNow) "Checking MarzPay..." else "I Entered My PIN — Check Now",
+                    text = if (state.isCheckingNow) "Checking Status..." else "I Entered My PIN — Check Now",
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 13.sp
+                    fontSize = 14.sp
                 )
             }
 
@@ -553,148 +370,327 @@ private fun PendingContent(
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = Color(0xFFD1C4E9)
                 ),
-                border = BorderStroke(1.dp, Color(0xFF5E35B1).copy(alpha = 0.5f)),
-                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Color(0xFF6B46C1).copy(alpha = 0.45f)),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(42.dp)
+                    .height(44.dp)
                     .testTag("cancel_payment_verification_button")
             ) {
                 Text(
                     text = "Cancel Transaction",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
     }
 }
 
-// ----------------------------------------------------------------------------
-// 3. SUCCESS CONTENT (Confirmed from MarzPay)
-// ----------------------------------------------------------------------------
+/**
+ * Creative concentric multi-ring animated orbital loader.
+ * Renders pulsing aura rings, rotating gradient arcs, and a breathing mobile handset icon.
+ */
 @Composable
-private fun SuccessContent(
+private fun CosmicPaymentLoader(isCheckingNow: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "cosmic_loader")
+
+    // Continuous rotation for outer arc
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    // Breathing pulse for inner core
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.94f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_scale"
+    )
+
+    // Outer ripple expanding wave
+    val rippleScale by infiniteTransition.animateFloat(
+        initialValue = 0.82f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ripple_scale"
+    )
+
+    val rippleAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 0.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "ripple_alpha"
+    )
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(110.dp)
+            .padding(4.dp)
+    ) {
+        // Expanding ripple aura ring
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .scale(rippleScale)
+                .border(
+                    width = 2.dp,
+                    color = Color(0xFFFFB300).copy(alpha = rippleAlpha),
+                    shape = CircleShape
+                )
+        )
+
+        // Orbital rotating gradient ring
+        Canvas(
+            modifier = Modifier
+                .size(92.dp)
+                .rotate(rotation)
+        ) {
+            val strokeWidth = 3.5.dp.toPx()
+            drawArc(
+                brush = Brush.sweepGradient(
+                    listOf(
+                        Color(0xFFFFB300),
+                        Color(0xFF8B5CF6),
+                        Color(0xFF38BDF8),
+                        Color(0xFFFFB300)
+                    )
+                ),
+                startAngle = 0f,
+                sweepAngle = 290f,
+                useCenter = false,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            )
+        }
+
+        // Inner glowing orb with mobile money handset
+        Surface(
+            shape = CircleShape,
+            color = Color(0xFF2A1B4E),
+            border = BorderStroke(2.dp, Color(0xFFFFD54F).copy(alpha = 0.65f)),
+            modifier = Modifier
+                .size(62.dp)
+                .scale(pulseScale)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                Color(0xFFFFB300).copy(alpha = 0.25f),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PhoneAndroid,
+                    contentDescription = null,
+                    tint = if (isCheckingNow) Color(0xFFFFE082) else Color(0xFFFFD54F),
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Animated three-dot bouncing indicator to show real-time background activity.
+ */
+@Composable
+private fun AnimatedPulsingDots() {
+    val transition = rememberInfiniteTransition(label = "dots")
+
+    val dot1Alpha by transition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, delayMillis = 0, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dot1"
+    )
+
+    val dot2Alpha by transition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, delayMillis = 200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dot2"
+    )
+
+    val dot3Alpha by transition.animateFloat(
+        initialValue = 0.2f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, delayMillis = 400, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "dot3"
+    )
+
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFFD54F).copy(alpha = dot1Alpha))
+        )
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFFD54F).copy(alpha = dot2Alpha))
+        )
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFFD54F).copy(alpha = dot3Alpha))
+        )
+    }
+}
+
+// ============================================================================
+// 2. CREATIVE ANIMATED SUCCESS CONTENT
+// ============================================================================
+
+@Composable
+private fun AnimatedSuccessContent(
     state: PaymentVerificationState,
     onConfirmedSuccess: () -> Unit
 ) {
+    val transition = rememberInfiniteTransition(label = "success_celebration")
+    val scaleAnim by transition.animateFloat(
+        initialValue = 0.98f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "success_scale"
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
+        // Glowing animated emerald check badge
         Surface(
             shape = CircleShape,
-            color = Color(0xFF00C853).copy(alpha = 0.2f),
-            border = BorderStroke(2.dp, Color(0xFF00C853)),
-            modifier = Modifier.size(72.dp)
+            color = Color(0xFF00C853).copy(alpha = 0.18f),
+            border = BorderStroke(2.5.dp, Color(0xFF00E676)),
+            modifier = Modifier
+                .size(84.dp)
+                .scale(scaleAnim)
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.background(
+                    Brush.radialGradient(
+                        listOf(
+                            Color(0xFF00E676).copy(alpha = 0.35f),
+                            Color.Transparent
+                        )
+                    )
+                )
+            ) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Success",
                     tint = Color(0xFF00E676),
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(48.dp)
                 )
             }
         }
 
+        // Title and confirmed amount
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "Payment Verified!",
-                fontSize = 20.sp,
+                text = "Payment Confirmed!",
+                fontSize = 22.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White
+                color = Color.White,
+                textAlign = TextAlign.Center
             )
+
             Text(
-                text = "MarzPay officially confirmed receipt of UGX ${java.text.NumberFormat.getNumberInstance().format(state.amountUgx)}.",
+                text = "UGX ${NumberFormat.getNumberInstance(Locale.US).format(state.amountUgx)} successfully received via ${state.networkProvider.ifBlank { "Mobile Money" }}.",
                 fontSize = 13.sp,
                 color = Color(0xFFB9F6CA),
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
             )
         }
 
-        // Receipt Card
+        // Clean Modern Receipt Card
         Surface(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            color = Color(0xFF140E22),
+            shape = RoundedCornerShape(18.dp),
+            color = Color(0xFF130D23),
             border = BorderStroke(1.dp, Color(0xFF00C853).copy(alpha = 0.4f))
         ) {
             Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Subscription Plan", fontSize = 12.sp, color = Color(0xFFB39DDB))
-                    Text(
-                        text = state.planDuration,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Phone Number", fontSize = 12.sp, color = Color(0xFFB39DDB))
-                    Text(
-                        text = state.phoneNumber,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
+                ReceiptRow(label = "Subscription", value = state.planDuration)
+                ReceiptRow(label = "Account", value = state.phoneNumber)
                 if (state.transactionId.isNotBlank()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(text = "Transaction ID", fontSize = 12.sp, color = Color(0xFFB39DDB))
-                        Text(
-                            text = state.transactionId,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFFD54F)
-                        )
-                    }
+                    ReceiptRow(label = "Reference ID", value = state.transactionId, valueColor = Color(0xFFFFD54F))
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = "Gateway Status", fontSize = 12.sp, color = Color(0xFFB39DDB))
-                    Text(
-                        text = "COMPLETED (Verified)",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF00E676)
-                    )
-                }
+                ReceiptRow(
+                    label = "Gateway Status",
+                    value = "COMPLETED (Verified)",
+                    valueColor = Color(0xFF00E676)
+                )
             }
         }
 
+        // Large filled emerald button
         Button(
             onClick = onConfirmedSuccess,
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF00C853),
                 contentColor = Color.White
             ),
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp)
+                .height(52.dp)
                 .testTag("continue_after_success_button")
         ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Continue to Platform",
                 fontWeight = FontWeight.ExtraBold,
@@ -704,11 +700,12 @@ private fun SuccessContent(
     }
 }
 
-// ----------------------------------------------------------------------------
-// 4. FAILED CONTENT (Reported by MarzPay as FAILED/DECLINED/TIMEOUT)
-// ----------------------------------------------------------------------------
+// ============================================================================
+// 3. CREATIVE ANIMATED FAILED CONTENT
+// ============================================================================
+
 @Composable
-private fun FailedContent(
+private fun AnimatedFailedContent(
     state: PaymentVerificationState,
     onRetry: () -> Unit,
     onDismiss: () -> Unit
@@ -716,85 +713,73 @@ private fun FailedContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(horizontal = 24.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
+        // Glowing crimson alert icon
         Surface(
             shape = CircleShape,
             color = Color(0xFFE53935).copy(alpha = 0.2f),
-            border = BorderStroke(2.dp, Color(0xFFE53935)),
-            modifier = Modifier.size(72.dp)
+            border = BorderStroke(2.dp, Color(0xFFFF5252)),
+            modifier = Modifier.size(80.dp)
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.background(
+                    Brush.radialGradient(
+                        listOf(
+                            Color(0xFFFF5252).copy(alpha = 0.35f),
+                            Color.Transparent
+                        )
+                    )
+                )
+            ) {
                 Icon(
                     imageVector = Icons.Default.Error,
                     contentDescription = "Failed",
                     tint = Color(0xFFFF5252),
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(46.dp)
                 )
             }
         }
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
                 text = "Payment Not Completed",
-                fontSize = 19.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White
+                color = Color.White,
+                textAlign = TextAlign.Center
             )
+
             Text(
-                text = state.errorMessage ?: "MarzPay reported the transaction failed, was cancelled on your device, or timed out.",
-                fontSize = 12.sp,
+                text = state.errorMessage ?: "The transaction was cancelled on your phone, timed out, or had insufficient funds. Please try again.",
+                fontSize = 13.sp,
                 color = Color(0xFFFF8A80),
                 textAlign = TextAlign.Center,
-                lineHeight = 17.sp
+                lineHeight = 18.sp
             )
         }
 
-        // Fraud prevention note
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = Color(0xFF140E22),
-            border = BorderStroke(1.dp, Color(0xFFB71C1C).copy(alpha = 0.6f))
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Lock,
-                    contentDescription = null,
-                    tint = Color(0xFFFF8A80),
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = "Subscription is not activated until funds are confirmed by MarzPay. Please try again with valid credentials.",
-                    fontSize = 11.sp,
-                    color = Color(0xFFD1C4E9)
-                )
-            }
-        }
-
+        // Action Buttons
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Button(
                 onClick = onRetry,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFFFFB300),
-                    contentColor = Color(0xFF140E22)
+                    contentColor = Color(0xFF140D24)
                 ),
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp)
+                    .height(50.dp)
                     .testTag("retry_failed_payment_button")
             ) {
                 Icon(
@@ -815,19 +800,44 @@ private fun FailedContent(
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = Color(0xFFD1C4E9)
                 ),
-                border = BorderStroke(1.dp, Color(0xFF5E35B1).copy(alpha = 0.5f)),
-                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Color(0xFF6B46C1).copy(alpha = 0.45f)),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(42.dp)
+                    .height(44.dp)
                     .testTag("dismiss_failed_payment_button")
             ) {
                 Text(
-                    text = "Close",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    text = "Change Number / Dismiss",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ReceiptRow(
+    label: String,
+    value: String,
+    valueColor: Color = Color.White
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color(0xFFB39DDB)
+        )
+        Text(
+            text = value,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
     }
 }

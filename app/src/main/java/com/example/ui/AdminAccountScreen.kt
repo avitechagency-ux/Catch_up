@@ -569,12 +569,12 @@ fun AdminAccountScreen(
                             sendAmount = ""
                             sendNote = ""
                             coroutineScope.launch {
-                                val success = com.example.data.MarzPayPaymentService.disburseFunds(
-                                    type = "Sent",
-                                    recipient = recipientText,
-                                    phoneNumber = recipientText,
-                                    amountUgx = numericAmount,
-                                    note = noteText.ifBlank { "Admin payment to $recipientText" }
+                                val result = com.example.data.MarzPayPaymentService.disburseFunds(
+                                     type = "Sent",
+                                     recipient = recipientText,
+                                     phoneNumber = recipientText,
+                                     amountUgx = numericAmount,
+                                     note = noteText.ifBlank { "Admin payment to $recipientText" }
                                 )
                                 val remoteTxs = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
                                 transactions = remoteTxs.map { tx ->
@@ -587,10 +587,14 @@ fun AdminAccountScreen(
                                         isWithdrawal = tx.amountUgx < 0
                                     )
                                 }
-                                if (success) {
-                                    snackbarHostState.showSnackbar("Funds sent via MarzPay and recorded in database")
+                                if (result.success) {
+                                    if (result.isPending) {
+                                        snackbarHostState.showSnackbar("Funds transfer queued for $recipientText (Status: Pending)")
+                                    } else {
+                                        snackbarHostState.showSnackbar("Funds sent via MarzPay successfully!")
+                                    }
                                 } else {
-                                    snackbarHostState.showSnackbar("Funds recorded in database")
+                                    snackbarHostState.showSnackbar("Transfer failed: ${result.error ?: "Gateway error"}")
                                 }
                             }
                         }
@@ -704,7 +708,7 @@ fun AdminAccountScreen(
                             withdrawAccount = ""
                             withdrawAmount = ""
                             coroutineScope.launch {
-                                val success = com.example.data.MarzPayPaymentService.disburseFunds(
+                                val result = com.example.data.MarzPayPaymentService.disburseFunds(
                                     type = "Withdrew",
                                     recipient = "$withdrawMethod ($acctText)",
                                     phoneNumber = acctText,
@@ -722,10 +726,14 @@ fun AdminAccountScreen(
                                         isWithdrawal = tx.amountUgx < 0
                                     )
                                 }
-                                if (success) {
-                                    snackbarHostState.showSnackbar("Withdrawal processed via MarzPay and recorded")
+                                if (result.success) {
+                                    if (result.isPending) {
+                                        snackbarHostState.showSnackbar("Withdrawal of UGX ${formatUgxPrice(numericAmount.toInt())} submitted and queued (Status: Pending)")
+                                    } else {
+                                        snackbarHostState.showSnackbar("Withdrawal processed via MarzPay successfully!")
+                                    }
                                 } else {
-                                    snackbarHostState.showSnackbar("Withdrawal recorded in database")
+                                    snackbarHostState.showSnackbar("Withdrawal failed: ${result.error ?: "Gateway error"}")
                                 }
                             }
                         }

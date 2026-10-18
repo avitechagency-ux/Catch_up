@@ -4,11 +4,6 @@ import com.example.ui.AdminLogItem
 import com.example.ui.AdminPlanItem
 import com.example.ui.AdminPlatformTransaction
 import com.example.ui.AdminTransactionItem
-import com.example.ui.AffiliateAccountStatus
-import com.example.ui.AffiliateRankingItem
-import com.example.ui.AffiliateTransaction
-import com.example.ui.AffiliateTransactionType
-import com.example.ui.AffiliateUser
 import com.example.ui.CachedNote
 import com.example.ui.ConnectedStudent
 import com.example.ui.PlanTier
@@ -19,11 +14,9 @@ import com.example.ui.StreakData
 import com.example.ui.SubjectUploadItem
 import com.example.ui.TeacherUploadItem
 import com.example.ui.TopicItem
-import com.example.ui.UGX_PER_REFERRAL
 import com.example.ui.calculateNextMilestone
 import com.example.ui.doesNoteMatchLinkedTeacher
 import com.example.ui.doesNoteMatchStudentClass
-import com.example.ui.formatUgx
 import com.example.ui.formatUgxPrice
 import com.example.ui.generateDocxBytes
 import com.example.ui.normalizeSecondaryClass
@@ -201,9 +194,9 @@ data class SupabasePaymentTransactionDto(
     @Json(name = "provider") val provider: String = "MTN MoMo",
     @Json(name = "category") val category: String = "SUBSCRIPTION",
     @Json(name = "plan_duration") val planDuration: String = "1 Month",
-    @Json(name = "amount_ugx") val amountUgx: Long = 1000L,
+    @Json(name = "amount_ugx") val amountUgx: Long = 2000L,
     @Json(name = "fee_ugx") val feeUgx: Long = 0L,
-    @Json(name = "net_amount_ugx") val netAmountUgx: Long = 1000L,
+    @Json(name = "net_amount_ugx") val netAmountUgx: Long = 2000L,
     @Json(name = "status") val status: String = "COMPLETED",
     @Json(name = "description") val description: String = "1 Month Student Plan Subscription",
     @Json(name = "transaction_date") val transactionDate: String,
@@ -226,13 +219,16 @@ data class SupabaseAffiliateDto(
 
 data class SupabaseAffiliateTxDto(
     @Json(name = "id") val id: String? = null,
-    @Json(name = "user_phone") val userPhone: String,
+    @Json(name = "student_phone") val studentPhone: String = "",
+    @Json(name = "user_phone") val userPhone: String = "",
     @Json(name = "referral_code") val referralCode: String = "",
-    @Json(name = "tx_type") val txType: String,
-    @Json(name = "title") val title: String,
-    @Json(name = "description") val description: String,
-    @Json(name = "amount_ugx") val amountUgx: Int,
-    @Json(name = "tx_date") val txDate: String,
+    @Json(name = "title") val title: String = "",
+    @Json(name = "subtitle") val subtitle: String = "",
+    @Json(name = "tx_type") val txType: String = "REFERRAL_EARNING",
+    @Json(name = "amount_ugx") val amountUgx: Int = 0,
+    @Json(name = "is_credit") val isCredit: Boolean = true,
+    @Json(name = "tx_date") val txDate: String = "",
+    @Json(name = "description") val description: String = "",
     @Json(name = "status") val status: String = "Completed"
 )
 
@@ -588,7 +584,8 @@ interface SupabasePostgrestApi {
 
     @GET("affiliate_transactions")
     suspend fun getAffiliateTransactionsByPhone(
-        @Query("user_phone") phoneFilter: String,
+        @Query("student_phone") studentPhoneFilter: String? = null,
+        @Query("or") orFilter: String? = null,
         @Query("select") select: String = "*",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<SupabaseAffiliateTxDto>>
@@ -2496,8 +2493,6 @@ object SupabaseRepository {
                 val explicitTransactions = dtoList.mapIndexed { index, dto ->
                     val cat = when (dto.category.uppercase()) {
                         "SUBSCRIPTION" -> PlatformTransactionCategory.SUBSCRIPTION
-                        "AFFILIATE_COMMISSION" -> PlatformTransactionCategory.AFFILIATE_COMMISSION
-                        "AFFILIATE_WITHDRAWAL" -> PlatformTransactionCategory.AFFILIATE_WITHDRAWAL
                         "TEACHER_ROYALTY" -> PlatformTransactionCategory.TEACHER_ROYALTY
                         "TAX_OPS" -> PlatformTransactionCategory.TAX_OPS
                         else -> PlatformTransactionCategory.SUBSCRIPTION
@@ -2547,13 +2542,13 @@ object SupabaseRepository {
                             category = PlatformTransactionCategory.SUBSCRIPTION,
                             userName = student.fullName.ifBlank { student.phoneNumber },
                             userRole = "Student",
-                            amountUgx = 1000L,
+                            amountUgx = 2000L,
                             paymentMethod = "$provider (${student.phoneNumber})",
                             date = student.createdAt?.take(10) ?: "Today",
                             time = "12:00 PM",
                             status = PlatformTransactionStatus.COMPLETED,
                             feeUgx = 0L,
-                            netUgx = 1000L,
+                            netUgx = 2000L,
                             notes = "1 Month Student Plan Subscription",
                             studentClassOrSubject = student.academicClass.ifBlank { "1 Month" }
                         )
@@ -2589,140 +2584,6 @@ object SupabaseRepository {
     // 7. AFFILIATES & ADMIN OVERVIEW AGGREGATIONS (`public.affiliates`)
     // ========================================================================
 
-    /**
-     * Fetches all affiliates from Supabase `public.affiliates`, sorted by `referral_count` descending.
-     */
-    suspend fun fetchAllAffiliates(): List<AffiliateUser> = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext emptyList()
-        try {
-            val response = api.getAllAffiliates()
-            if (response.isSuccessful) {
-                response.body().orEmpty().mapIndexed { index, dto ->
-                    val status = when (dto.status.uppercase()) {
-                        "CANCELLED" -> AffiliateAccountStatus.CANCELLED
-                        "SUSPENDED" -> AffiliateAccountStatus.SUSPENDED
-                        else -> AffiliateAccountStatus.ACTIVE
-                    }
-                    AffiliateUser(
-                        id = dto.id ?: "aff_sup_$index",
-                        name = dto.userName,
-                        email = dto.email.ifBlank { dto.userPhone },
-                        role = dto.role,
-                        referralCode = dto.referralCode,
-                        referralCount = dto.referralCount,
-                        totalEarnedUgx = if (dto.totalEarnedUgx > 0) dto.totalEarnedUgx else dto.referralCount * UGX_PER_REFERRAL,
-                        currentBalanceUgx = dto.currentBalanceUgx,
-                        status = status,
-                        joinedDate = dto.joinedDate,
-                        phone = dto.userPhone
-                    )
-                }.sortedByDescending { it.referralCount }
-            } else {
-                emptyList()
-            }
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    /**
-     * Fetches the logged-in student's affiliate profile from `public.affiliates`.
-     */
-    suspend fun fetchStudentAffiliateProfile(phoneNumber: String): AffiliateUser? =
-        withContext(Dispatchers.IO) {
-            if (!SupabaseConfig.isConfigured() || phoneNumber.isBlank()) return@withContext null
-            try {
-                val response = api.getAffiliateByPhone("eq.${phoneNumber.trim()}")
-                val dto = response.body()?.firstOrNull() ?: return@withContext null
-                AffiliateUser(
-                    id = dto.id ?: "aff_${dto.userPhone}",
-                    name = dto.userName,
-                    email = dto.email.ifBlank { dto.userPhone },
-                    role = dto.role,
-                    referralCode = dto.referralCode,
-                    referralCount = dto.referralCount,
-                    totalEarnedUgx = if (dto.totalEarnedUgx > 0) dto.totalEarnedUgx else dto.referralCount * UGX_PER_REFERRAL,
-                    currentBalanceUgx = dto.currentBalanceUgx
-                )
-            } catch (_: Exception) {
-                null
-            }
-        }
-
-    /**
-     * Fetches the logged-in student's affiliate wallet transactions from `public.affiliate_transactions`.
-     */
-    suspend fun fetchStudentAffiliateTransactions(phoneNumber: String): List<AffiliateTransaction> =
-        withContext(Dispatchers.IO) {
-            if (!SupabaseConfig.isConfigured() || phoneNumber.isBlank()) return@withContext emptyList()
-            try {
-                val response = api.getAffiliateTransactionsByPhone("eq.${phoneNumber.trim()}")
-                if (response.isSuccessful) {
-                    response.body().orEmpty().mapIndexed { index, dto ->
-                        val type = when (dto.txType.uppercase()) {
-                            "WITHDRAWAL" -> AffiliateTransactionType.WITHDRAWAL
-                            "PLAN_PAYMENT" -> AffiliateTransactionType.PLAN_PAYMENT
-                            else -> AffiliateTransactionType.REFERRAL_EARNING
-                        }
-                        AffiliateTransaction(
-                            id = dto.id ?: "aff_tx_$index",
-                            type = type,
-                            title = dto.title,
-                            description = dto.description,
-                            amountUgx = dto.amountUgx,
-                            date = dto.txDate,
-                            status = dto.status
-                        )
-                    }
-                } else {
-                    emptyList()
-                }
-            } catch (_: Exception) {
-                emptyList()
-            }
-        }
-
-    /**
-     * Records a student affiliate wallet transaction (withdrawal or plan payment) in `public.affiliate_transactions`
-     * and updates their `current_balance_ugx` in `public.affiliates`.
-     */
-    suspend fun recordStudentAffiliateTransaction(
-        phoneNumber: String,
-        studentName: String,
-        referralCode: String,
-        newBalanceUgx: Int,
-        transaction: AffiliateTransaction
-    ): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured() || phoneNumber.isBlank()) return@withContext false
-        val cleanPhone = phoneNumber.trim()
-        try {
-            val txDto = SupabaseAffiliateTxDto(
-                userPhone = cleanPhone,
-                referralCode = referralCode,
-                txType = transaction.type.name,
-                title = transaction.title,
-                description = transaction.description,
-                amountUgx = transaction.amountUgx,
-                txDate = transaction.date,
-                status = transaction.status
-            )
-            val txOk = api.insertAffiliateTransaction(txDto).isSuccessful
-            runCatching {
-                api.upsertAffiliate(
-                    SupabaseAffiliateDto(
-                        userPhone = cleanPhone,
-                        userName = studentName,
-                        email = cleanPhone,
-                        referralCode = referralCode,
-                        currentBalanceUgx = newBalanceUgx
-                    )
-                )
-            }
-            txOk
-        } catch (_: Exception) {
-            false
-        }
-    }
 
     /**
      * Aggregates real counts & revenue balance from Supabase (`users`, `notes_uploads`, `payments_transactions`, `affiliates`, `platform_settings`)
@@ -2756,7 +2617,7 @@ object SupabaseRepository {
                     val assignmentsCount = notes.count { it.contentType.equals("Assignment", ignoreCase = true) }
                     val totalRevenueUgx = txs.filter { it.amountUgx > 0 }.sumOf { it.amountUgx }
                     val netBalanceUgx = txs.sumOf { it.netAmountUgx }.coerceAtLeast(0L)
-                    val studentSignupBalanceUgx = studentsCount * 1000L
+                    val studentSignupBalanceUgx = studentsCount * 2000L
 
                     // MarzPay balance priority:
                     // If custom setting exists in database, use it. Otherwise, use net transactions balance.

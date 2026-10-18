@@ -86,21 +86,21 @@ data class PlanTier(
 
 /**
  * Single student subscription plan:
- * "1 Month" — caption "Billed monthly" — price "UGX 1,000"
+ * "1 Month" — caption "Billed monthly" — price "UGX 2,000"
  */
 val DefaultPlanTiers = listOf(
     PlanTier(
         id = "1_month",
         duration = "1 Month",
         caption = "Billed monthly",
-        price = "UGX 1,000",
-        priceUgx = 1000
+        price = "UGX 2,000",
+        priceUgx = 2000
     )
 )
 
 /**
  * Dedicated Payment Screen shown immediately after Student Signup before entering the app.
- * Uses the student's signup phone number and the pre-selected 1 Month (UGX 1,000) plan.
+ * Uses the student's signup phone number and the pre-selected 1 Month (UGX 2,000) plan.
  */
 @Composable
 fun StudentPaymentScreen(
@@ -237,7 +237,7 @@ fun StudentPaymentScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "1,000 UGX / Month",
+                                    text = "2,000 UGX / Month",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF2A9D8F)

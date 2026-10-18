@@ -106,8 +106,6 @@ import kotlinx.coroutines.launch
 enum class PlatformTransactionCategory(val displayName: String) {
     ALL("All"),
     SUBSCRIPTION("Subscriptions"),
-    AFFILIATE_COMMISSION("Affiliate Earned"),
-    AFFILIATE_WITHDRAWAL("Affiliate Payouts"),
     TEACHER_ROYALTY("Teacher Royalties"),
     TAX_OPS("Tax & Server Ops")
 }
@@ -183,10 +181,10 @@ val DefaultPlatformTransactions = listOf(
     AdminPlatformTransaction(
         id = "TX-98402",
         referenceNumber = "UG-MOMO-9840211",
-        title = "Affiliate Payout Withdrawal",
-        category = PlatformTransactionCategory.AFFILIATE_WITHDRAWAL,
+        title = "Teacher Study Notes Remittance",
+        category = PlatformTransactionCategory.TEACHER_ROYALTY,
         userName = "Denis Mukasa",
-        userRole = "Affiliate Student",
+        userRole = "Teacher",
         amountUgx = -50000,
         paymentMethod = "MTN MoMo (078-***-1234)",
         date = "24 Sep 2026",
@@ -194,7 +192,8 @@ val DefaultPlatformTransactions = listOf(
         status = PlatformTransactionStatus.COMPLETED,
         feeUgx = 750,
         netUgx = -50750,
-        notes = "Affiliate commission payout to registered mobile money account. Code: DENIS256."
+        notes = "Study materials royalty payout to registered mobile money account.",
+        studentClassOrSubject = "S.3 Chemistry"
     ),
     AdminPlatformTransaction(
         id = "TX-98403",
@@ -233,18 +232,19 @@ val DefaultPlatformTransactions = listOf(
     AdminPlatformTransaction(
         id = "TX-98405",
         referenceNumber = "UG-INT-9840510",
-        title = "Referral Commission Credited",
-        category = PlatformTransactionCategory.AFFILIATE_COMMISSION,
+        title = "Monthly Student Revision Pass",
+        category = PlatformTransactionCategory.SUBSCRIPTION,
         userName = "Sarah Nabirye",
-        userRole = "Affiliate Student",
+        userRole = "Student",
         amountUgx = 5000,
-        paymentMethod = "Affiliate Ledger Balance",
+        paymentMethod = "MTN MoMo",
         date = "23 Sep 2026",
         time = "02:18 PM",
         status = PlatformTransactionStatus.COMPLETED,
         feeUgx = 0,
         netUgx = 5000,
-        notes = "15% Referral reward for new student subscription (Sarah K. using code SARAH24)."
+        notes = "1-Month student revision notes subscription access pass.",
+        studentClassOrSubject = "S.2 All Subjects"
     ),
     AdminPlatformTransaction(
         id = "TX-98406",
@@ -299,10 +299,10 @@ val DefaultPlatformTransactions = listOf(
     AdminPlatformTransaction(
         id = "TX-98409",
         referenceNumber = "UG-AIRTEL-9840944",
-        title = "Affiliate Payout Withdrawal",
-        category = PlatformTransactionCategory.AFFILIATE_WITHDRAWAL,
+        title = "Teacher Materials Remittance",
+        category = PlatformTransactionCategory.TEACHER_ROYALTY,
         userName = "Sarah Nabirye",
-        userRole = "Affiliate Student",
+        userRole = "Teacher",
         amountUgx = -30000,
         paymentMethod = "Airtel Money (075-***-5678)",
         date = "21 Sep 2026",
@@ -310,7 +310,8 @@ val DefaultPlatformTransactions = listOf(
         status = PlatformTransactionStatus.COMPLETED,
         feeUgx = 450,
         netUgx = -30450,
-        notes = "Processed instant affiliate balance payout via Airtel Money."
+        notes = "Processed monthly study notes author royalty payout via Airtel Money.",
+        studentClassOrSubject = "S.5 Biology"
     ),
     AdminPlatformTransaction(
         id = "TX-98410",
@@ -365,18 +366,19 @@ val DefaultPlatformTransactions = listOf(
     AdminPlatformTransaction(
         id = "TX-98413",
         referenceNumber = "UG-INT-9841341",
-        title = "Referral Commission Credited",
-        category = PlatformTransactionCategory.AFFILIATE_COMMISSION,
+        title = "Candidate Termly Pass",
+        category = PlatformTransactionCategory.SUBSCRIPTION,
         userName = "Ivan Tumusiime",
-        userRole = "Affiliate Student",
-        amountUgx = 13500,
-        paymentMethod = "Affiliate Ledger Balance",
+        userRole = "Student",
+        amountUgx = 15000,
+        paymentMethod = "MTN MoMo (078-***-5521)",
         date = "19 Sep 2026",
         time = "06:14 PM",
         status = PlatformTransactionStatus.COMPLETED,
-        feeUgx = 0,
-        netUgx = 13500,
-        notes = "15% Affiliate reward on Annual VIP pass registration (David Ssemwogerere via IVAN99)."
+        feeUgx = 225,
+        netUgx = 14775,
+        notes = "Termly study notes access pass for candidate student.",
+        studentClassOrSubject = "S.4 All Subjects"
     ),
     AdminPlatformTransaction(
         id = "TX-98414",
@@ -507,7 +509,7 @@ fun AdminTransactionsScreen(
         ) {
             // ==========================================
             // 1. HEADER: Purple card with Title & Search Bar
-            // Matching Students Subjects & Admin Affiliate pages
+            // Matching Students Subjects & Admin pages
             // ==========================================
             Column(
                 modifier = Modifier
@@ -992,8 +994,6 @@ fun AdminTransactionsScreen(
                 // Hero Receipt Header Card
                 val themeColor = when (tx.category) {
                     PlatformTransactionCategory.SUBSCRIPTION -> TealTile
-                    PlatformTransactionCategory.AFFILIATE_COMMISSION -> PurpleTile
-                    PlatformTransactionCategory.AFFILIATE_WITHDRAWAL -> CoralTile
                     PlatformTransactionCategory.TEACHER_ROYALTY -> BlueTile
                     PlatformTransactionCategory.TAX_OPS -> NavyTile
                     PlatformTransactionCategory.ALL -> IndigoPurple
@@ -1321,8 +1321,6 @@ private fun PlatformTransactionCard(
 ) {
     val categoryColor = when (transaction.category) {
         PlatformTransactionCategory.SUBSCRIPTION -> TealTile
-        PlatformTransactionCategory.AFFILIATE_COMMISSION -> PurpleTile
-        PlatformTransactionCategory.AFFILIATE_WITHDRAWAL -> CoralTile
         PlatformTransactionCategory.TEACHER_ROYALTY -> BlueTile
         PlatformTransactionCategory.TAX_OPS -> NavyTile
         PlatformTransactionCategory.ALL -> IndigoPurple
@@ -1330,8 +1328,6 @@ private fun PlatformTransactionCard(
 
     val icon = when (transaction.category) {
         PlatformTransactionCategory.SUBSCRIPTION -> Icons.Outlined.CreditCard
-        PlatformTransactionCategory.AFFILIATE_COMMISSION -> Icons.Outlined.CardGiftcard
-        PlatformTransactionCategory.AFFILIATE_WITHDRAWAL -> Icons.Outlined.ArrowDownward
         PlatformTransactionCategory.TEACHER_ROYALTY -> Icons.Outlined.Description
         PlatformTransactionCategory.TAX_OPS -> Icons.Outlined.AccountBalance
         PlatformTransactionCategory.ALL -> Icons.Outlined.ReceiptLong

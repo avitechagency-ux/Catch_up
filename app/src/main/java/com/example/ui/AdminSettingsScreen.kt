@@ -88,7 +88,7 @@ import kotlinx.coroutines.launch
  * Admin Settings Screen.
  *
  * Tailored specifically for Platform Administrators:
- * - Platform & system governance (Maintenance mode, self-registration, referral rewards)
+ * - Platform & system governance (Maintenance mode, self-registration, user policies)
  * - Financial & payout rules (Auto-approvals, minimum withdrawal threshold, currency)
  * - Real-time security alerts & fraud monitoring
  * - Security & audit management (2FA, session timeout, audit export, cache purge)
@@ -107,9 +107,6 @@ fun AdminSettingsScreen(
     // 1. Platform Governance
     var maintenanceMode by remember { mutableStateOf(false) }
     var userRegistrationEnabled by remember { mutableStateOf(true) }
-    var referralProgramEnabled by remember { mutableStateOf(true) }
-    var referralCommissionUgx by remember { mutableStateOf(100) }
-    var showCommissionDialog by remember { mutableStateOf(false) }
 
     // 2. Financial & Payout Rules
     var autoApproveMicroPayouts by remember { mutableStateOf(true) }
@@ -340,26 +337,6 @@ fun AdminSettingsScreen(
                                 testTag = "switch_user_registration"
                             )
                             AdminSettingsDivider()
-                            AdminSettingsSwitchRow(
-                                title = "Affiliate Referral Program",
-                                subtitle = "Allow students to earn commissions for inviting peers",
-                                checked = referralProgramEnabled,
-                                onCheckedChange = {
-                                    referralProgramEnabled = it
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar(if (it) "Affiliate program enabled" else "Affiliate program paused")
-                                    }
-                                },
-                                testTag = "switch_referral_program"
-                            )
-                            AdminSettingsDivider()
-                            AdminSettingsActionRow(
-                                title = "Referral Commission Reward",
-                                value = "UGX $referralCommissionUgx / referral",
-                                onClick = { showCommissionDialog = true },
-                                testTag = "action_referral_commission"
-                            )
-                            AdminSettingsDivider()
                             AdminSettingsActionRow(
                                 title = "Online Classroom Feature",
                                 value = if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) "Active" else "Disabled (Preserved)",
@@ -396,7 +373,7 @@ fun AdminSettingsScreen(
                         Column {
                             AdminSettingsSwitchRow(
                                 title = "Auto-Approve Micro Payouts",
-                                subtitle = "Automatically process affiliate withdrawals < UGX 50,000",
+                                subtitle = "Automatically process teacher and platform payouts < UGX 50,000",
                                 checked = autoApproveMicroPayouts,
                                 onCheckedChange = { autoApproveMicroPayouts = it },
                                 testTag = "switch_auto_payouts"
@@ -492,7 +469,7 @@ fun AdminSettingsScreen(
                             AdminSettingsDivider()
                             AdminSettingsSwitchRow(
                                 title = "Fraud & Suspicious Spikes",
-                                subtitle = "Flag rapid multi-account referral registrations",
+                                subtitle = "Flag rapid multi-account signups and duplicate IPs",
                                 checked = fraudDetectionAlerts,
                                 onCheckedChange = { fraudDetectionAlerts = it },
                                 testTag = "switch_fraud_alerts"
@@ -712,64 +689,6 @@ fun AdminSettingsScreen(
                 Spacer(modifier = Modifier.height(28.dp))
             }
         }
-    }
-
-    // Dialog: Edit Referral Commission
-    if (showCommissionDialog) {
-        var inputVal by remember { mutableStateOf(referralCommissionUgx.toString()) }
-        AlertDialog(
-            onDismissRequest = { showCommissionDialog = false },
-            title = {
-                Text(
-                    text = "Edit Referral Commission",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = TextDark
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Set the reward amount (UGX) credited to students per verified friend subscription.",
-                        fontSize = 13.sp,
-                        color = TextMuted
-                    )
-                    OutlinedTextField(
-                        value = inputVal,
-                        onValueChange = { inputVal = it.filter { ch -> ch.isDigit() } },
-                        label = { Text("Reward Amount (UGX)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val parsed = inputVal.toIntOrNull() ?: 100
-                        referralCommissionUgx = parsed
-                        showCommissionDialog = false
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Referral commission set to UGX $parsed")
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("Save", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                OutlinedButton(
-                    onClick = { showCommissionDialog = false },
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("Cancel")
-                }
-            }
-        )
     }
 
     // Dialog: Maintenance Mode Confirmation

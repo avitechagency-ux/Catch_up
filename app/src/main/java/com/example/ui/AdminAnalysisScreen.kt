@@ -154,14 +154,14 @@ data class StackedUsersChartData(
 )
 
 /**
- * Data model representing a ranked affiliate.
+ * Data model representing top subjects ranked by uploaded notes.
  */
-data class AffiliateRankingItem(
+data class SubjectRankingItem(
     val id: String,
     val rank: Int,
     val name: String,
-    val referralCount: Int,
-    val earningsFormatted: String
+    val notesCount: Int,
+    val formattedStats: String
 )
 
 // ==========================================
@@ -293,21 +293,21 @@ val YearUsersChartData = StackedUsersChartData(
 )
 
 // ==========================================
-// DEFAULT TOP AFFILIATES (RANKED)
+// DEFAULT TOP SUBJECTS (RANKED BY UPLOADED NOTES)
 // ==========================================
-val DefaultTopAffiliates = listOf(
-    AffiliateRankingItem("aff-1", 1, "Moses", 142, "UGX 142,000"),
-    AffiliateRankingItem("aff-2", 2, "Mary", 118, "UGX 118,000"),
-    AffiliateRankingItem("aff-3", 3, "John", 95, "UGX 95,000"),
-    AffiliateRankingItem("aff-4", 4, "Martin", 74, "UGX 74,000"),
-    AffiliateRankingItem("aff-5", 5, "May", 62, "UGX 62,000")
+val DefaultTopSubjects = listOf(
+    SubjectRankingItem("sub-1", 1, "Mathematics", 48, "48 Notes Uploaded"),
+    SubjectRankingItem("sub-2", 2, "Physics", 39, "39 Notes Uploaded"),
+    SubjectRankingItem("sub-3", 3, "Chemistry", 35, "35 Notes Uploaded"),
+    SubjectRankingItem("sub-4", 4, "Biology", 28, "28 Notes Uploaded"),
+    SubjectRankingItem("sub-5", 5, "English", 24, "24 Notes Uploaded")
 )
 
 /**
  * Admin Analysis Screen.
  * Designer-crafted analytics dashboard with rich color hierarchy,
  * interactive Revenue curve, Students vs Teachers breakdown tiles & stacked bars,
- * and ranked Top Affiliates leaderboard.
+ * and ranked Top Subjects leaderboard.
  */
 private fun buildLiveRevenueChartData(
     range: AnalysisTimeRange,
@@ -407,7 +407,7 @@ fun AdminAnalysisScreen(
     modifier: Modifier = Modifier,
     revenueData: AnalysisChartData = buildLiveRevenueChartData(AnalysisTimeRange.MONTH, 0L),
     usersData: AnalysisChartData = DefaultUsersChartData,
-    affiliatesList: List<AffiliateRankingItem> = emptyList(),
+    topSubjectsList: List<SubjectRankingItem> = DefaultTopSubjects,
     onNavigateBack: () -> Unit = {},
     onNavigateToHome: () -> Unit = {},
     onNavigateToAnalysis: () -> Unit = {},
@@ -425,7 +425,7 @@ fun AdminAnalysisScreen(
     var liveRevenueUgx by remember { mutableStateOf(0L) }
     var liveStudentsCount by remember { mutableIntStateOf(0) }
     var liveTeachersCount by remember { mutableIntStateOf(0) }
-    var liveAffiliatesList by remember(affiliatesList) { mutableStateOf(affiliatesList) }
+    var liveTopSubjectsList by remember(topSubjectsList) { mutableStateOf(topSubjectsList) }
     var liveTransactionsList by remember { mutableStateOf<List<AdminPlatformTransaction>>(emptyList()) }
     var liveNotesUploadsList by remember { mutableStateOf<List<com.example.data.SupabaseNoteUploadDto>>(emptyList()) }
     var isRefreshingAnalysis by remember { mutableStateOf(false) }
@@ -440,21 +440,24 @@ fun AdminAnalysisScreen(
             liveStudentsCount = stats.studentsCount
             liveTeachersCount = stats.teachersCount
         }
-        val remoteAffiliates = com.example.data.SupabaseRepository.fetchAllAffiliates()
-        liveAffiliatesList = remoteAffiliates
-            .sortedByDescending { it.referralCount }
-            .take(5)
-            .mapIndexed { idx, aff ->
-                AffiliateRankingItem(
-                    id = aff.id,
+        val remoteNotes = com.example.data.SupabaseRepository.fetchAllNotes()
+        liveNotesUploadsList = remoteNotes
+        if (remoteNotes.isNotEmpty()) {
+            val grouped = remoteNotes.groupBy { it.subjectName.trim() }
+                .map { (subjectName, list) -> subjectName to list.size }
+                .sortedByDescending { it.second }
+                .take(5)
+            liveTopSubjectsList = grouped.mapIndexed { idx, (subjectName, count) ->
+                SubjectRankingItem(
+                    id = "sub-${idx + 1}",
                     rank = idx + 1,
-                    name = aff.name,
-                    referralCount = aff.referralCount,
-                    earningsFormatted = formatUgxPrice(aff.totalEarnedUgx)
+                    name = subjectName.ifBlank { "General Studies" },
+                    notesCount = count,
+                    formattedStats = "$count Notes Uploaded"
                 )
             }
+        }
         liveTransactionsList = com.example.data.SupabaseRepository.fetchAllPlatformTransactions()
-        liveNotesUploadsList = com.example.data.SupabaseRepository.fetchAllNotes()
         isRefreshingAnalysis = false
     }
 
@@ -468,10 +471,6 @@ fun AdminAnalysisScreen(
 
     val activeUsersData = remember(usersTimeRange, liveStudentsCount, liveTeachersCount) {
         buildLiveUsersChartData(usersTimeRange, liveStudentsCount, liveTeachersCount)
-    }
-
-    val totalReferrals = remember(liveAffiliatesList) {
-        liveAffiliatesList.sumOf { it.referralCount }
     }
 
     Scaffold(
@@ -680,7 +679,7 @@ fun AdminAnalysisScreen(
                         }
                     }
 
-                    // KPI 3: Affiliates Invites (Vibrant Coral Orange Tile)
+                    // KPI 3: Notes Uploaded (Vibrant Coral Orange Tile)
                     Surface(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(16.dp),
@@ -690,7 +689,7 @@ fun AdminAnalysisScreen(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp)
                         ) {
                             Text(
-                                text = "INVITES",
+                                text = "NOTES",
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White.copy(alpha = 0.85f),
@@ -698,14 +697,14 @@ fun AdminAnalysisScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "$totalReferrals",
+                                text = "${liveNotesUploadsList.size}",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White,
                                 maxLines = 1
                             )
                             Text(
-                                text = "Top 5 total",
+                                text = "Teacher uploads",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Color.White.copy(alpha = 0.90f),
@@ -833,7 +832,7 @@ fun AdminAnalysisScreen(
                 Spacer(modifier = Modifier.height(28.dp))
 
                 // ------------------------------------------
-                // SECTION 3: TOP AFFILIATES (Ranked Horizontal Bar Chart)
+                // SECTION 3: TOP SUBJECTS (Ranked Horizontal Bar Chart)
                 // ------------------------------------------
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -850,16 +849,16 @@ fun AdminAnalysisScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Top Affiliates",
+                            text = "Top Subjects & Notes",
                             fontSize = 19.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = TextDark,
-                            modifier = Modifier.testTag("admin_analysis_affiliates_section_label")
+                            modifier = Modifier.testTag("admin_analysis_subjects_section_label")
                         )
                     }
 
                     Text(
-                        text = "Top 5 leaderboard",
+                        text = "Most uploaded",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = TextMuted
@@ -868,9 +867,9 @@ fun AdminAnalysisScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Top Affiliates Ranked Horizontal Bar Chart Card
-                AffiliatesHorizontalBarChartCard(
-                    affiliates = liveAffiliatesList,
+                // Top Subjects Ranked Horizontal Bar Chart Card
+                SubjectsHorizontalBarChartCard(
+                    subjects = liveTopSubjectsList,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -1827,14 +1826,14 @@ fun StackedUsersBarPlot(
 }
 
 // ==========================================
-// SECTION 3: TOP AFFILIATES (RANKED HORIZONTAL BAR CHART)
+// SECTION 3: TOP SUBJECTS (RANKED HORIZONTAL BAR CHART)
 // ==========================================
 @Composable
-fun AffiliatesHorizontalBarChartCard(
-    affiliates: List<AffiliateRankingItem>,
+fun SubjectsHorizontalBarChartCard(
+    subjects: List<SubjectRankingItem>,
     modifier: Modifier = Modifier
 ) {
-    val maxReferrals = (affiliates.maxOfOrNull { it.referralCount } ?: 100).coerceAtLeast(1)
+    val maxNotes = (subjects.maxOfOrNull { it.notesCount } ?: 50).coerceAtLeast(1)
 
     Surface(
         modifier = modifier
@@ -1845,7 +1844,7 @@ fun AffiliatesHorizontalBarChartCard(
                 spotColor = Color(0x20000000)
             )
             .border(1.dp, IndigoPurple.copy(alpha = 0.12f), RoundedCornerShape(22.dp))
-            .testTag("admin_analysis_affiliates_card"),
+            .testTag("admin_analysis_subjects_card"),
         shape = RoundedCornerShape(22.dp),
         color = Color.White
     ) {
@@ -1878,13 +1877,13 @@ fun AffiliatesHorizontalBarChartCard(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "Referral Leaders",
+                            text = "Subject Leaders",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = TextDark
                         )
                         Text(
-                            text = "Top 5 earners ranked by total invites",
+                            text = "Top subjects ranked by total study notes",
                             fontSize = 12.sp,
                             color = TextMuted
                         )
@@ -1911,22 +1910,22 @@ fun AffiliatesHorizontalBarChartCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("admin_analysis_affiliates_list"),
+                    .testTag("admin_analysis_subjects_list"),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (affiliates.isEmpty()) {
+                if (subjects.isEmpty()) {
                     Text(
-                        text = "No affiliate referrals recorded yet.",
+                        text = "No notes uploaded yet.",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         color = TextMuted,
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 } else {
-                    affiliates.forEach { affiliate ->
-                        AffiliateRankRow(
-                            item = affiliate,
-                            maxReferrals = maxReferrals
+                    subjects.forEach { subject ->
+                        SubjectRankRow(
+                            item = subject,
+                            maxNotes = maxNotes
                         )
                     }
                 }
@@ -1936,15 +1935,15 @@ fun AffiliatesHorizontalBarChartCard(
 }
 
 /**
- * Single Row for a Ranked Affiliate in the Horizontal Bar Chart.
+ * Single Row for a Ranked Subject in the Horizontal Bar Chart.
  */
 @Composable
-private fun AffiliateRankRow(
-    item: AffiliateRankingItem,
-    maxReferrals: Int,
+private fun SubjectRankRow(
+    item: SubjectRankingItem,
+    maxNotes: Int,
     modifier: Modifier = Modifier
 ) {
-    val fraction = (item.referralCount.toFloat() / maxReferrals).coerceIn(0.08f, 1f)
+    val fraction = (item.notesCount.toFloat() / maxNotes).coerceIn(0.08f, 1f)
     val accentColor = when (item.rank) {
         1 -> PeachOrange
         2 -> TealTile
@@ -1956,7 +1955,7 @@ private fun AffiliateRankRow(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .testTag("admin_affiliate_row_${item.id}"),
+            .testTag("admin_subject_row_${item.id}"),
         shape = RoundedCornerShape(14.dp),
         color = SoftLavenderGrey,
         border = BorderStroke(
@@ -1969,7 +1968,7 @@ private fun AffiliateRankRow(
                 .fillMaxWidth()
                 .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
-            // Top label row: Rank badge + Name + Earnings badge on left, Referral count on right
+            // Top label row: Rank badge + Name + Notes count badge on left, notes count on right
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -2018,7 +2017,7 @@ private fun AffiliateRankRow(
                         color = accentColor.copy(alpha = 0.14f)
                     ) {
                         Text(
-                            text = item.earningsFormatted,
+                            text = item.formattedStats,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = accentColor,
@@ -2027,17 +2026,17 @@ private fun AffiliateRankRow(
                     }
                 }
 
-                // Referral Count at end
+                // Notes count at end
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "${item.referralCount}",
+                        text = "${item.notesCount}",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = IndigoPurple
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "referrals",
+                        text = "notes",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
                         color = TextMuted
@@ -2311,8 +2310,6 @@ fun LiveAnalysisDataTableCard(
                                 Text(
                                     text = when (tx.category) {
                                         PlatformTransactionCategory.SUBSCRIPTION -> "Sub"
-                                        PlatformTransactionCategory.AFFILIATE_COMMISSION -> "Comm"
-                                        PlatformTransactionCategory.AFFILIATE_WITHDRAWAL -> "Payout"
                                         PlatformTransactionCategory.TEACHER_ROYALTY -> "Royalty"
                                         PlatformTransactionCategory.TAX_OPS -> "Ops"
                                         else -> "Sub"

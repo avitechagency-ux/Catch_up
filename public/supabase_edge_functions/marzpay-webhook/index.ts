@@ -117,7 +117,7 @@ Deno.serve(async (req: Request) => {
     const reference = txData.reference || txData.uuid || txData.reference_code || body.reference || "";
     const marzTxId = txData.uuid || txData.id || txData.transaction_id || "";
     const rawStatus = (txData.status || body.event || body.status || "COMPLETED").toUpperCase();
-    const amountUgx = Number(txData.amount || body.amount || 1000);
+    const amountUgx = Number(txData.amount || body.amount || 2000);
     const phoneNumber = txData.phone_number || txData.phoneNumber || body.phone_number || "";
 
     let finalStatus = "PENDING";

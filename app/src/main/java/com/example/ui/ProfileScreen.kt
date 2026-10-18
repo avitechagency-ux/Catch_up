@@ -164,11 +164,10 @@ fun ProfilePillRow(
  * - White body with clean vertical stack of pill-shaped rows:
  *   1. "Account"
  *   2. "Settings"
- *   3. "Affiliate"
- *   4. "About"
- *   5. "Help & Support"
- *   6. "Privacy Policy"
- *   7. "Log Out"
+ *   3. "About"
+ *   4. "Help & Support"
+ *   5. "Privacy Policy"
+ *   6. "Log Out"
  * - Reused BottomNavigationBar composable (Profile tab active)
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -191,7 +190,6 @@ fun ProfileScreen(
     onNavigateToSettings: () -> Unit = {},
     onNavigateToHelpAndSupport: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
-    onNavigateToAffiliate: (() -> Unit)? = null,
     onNavigateToAdmin: () -> Unit = {},
     onNavigateToPrivacyPolicy: () -> Unit = {},
     onUpdateProfile: (name: String, school: String, studentClass: String) -> Unit = { _, _, _ -> },
@@ -207,7 +205,6 @@ fun ProfileScreen(
 
     var showAccountDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
-    var showAffiliateDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showHelpDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -347,26 +344,7 @@ fun ProfileScreen(
                     onClick = onNavigateToSettings
                 )
 
-                // 3. "Affiliate" — plain purple pill, white text (52.dp height, #4B3F8F, white text, elevation, standard 20dp margin)
-                ProfilePillRow(
-                    text = "Affiliate",
-                    height = 52.dp,
-                    cornerRadius = 26.dp,
-                    backgroundColor = IndigoPurple,
-                    textColor = Color.White,
-                    startPadding = 20.dp,
-                    elevation = 2.dp,
-                    testTag = "profile_pill_affiliate",
-                    onClick = {
-                        if (onNavigateToAffiliate != null) {
-                            onNavigateToAffiliate()
-                        } else {
-                            showAffiliateDialog = true
-                        }
-                    }
-                )
-
-                // 4. "About" — plain purple pill, white text
+                // 3. "About" — plain purple pill, white text
                 ProfilePillRow(
                     text = "About",
                     height = 52.dp,
@@ -651,168 +629,6 @@ fun ProfileScreen(
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("Done", color = Color.White)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Affiliate Modal
-    if (showAffiliateDialog) {
-        val context = LocalContext.current
-        val clipboardManager = LocalClipboardManager.current
-        val referralCode = "CACHAP-${currentName.uppercase().replace(" ", "").ifBlank { "STUDENT" }}"
-
-        Dialog(onDismissRequest = { showAffiliateDialog = false }) {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .testTag("affiliate_dialog"),
-                color = Color.White,
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Column(modifier = Modifier.padding(22.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(SoftLavenderGrey),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.CardGiftcard,
-                                    contentDescription = null,
-                                    tint = IndigoPurple,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Student Affiliate",
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextDark
-                            )
-                        }
-                        IconButton(
-                            onClick = { showAffiliateDialog = false },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(Icons.Outlined.Close, contentDescription = "Close", tint = TextMuted)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        text = "Share Cachap with classmates and earn tuition or airtime rewards for every active subscriber!",
-                        fontSize = 13.sp,
-                        lineHeight = 19.sp,
-                        color = Color(0xFF4A4A4A)
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Referral Code Card
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = SoftLavenderGrey,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "YOUR REFERRAL CODE",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextMuted
-                                )
-                                Text(
-                                    text = referralCode,
-                                    fontSize = 17.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = IndigoPurple
-                                )
-                            }
-                            IconButton(
-                                onClick = {
-                                    clipboardManager.setText(AnnotatedString(referralCode))
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar("Referral code copied to clipboard!")
-                                    }
-                                },
-                                modifier = Modifier.testTag("copy_referral_code_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.ContentCopy,
-                                    contentDescription = "Copy code",
-                                    tint = IndigoPurple,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Affiliate Perks
-                    Text(
-                        text = "• Friends get 10% off their first term subscription\n• You earn UGX 5,000 for each friend who subscribes\n• Rewards can be redeemed for term notes or MTN/Airtel airtime",
-                        fontSize = 12.sp,
-                        lineHeight = 18.sp,
-                        color = Color(0xFF555555)
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = { showAffiliateDialog = false }) {
-                            Text("Close", color = TextMuted)
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Button(
-                            onClick = {
-                                val sendIntent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(
-                                        Intent.EXTRA_TEXT,
-                                        "Hey! Study smarter with Cachap notes app. Use my referral code $referralCode for 10% off: https://cachap.ac.ug/ref/$referralCode"
-                                    )
-                                    type = "text/plain"
-                                }
-                                val shareIntent = Intent.createChooser(sendIntent, "Share Referral Code")
-                                context.startActivity(shareIntent)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.testTag("share_referral_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Share,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Share Link", color = Color.White)
                         }
                     }
                 }

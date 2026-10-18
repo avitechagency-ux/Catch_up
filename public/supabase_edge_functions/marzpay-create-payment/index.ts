@@ -57,7 +57,7 @@ Deno.serve(async (req: Request) => {
     const studentName = body.student_name || body.studentName || "Student";
     const userEmail = body.email || body.userEmail || "";
     const planDuration = body.plan_duration || body.planDuration || "1 Month";
-    const amountUgx = Number(body.amount || body.amount_ugx || 1000);
+    const amountUgx = Number(body.amount || body.amount_ugx || 2000);
 
     if (!rawPhone) {
       return new Response(

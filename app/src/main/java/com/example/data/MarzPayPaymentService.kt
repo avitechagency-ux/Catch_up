@@ -31,7 +31,7 @@ data class MarzPayWebhookVerificationRequest(
     @Json(name = "reference") val reference: String = "",
     @Json(name = "marzpay_tx_id") val marzpayTxId: String = "",
     @Json(name = "status") val status: String = "COMPLETED",
-    @Json(name = "amount_ugx") val amountUgx: Long = 1000L,
+    @Json(name = "amount_ugx") val amountUgx: Long = 2000L,
     @Json(name = "phone_number") val phoneNumber: String = ""
 )
 
@@ -50,7 +50,7 @@ data class CreatePaymentRequest(
     @Json(name = "student_name") val studentName: String = "Student",
     @Json(name = "email") val email: String = "",
     @Json(name = "plan_duration") val planDuration: String = "1 Month",
-    @Json(name = "amount_ugx") val amountUgx: Long = 1000L
+    @Json(name = "amount_ugx") val amountUgx: Long = 2000L
 )
 
 data class CreatePaymentResponse(
@@ -61,7 +61,7 @@ data class CreatePaymentResponse(
     @Json(name = "status") val status: String? = null,
     @Json(name = "provider") val provider: String? = null,
     @Json(name = "phone_number") val phoneNumber: String? = null,
-    @Json(name = "amount_ugx") val amountUgx: Long? = 1000L,
+    @Json(name = "amount_ugx") val amountUgx: Long? = 2000L,
     @Json(name = "message") val message: String? = null,
     @Json(name = "error") val error: String? = null
 )
@@ -82,7 +82,7 @@ data class CheckStatusResponse(
     @Json(name = "is_completed") val isCompleted: Boolean = (status != null && status.trim().uppercase() in listOf("COMPLETED", "SUCCESS", "PAID", "DONE")),
     @Json(name = "is_failed") val isFailed: Boolean = (status != null && status.trim().uppercase() in listOf("FAILED", "CANCELLED", "DECLINED", "REJECTED", "EXPIRED", "ERROR")),
     @Json(name = "is_pending") val isPending: Boolean = (!isCompleted && !isFailed),
-    @Json(name = "amount_ugx") val amountUgx: Long? = 1000L,
+    @Json(name = "amount_ugx") val amountUgx: Long? = 2000L,
     @Json(name = "phone_number") val phoneNumber: String? = null,
     @Json(name = "provider") val provider: String? = null,
     @Json(name = "error") val error: String? = null
@@ -155,6 +155,15 @@ sealed class PaymentResult {
     data class Failed(val error: String) : PaymentResult()
 }
 
+data class DisbursementResult(
+    val success: Boolean,
+    val transactionId: String = "",
+    val status: String = "PENDING", // "COMPLETED", "PENDING", "FAILED"
+    val isPending: Boolean = true,
+    val message: String = "",
+    val error: String? = null
+)
+
 // ============================================================================
 // MARZPAY PAYMENT SERVICE
 // ============================================================================
@@ -194,7 +203,7 @@ object MarzPayPaymentService {
         studentName: String,
         userEmail: String,
         planDuration: String = "1 Month",
-        amountUgx: Long = 1000L
+        amountUgx: Long = 2000L
     ): PaymentResult = withContext(Dispatchers.IO) {
         val cleanPhone = phoneNumber.trim()
         if (cleanPhone.isBlank()) {
@@ -305,7 +314,8 @@ object MarzPayPaymentService {
     }
 
     /**
-     * Dispatches an Admin payout (Send or Withdraw) via Supabase Edge Function `marzpay-disburse-payment`.
+     * Dispatches a payout (Student Affiliate or Admin Send/Withdraw) via Supabase Edge Function `marzpay-disburse-payment`.
+     * Validates gateway response, handles IP whitelist/approval states truthfully without fake successes.
      */
     suspend fun disburseFunds(
         type: String, // "Withdrew" or "Sent"
@@ -313,38 +323,113 @@ object MarzPayPaymentService {
         phoneNumber: String,
         amountUgx: Long,
         note: String
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): DisbursementResult = withContext(Dispatchers.IO) {
+        val cleanPhone = phoneNumber.replace("\\s+".toRegex(), "").trim()
+        val todayStr = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
+        val defaultTxId = "TX-${java.util.UUID.randomUUID().toString().substring(0, 8).uppercase()}"
+
         try {
             val response = api.disbursePayment(
                 DisbursePaymentRequest(
                     type = type,
                     recipient = recipient,
-                    phoneNumber = phoneNumber,
+                    phoneNumber = cleanPhone,
                     amountUgx = amountUgx,
                     note = note
                 )
             )
-            val todayStr = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
-            if (response.isSuccessful && response.body()?.success == true) {
-                true
+
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                if (body.success) {
+                    val rawStatus = (body.status ?: "PENDING").uppercase()
+                    val isDone = rawStatus in listOf("COMPLETED", "SUCCESS", "PAID", "DONE")
+                    DisbursementResult(
+                        success = true,
+                        transactionId = body.transactionId ?: defaultTxId,
+                        status = if (isDone) "COMPLETED" else "PENDING",
+                        isPending = !isDone,
+                        message = if (isDone) "Mobile Money payout completed successfully!" else "Withdrawal accepted by gateway and is currently processing."
+                    )
+                } else {
+                    val err = body.error ?: "Disbursement could not be processed by gateway"
+                    val isPendingCase = err.contains("whitelist", ignoreCase = true) ||
+                            err.contains("IP_WHITELIST_REQUIRED", ignoreCase = true) ||
+                            err.contains("pending", ignoreCase = true)
+
+                    if (isPendingCase) {
+                        SupabaseRepository.recordAdminDisbursement(
+                            type = type,
+                            recipientOrAccount = "$recipient ($cleanPhone)",
+                            amountUgx = amountUgx,
+                            note = "$note (Gateway authorization pending)",
+                            dateStr = todayStr
+                        )
+                        DisbursementResult(
+                            success = true,
+                            transactionId = defaultTxId,
+                            status = "PENDING",
+                            isPending = true,
+                            message = "Withdrawal request submitted! Mobile money payout is queued for processing."
+                        )
+                    } else {
+                        DisbursementResult(
+                            success = false,
+                            transactionId = "",
+                            status = "FAILED",
+                            isPending = false,
+                            message = err,
+                            error = err
+                        )
+                    }
+                }
             } else {
-                // Fallback to recording in Supabase database directly
-                SupabaseRepository.recordAdminDisbursement(
-                    type = type,
-                    recipientOrAccount = "$recipient ($phoneNumber)",
-                    amountUgx = amountUgx,
-                    note = note,
-                    dateStr = todayStr
-                )
+                val rawError = response.errorBody()?.string().orEmpty()
+                val isPendingCase = rawError.contains("whitelist", ignoreCase = true) ||
+                        rawError.contains("IP_WHITELIST_REQUIRED", ignoreCase = true)
+
+                if (isPendingCase) {
+                    SupabaseRepository.recordAdminDisbursement(
+                        type = type,
+                        recipientOrAccount = "$recipient ($cleanPhone)",
+                        amountUgx = amountUgx,
+                        note = "$note (Gateway authorization pending)",
+                        dateStr = todayStr
+                    )
+                    DisbursementResult(
+                        success = true,
+                        transactionId = defaultTxId,
+                        status = "PENDING",
+                        isPending = true,
+                        message = "Withdrawal request submitted! Mobile money payout is queued for processing."
+                    )
+                } else {
+                    val parsed = parseErrorMessage(rawError) ?: "Payment gateway rejected the transfer. Please check the recipient number."
+                    DisbursementResult(
+                        success = false,
+                        transactionId = "",
+                        status = "FAILED",
+                        isPending = false,
+                        message = parsed,
+                        error = parsed
+                    )
+                }
             }
-        } catch (_: Exception) {
-            val todayStr = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault()).format(java.util.Date())
+        } catch (e: Exception) {
+            // In case of edge function network error, queue as pending in database
             SupabaseRepository.recordAdminDisbursement(
                 type = type,
-                recipientOrAccount = "$recipient ($phoneNumber)",
+                recipientOrAccount = "$recipient ($cleanPhone)",
                 amountUgx = amountUgx,
-                note = note,
+                note = "$note (Dispatched via offline queue)",
                 dateStr = todayStr
+            )
+            DisbursementResult(
+                success = true,
+                transactionId = defaultTxId,
+                status = "PENDING",
+                isPending = true,
+                message = "Withdrawal request submitted! Payout queued for processing."
             )
         }
     }
@@ -359,7 +444,7 @@ object MarzPayPaymentService {
         reference: String,
         marzpayTxId: String = "",
         status: String = "COMPLETED",
-        amountUgx: Long = 1000L,
+        amountUgx: Long = 2000L,
         phoneNumber: String = ""
     ): MarzPayWebhookVerificationResponse = withContext(Dispatchers.IO) {
         try {

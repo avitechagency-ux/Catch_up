@@ -322,105 +322,113 @@ fun TeacherUploadNotesScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = if (isEditMode) "Edit ${existingNote?.type ?: "Note"}" else "Upload Notes",
-                            fontSize = 19.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.testTag("upload_notes_title")
                         )
-                        Text(
-                            text = "Upload Word (.docx) notes or assignments for your students",
-                            fontSize = 12.sp,
-                            color = LightLavender
-                        )
                     }
                 }
             }
 
             // ==========================================
-            // FORM BODY
+            // FORM BODY — BRIGHT, SPREAD & COLOURED DESIGN
             // ==========================================
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)
+                    .padding(horizontal = 20.dp, vertical = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp)
             ) {
                 // 1. FIELD — UPLOAD FILE (.DOCX)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "Upload Document (.docx)",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextDark
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFEDE9FE),
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CloudUpload,
+                                    contentDescription = null,
+                                    tint = Color(0xFF4B3F8F),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Document File (.docx)",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                    }
 
                     val stroke = Stroke(
                         width = 3f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 10f), 0f)
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 8f), 0f)
                     )
-                    val dashedBorderColor = IndigoPurple.copy(alpha = 0.45f)
+                    val dashedBorderColor = Color(0xFFCBD5E1)
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(SoftLavenderGrey.copy(alpha = 0.65f))
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFF8FAFC))
                             .drawBehind {
                                 drawRoundRect(
                                     color = dashedBorderColor,
                                     style = stroke,
-                                    cornerRadius = CornerRadius(14.dp.toPx())
+                                    cornerRadius = CornerRadius(16.dp.toPx())
                                 )
                             }
                             .clickable {
                                 filePickerLauncher.launch(arrayOf(DOCX_MIME_TYPE))
                             }
-                            .padding(horizontal = 20.dp, vertical = 24.dp)
+                            .padding(horizontal = 20.dp, vertical = 22.dp)
                             .testTag("upload_file_box"),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(IndigoPurple.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
+                            Surface(
+                                modifier = Modifier.size(50.dp),
+                                shape = CircleShape,
+                                color = Color(0xFFEDE9FE)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.CloudUpload,
-                                    contentDescription = "Upload File",
-                                    tint = IndigoPurple,
-                                    modifier = Modifier.size(26.dp)
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CloudUpload,
+                                        contentDescription = "Upload File",
+                                        tint = IndigoPurple,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
                             }
 
                             Text(
                                 text = if (selectedFileName != null) {
-                                    "Tap to change selected .docx file"
+                                    "Tap to change selected Word document"
                                 } else {
-                                    "Tap to select a Word (.docx) file"
+                                    "Select a Word (.docx) file"
                                 },
-                                fontSize = 14.sp,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextDark,
-                                textAlign = TextAlign.Center
-                            )
-
-                            Text(
-                                text = "Only .docx files are accepted so notes adjust clearly to any phone screen",
-                                fontSize = 12.sp,
-                                color = TextMuted,
                                 textAlign = TextAlign.Center
                             )
 
@@ -428,31 +436,31 @@ fun TeacherUploadNotesScreen(
 
                             Surface(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .clickable {
                                         filePickerLauncher.launch(arrayOf(DOCX_MIME_TYPE))
                                     }
                                     .testTag("browse_files_button"),
-                                shape = RoundedCornerShape(10.dp),
-                                color = Color.White,
-                                border = BorderStroke(1.dp, IndigoPurple)
+                                shape = RoundedCornerShape(12.dp),
+                                color = IndigoPurple,
+                                shadowElevation = 1.dp
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         imageVector = Icons.Outlined.FolderOpen,
                                         contentDescription = null,
-                                        tint = IndigoPurple,
-                                        modifier = Modifier.size(16.dp)
+                                        tint = Color.White,
+                                        modifier = Modifier.size(18.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Choose .docx File",
-                                        fontSize = 12.sp,
+                                        text = "Browse .docx File",
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = IndigoPurple
+                                        color = Color.White
                                     )
                                 }
                             }
@@ -464,14 +472,13 @@ fun TeacherUploadNotesScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("file_preview_card"),
-                            shape = RoundedCornerShape(12.dp),
-                            color = SoftLavenderGrey,
-                            border = BorderStroke(1.dp, IndigoPurple.copy(alpha = 0.3f))
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFECFDF5)
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
+                                    .padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -479,47 +486,60 @@ fun TeacherUploadNotesScreen(
                                     modifier = Modifier.weight(1f),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Description,
-                                        contentDescription = null,
-                                        tint = IndigoPurple,
-                                        modifier = Modifier.size(22.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFF10B981),
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Description,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = selectedFileName ?: "",
-                                            fontSize = 13.sp,
+                                            fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = TextDark,
+                                            color = Color(0xFF065F46),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.testTag("selected_file_name")
                                         )
                                         Text(
-                                            text = "${selectedFileSize ?: "1.2 MB"} • DOCX Document",
-                                            fontSize = 11.sp,
-                                            color = TextMuted
+                                            text = selectedFileSize ?: "1.2 MB",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF059669),
+                                            fontWeight = FontWeight.Medium
                                         )
                                     }
                                 }
 
-                                IconButton(
-                                    onClick = {
-                                        selectedFileName = null
-                                        selectedFileSize = null
-                                        selectedFileBytes = null
-                                    },
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFFFEE2E2),
                                     modifier = Modifier
                                         .size(32.dp)
+                                        .clickable {
+                                            selectedFileName = null
+                                            selectedFileSize = null
+                                            selectedFileBytes = null
+                                        }
                                         .testTag("remove_file_button")
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Close,
-                                        contentDescription = "Remove File",
-                                        tint = TextMuted,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Close,
+                                            contentDescription = "Remove File",
+                                            tint = Color(0xFFDC2626),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -529,14 +549,35 @@ fun TeacherUploadNotesScreen(
                 // 2. FIELD — CONTENT TYPE (Notes vs Assignment)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "Content Type",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextDark
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFF3E8FF),
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Description,
+                                    contentDescription = null,
+                                    tint = Color(0xFF7E22CE),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Content Type",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -546,22 +587,30 @@ fun TeacherUploadNotesScreen(
                             "Assignment" to "Assignment"
                         ).forEach { (typeKey, label) ->
                             val isSelected = uploadType.equals(typeKey, ignoreCase = true)
+                            val isAssignment = typeKey == "Assignment"
+
+                            val filledBg = if (isSelected) {
+                                if (isAssignment) Color(0xFFEA580C) else IndigoPurple
+                            } else {
+                                Color(0xFFF1F5F9)
+                            }
+                            val contentColor = if (isSelected) Color.White else Color(0xFF475569)
+
                             Surface(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .height(52.dp)
+                                    .clip(RoundedCornerShape(14.dp))
                                     .clickable { uploadType = typeKey }
                                     .testTag("upload_type_${typeKey.lowercase()}"),
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) IndigoPurple else SoftLavenderGrey,
-                                border = BorderStroke(
-                                    width = 1.dp,
-                                    color = if (isSelected) IndigoPurple else BorderGrey
-                                )
+                                shape = RoundedCornerShape(14.dp),
+                                color = filledBg,
+                                shadowElevation = if (isSelected) 2.dp else 0.dp
                             ) {
                                 Row(
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 12.dp),
                                     horizontalArrangement = Arrangement.Center,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -572,58 +621,88 @@ fun TeacherUploadNotesScreen(
                                             Icons.Outlined.Assignment
                                         },
                                         contentDescription = null,
-                                        tint = if (isSelected) Color.White else TextDark,
-                                        modifier = Modifier.size(18.dp)
+                                        tint = contentColor,
+                                        modifier = Modifier.size(19.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = label,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.White else TextDark
+                                        fontSize = 14.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = contentColor
                                     )
+                                    if (isSelected) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Icon(
+                                            imageVector = Icons.Outlined.Check,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // 3. FIELD — NOTE / ASSIGNMENT TITLE
+                // 3. FIELD — NOTE / ASSIGNMENT TITLE (Coloured Input Field)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = if (uploadType.equals("Assignment", ignoreCase = true)) {
-                            "Assignment Title"
-                        } else {
-                            "Note Title"
-                        },
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextDark
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFE0F2FE),
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Edit,
+                                    contentDescription = null,
+                                    tint = Color(0xFF0284C7),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = if (uploadType.equals("Assignment", ignoreCase = true)) {
+                                "Assignment Title"
+                            } else {
+                                "Note Title"
+                            },
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                    }
+
                     OutlinedTextField(
                         value = noteTitle,
                         onValueChange = { noteTitle = it },
                         placeholder = {
                             Text(
                                 text = if (uploadType.equals("Assignment", ignoreCase = true)) {
-                                    "Enter assignment title (e.g. Term 3 Exercise)"
+                                    "Enter assignment title (e.g. End of Term Revision)"
                                 } else {
-                                    "Enter note title (e.g. Plate Tectonics & Vulcanicity)"
+                                    "Enter note title (e.g. Plate Tectonics & Landforms)"
                                 },
-                                color = TextMuted,
+                                color = Color(0xFF94A3B8),
                                 fontSize = 14.sp
                             )
                         },
                         singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = IndigoPurple,
-                            unfocusedBorderColor = BorderGrey,
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedContainerColor = Color(0xFFF8FAFC),
+                            unfocusedContainerColor = Color(0xFFF8FAFC),
                             cursorColor = IndigoPurple,
                             focusedTextColor = TextDark,
                             unfocusedTextColor = TextDark
@@ -634,215 +713,50 @@ fun TeacherUploadNotesScreen(
                     )
                 }
 
-                // 4. FIELD — SUBJECT
+                // 4. FIELD — SUBJECT (Coloured Dropdown Selector)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "Subject",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextDark
-                    )
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { showSubjectDropdown = true }
-                                .testTag("selector_subject"),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.White,
-                            border = BorderStroke(1.dp, BorderGrey)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.MenuBook,
-                                        contentDescription = null,
-                                        tint = IndigoPurple,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = selectedSubject,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = TextDark
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Outlined.KeyboardArrowDown,
-                                    contentDescription = "Select Subject",
-                                    tint = IconGrey,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
+                    val currentSubjectColor = getSubjectThemeColor(selectedSubject)
 
-                        val subjectOptions = if (availableSubjects.isNotEmpty()) {
-                            availableSubjects.map { it.name }
-                        } else {
-                            listOf("Geography", "Math", "Physics", "Chemistry", "Biology", "English", "History")
-                        }
-
-                        DropdownMenu(
-                            expanded = showSubjectDropdown,
-                            onDismissRequest = { showSubjectDropdown = false },
-                            modifier = Modifier.background(Color.White)
-                        ) {
-                            subjectOptions.forEach { subjectOption ->
-                                val isSelected = subjectOption.equals(selectedSubject, ignoreCase = true)
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = subjectOption,
-                                            fontSize = 14.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) IndigoPurple else TextDark
-                                        )
-                                    },
-                                    onClick = {
-                                        selectedSubject = subjectOption
-                                        showSubjectDropdown = false
-                                    },
-                                    modifier = Modifier.testTag("subject_option_$subjectOption")
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 5. FIELD — TARGET CLASS (Dropdown Only: S.1 - S.6)
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Target Class",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextDark
-                    )
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { showClassDropdown = true }
-                                .testTag("selector_class_stream"),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.White,
-                            border = BorderStroke(1.dp, BorderGrey)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Group,
-                                        contentDescription = null,
-                                        tint = IndigoPurple,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = selectedClassStream,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextDark
-                                    )
-                                }
-                                Icon(
-                                    imageVector = Icons.Outlined.KeyboardArrowDown,
-                                    contentDescription = "Select Target Class",
-                                    tint = IconGrey,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-
-                        DropdownMenu(
-                            expanded = showClassDropdown,
-                            onDismissRequest = { showClassDropdown = false },
-                            modifier = Modifier
-                                .background(Color.White)
-                                .testTag("dropdown_class_selection")
-                        ) {
-                            availableClassesForSubject.forEach { classOption ->
-                                val isSelected = classOption == selectedClassStream
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = classOption,
-                                            fontSize = 14.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) IndigoPurple else TextDark
-                                        )
-                                    },
-                                    onClick = {
-                                        selectedClassStream = classOption
-                                        showClassDropdown = false
-                                    },
-                                    modifier = Modifier.testTag("class_option_$classOption")
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // 5b. FIELD — STREAM TARGETING (Dropdown filtered by selected class and teacher's connected streams)
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFFEDD5),
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.MenuBook,
+                                    contentDescription = null,
+                                    tint = Color(0xFFEA580C),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Target Streams",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            text = "Subject",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
                             color = TextDark
                         )
-                        if (availableStreamsForClass.isNotEmpty()) {
-                            Text(
-                                text = "${availableStreamsForClass.size} available in $selectedClassStream",
-                                fontSize = 12.sp,
-                                color = IndigoPurple,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
                     }
 
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(52.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    showStreamDropdown = true
-                                }
-                                .testTag("selector_target_stream"),
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (availableStreamsForClass.isEmpty()) SoftLavenderGrey.copy(alpha = 0.5f) else Color.White,
-                            border = BorderStroke(1.dp, BorderGrey)
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { showSubjectDropdown = true }
+                                .testTag("selector_subject"),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFF8FAFC)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -855,44 +769,380 @@ fun TeacherUploadNotesScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Group,
-                                        contentDescription = null,
-                                        tint = if (availableStreamsForClass.isEmpty()) IconGrey else IndigoPurple,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    if (availableStreamsForClass.isEmpty()) {
-                                        Text(
-                                            text = "No streams",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = TextMuted,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    } else {
-                                        val streamDisplayText = when {
-                                            isAllStreamsSelected || selectedStreamsList.isEmpty() -> "All Streams ($selectedClassStream)"
-                                            selectedStreamsList.size == 1 -> "Stream ${selectedStreamsList.first()}"
-                                            else -> "Streams: ${selectedStreamsList.joinToString(", ")}"
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = currentSubjectColor,
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.MenuBook,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
+                                            )
                                         }
-                                        Text(
-                                            text = streamDisplayText,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = IndigoPurple,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = selectedSubject,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextDark,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFFE2E8F0),
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.KeyboardArrowDown,
+                                            contentDescription = "Select Subject",
+                                            tint = TextDark,
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
-                                Icon(
-                                    imageVector = Icons.Outlined.KeyboardArrowDown,
-                                    contentDescription = "Select Stream",
-                                    tint = IconGrey,
-                                    modifier = Modifier.size(20.dp)
+                            }
+                        }
+
+                        val subjectOptions = if (availableSubjects.isNotEmpty()) {
+                            availableSubjects.map { it.name }
+                        } else {
+                            listOf("Geography", "Math", "Physics", "Chemistry", "Biology", "English", "History")
+                        }
+
+                        DropdownMenu(
+                            expanded = showSubjectDropdown,
+                            onDismissRequest = { showSubjectDropdown = false },
+                            modifier = Modifier
+                                .background(Color.White)
+                                .clip(RoundedCornerShape(16.dp))
+                        ) {
+                            subjectOptions.forEach { subjectOption ->
+                                val isSelected = subjectOption.equals(selectedSubject, ignoreCase = true)
+                                val optColor = getSubjectThemeColor(subjectOption)
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = optColor,
+                                                    modifier = Modifier.size(12.dp)
+                                                ) {}
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Text(
+                                                    text = subjectOption,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                    color = if (isSelected) optColor else TextDark
+                                                )
+                                            }
+                                            if (isSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.CheckCircle,
+                                                    contentDescription = "Selected",
+                                                    tint = optColor,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedSubject = subjectOption
+                                        showSubjectDropdown = false
+                                    },
+                                    modifier = Modifier.testTag("subject_option_$subjectOption")
                                 )
+                            }
+                        }
+                    }
+                }
+
+                // 5. FIELD — TARGET CLASS (Coloured Dropdown Selector: S.1 - S.6)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFCCFBF1),
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.School,
+                                    contentDescription = null,
+                                    tint = Color(0xFF0D9488),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Target Class",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { showClassDropdown = true }
+                                .testTag("selector_class_stream"),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFF8FAFC)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = Color(0xFF0D9488),
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.School,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    val classLabel = when (selectedClassStream) {
+                                        "S.1" -> "S.1 (Senior One)"
+                                        "S.2" -> "S.2 (Senior Two)"
+                                        "S.3" -> "S.3 (Senior Three)"
+                                        "S.4" -> "S.4 (Senior Four)"
+                                        "S.5" -> "S.5 (Senior Five)"
+                                        "S.6" -> "S.6 (Senior Six)"
+                                        else -> selectedClassStream
+                                    }
+                                    Text(
+                                        text = classLabel,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextDark,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFFE2E8F0),
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.KeyboardArrowDown,
+                                            contentDescription = "Select Target Class",
+                                            tint = TextDark,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = showClassDropdown,
+                            onDismissRequest = { showClassDropdown = false },
+                            modifier = Modifier
+                                .background(Color.White)
+                                .clip(RoundedCornerShape(16.dp))
+                                .testTag("dropdown_class_selection")
+                        ) {
+                            availableClassesForSubject.forEach { classOption ->
+                                val isSelected = classOption == selectedClassStream
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = if (isSelected) Color(0xFF0D9488) else Color(0xFFCCFBF1),
+                                                    modifier = Modifier.padding(end = 10.dp)
+                                                ) {
+                                                    Text(
+                                                        text = classOption,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isSelected) Color.White else Color(0xFF0F766E),
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                    )
+                                                }
+                                                Text(
+                                                    text = when (classOption) {
+                                                        "S.1" -> "Senior One"
+                                                        "S.2" -> "Senior Two"
+                                                        "S.3" -> "Senior Three"
+                                                        "S.4" -> "Senior Four"
+                                                        "S.5" -> "Senior Five"
+                                                        "S.6" -> "Senior Six"
+                                                        else -> classOption
+                                                    },
+                                                    fontSize = 14.sp,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (isSelected) Color(0xFF0D9488) else TextDark
+                                                )
+                                            }
+                                            if (isSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.CheckCircle,
+                                                    contentDescription = "Selected",
+                                                    tint = Color(0xFF0D9488),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedClassStream = classOption
+                                        showClassDropdown = false
+                                    },
+                                    modifier = Modifier.testTag("class_option_$classOption")
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 6. FIELD — STREAM TARGETING (Coloured Dropdown filtered by selected class and teacher's connected streams)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFD1FAE5),
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Group,
+                                    contentDescription = null,
+                                    tint = Color(0xFF059669),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Target Streams",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                    }
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        val hasStreams = availableStreamsForClass.isNotEmpty()
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    showStreamDropdown = true
+                                }
+                                .testTag("selector_target_stream"),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFF8FAFC)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = if (hasStreams) Color(0xFF059669) else Color(0xFFD97706),
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = if (hasStreams) Icons.Outlined.Group else Icons.Outlined.Info,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    val streamDisplayText = when {
+                                        !hasStreams -> "All Streams ($selectedClassStream)"
+                                        isAllStreamsSelected || selectedStreamsList.isEmpty() -> "All Streams ($selectedClassStream)"
+                                        selectedStreamsList.size == 1 -> "Stream ${selectedStreamsList.first()}"
+                                        else -> "Streams: ${selectedStreamsList.joinToString(", ")}"
+                                    }
+                                    Text(
+                                        text = streamDisplayText,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextDark,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFFE2E8F0),
+                                    modifier = Modifier.size(30.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.KeyboardArrowDown,
+                                            contentDescription = "Select Stream",
+                                            tint = TextDark,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -901,23 +1151,44 @@ fun TeacherUploadNotesScreen(
                             onDismissRequest = { showStreamDropdown = false },
                             modifier = Modifier
                                 .background(Color.White)
+                                .clip(RoundedCornerShape(16.dp))
                                 .testTag("dropdown_stream_selection")
                         ) {
                             if (availableStreamsForClass.isEmpty()) {
                                 DropdownMenuItem(
                                     text = {
-                                        Column {
-                                            Text(
-                                                text = "No streams",
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = TextDark
-                                            )
-                                            Text(
-                                                text = "No streams connected yet in $selectedClassStream",
-                                                fontSize = 11.sp,
-                                                color = TextMuted
-                                            )
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = Color(0xFFFEF3C7),
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        imageVector = Icons.Outlined.Info,
+                                                        contentDescription = null,
+                                                        tint = Color(0xFFD97706),
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Column {
+                                                Text(
+                                                    text = "No streams",
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF92400E)
+                                                )
+                                                Text(
+                                                    text = "No streams connected yet in $selectedClassStream. Notes will go to all students.",
+                                                    fontSize = 11.sp,
+                                                    color = TextMuted
+                                                )
+                                            }
                                         }
                                     },
                                     onClick = { showStreamDropdown = false },
@@ -932,17 +1203,32 @@ fun TeacherUploadNotesScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                text = "All Streams ($selectedClassStream)",
-                                                fontSize = 14.sp,
-                                                fontWeight = if (isAllActive) FontWeight.Bold else FontWeight.Normal,
-                                                color = if (isAllActive) IndigoPurple else TextDark
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = if (isAllActive) Color(0xFF059669) else Color(0xFFD1FAE5),
+                                                    modifier = Modifier.padding(end = 10.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "ALL",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isAllActive) Color.White else Color(0xFF065F46),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                                Text(
+                                                    text = "All Streams ($selectedClassStream)",
+                                                    fontSize = 14.sp,
+                                                    fontWeight = if (isAllActive) FontWeight.Bold else FontWeight.Medium,
+                                                    color = if (isAllActive) Color(0xFF059669) else TextDark
+                                                )
+                                            }
                                             if (isAllActive) {
                                                 Icon(
                                                     imageVector = Icons.Outlined.CheckCircle,
                                                     contentDescription = "Selected",
-                                                    tint = IndigoPurple,
+                                                    tint = Color(0xFF059669),
                                                     modifier = Modifier.size(18.dp)
                                                 )
                                             }
@@ -956,10 +1242,11 @@ fun TeacherUploadNotesScreen(
                                     modifier = Modifier.testTag("stream_option_all")
                                 )
 
-                                HorizontalDivider(color = BorderGrey.copy(alpha = 0.5f))
+                                HorizontalDivider(color = Color(0xFFE2E8F0))
 
                                 availableStreamsForClass.forEach { streamOption ->
                                     val isStreamChecked = !isAllStreamsSelected && streamOption in selectedStreamsList
+                                    val streamAccentColor = resolveStreamColor(streamOption)
                                     DropdownMenuItem(
                                         text = {
                                             Row(
@@ -967,17 +1254,25 @@ fun TeacherUploadNotesScreen(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(
-                                                    text = "Stream $streamOption",
-                                                    fontSize = 14.sp,
-                                                    fontWeight = if (isStreamChecked) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (isStreamChecked) IndigoPurple else TextDark
-                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Surface(
+                                                        shape = CircleShape,
+                                                        color = streamAccentColor,
+                                                        modifier = Modifier.size(12.dp)
+                                                    ) {}
+                                                    Spacer(modifier = Modifier.width(10.dp))
+                                                    Text(
+                                                        text = "Stream $streamOption",
+                                                        fontSize = 14.sp,
+                                                        fontWeight = if (isStreamChecked) FontWeight.Bold else FontWeight.Medium,
+                                                        color = if (isStreamChecked) streamAccentColor else TextDark
+                                                    )
+                                                }
                                                 if (isStreamChecked) {
                                                     Icon(
                                                         imageVector = Icons.Outlined.CheckCircle,
                                                         contentDescription = "Selected",
-                                                        tint = IndigoPurple,
+                                                        tint = streamAccentColor,
                                                         modifier = Modifier.size(18.dp)
                                                     )
                                                 }
@@ -995,55 +1290,58 @@ fun TeacherUploadNotesScreen(
                             }
                         }
                     }
-
-                    if (availableStreamsForClass.isEmpty()) {
-                        Text(
-                            text = "No streams connected yet for $selectedClassStream. Notes will be sent to all students in $selectedClassStream.",
-                            fontSize = 12.sp,
-                            color = TextMuted
-                        )
-                    } else {
-                        Text(
-                            text = if (isAllStreamsSelected || selectedStreamsList.isEmpty()) {
-                                "All students in $selectedClassStream will receive these ${uploadType.lowercase()}."
-                            } else {
-                                "Only students enrolled in $selectedClassStream (${selectedStreamsList.joinToString(", ")}) will receive these ${uploadType.lowercase()}."
-                            },
-                            fontSize = 12.sp,
-                            color = TextMuted
-                        )
-                    }
                 }
 
-                // 7. FIELD — DESCRIPTION / INSTRUCTIONS (Optional)
+                // 7. FIELD — DESCRIPTION / INSTRUCTIONS (Coloured Input Field)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "Description (Optional)",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextDark
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFF3E8FF),
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Description,
+                                    contentDescription = null,
+                                    tint = Color(0xFF7E22CE),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Description / Summary (Optional)",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                    }
+
                     OutlinedTextField(
                         value = noteDescription,
                         onValueChange = { noteDescription = it },
                         placeholder = {
                             Text(
-                                text = "Add a short summary or instructions for students...",
-                                color = TextMuted,
+                                text = "Add instructions or summary for your students' revision...",
+                                color = Color(0xFF94A3B8),
                                 fontSize = 14.sp
                             )
                         },
                         minLines = 3,
                         maxLines = 5,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = IndigoPurple,
-                            unfocusedBorderColor = BorderGrey,
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
+                            unfocusedBorderColor = Color(0xFFE2E8F0),
+                            focusedContainerColor = Color(0xFFF8FAFC),
+                            unfocusedContainerColor = Color(0xFFF8FAFC),
                             cursorColor = IndigoPurple,
                             focusedTextColor = TextDark,
                             unfocusedTextColor = TextDark
@@ -1113,9 +1411,9 @@ fun TeacherUploadNotesScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
+                        .height(54.dp)
                         .testTag("submit_upload_button"),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = IndigoPurple,
                         contentColor = Color.White

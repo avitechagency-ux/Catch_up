@@ -15,6 +15,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import com.example.data.AccountSecurityVault
 import com.example.data.AccountSecurityVault.UserRole
 import androidx.compose.runtime.Composable
@@ -38,7 +41,6 @@ import com.example.notifications.NotificationHelper
 import com.example.ui.AccountScreen
 import com.example.ui.AboutScreen
 import com.example.ui.AdminAccountScreen
-import com.example.ui.AdminAffiliateScreen
 import com.example.ui.AdminAnalysisScreen
 import com.example.ui.AdminHealthScreen
 import com.example.ui.AdminHomeScreen
@@ -62,7 +64,7 @@ import com.example.ui.ProfileScreen
 import com.example.ui.RecentNoteData
 import com.example.ui.SettingsScreen
 import com.example.ui.StreakData
-import com.example.ui.StudentAffiliateScreen
+
 import com.example.ui.StudentPaymentScreen
 import com.example.ui.SubjectNotesScreen
 import com.example.ui.SubjectsScreen
@@ -121,7 +123,6 @@ enum class AppScreen {
     PDF_VIEWER,
     DOWNLOADS,
     PROFILE,
-    STUDENT_AFFILIATE,
     ACCOUNT,
     SETTINGS,
     HELP_AND_SUPPORT,
@@ -147,7 +148,6 @@ enum class AppScreen {
     ADMIN_ANALYSIS,
     ADMIN_USERS,
     ADMIN_MORE,
-    ADMIN_AFFILIATE,
     ADMIN_ACCOUNT,
     ADMIN_PLANS,
     ADMIN_TRANSACTIONS,
@@ -659,10 +659,6 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(AppScreen.ADMIN_MORE)
                 }
 
-                var adminAffiliatePreviousScreen by remember {
-                    mutableStateOf(AppScreen.ADMIN_MORE)
-                }
-
                 var adminTransactionsPreviousScreen by remember {
                     mutableStateOf(AppScreen.ADMIN_MORE)
                 }
@@ -815,7 +811,7 @@ class MainActivity : ComponentActivity() {
                         AppScreen.DOWNLOADS -> AppScreen.HOME
                         AppScreen.SUBJECTS -> AppScreen.HOME
                         AppScreen.PROFILE -> AppScreen.HOME
-                        AppScreen.STUDENT_AFFILIATE -> AppScreen.PROFILE
+
                         AppScreen.ACCOUNT -> if (accountPreviousScreen in AccountSecurityVault.STUDENT_EXCLUSIVE_SCREENS) accountPreviousScreen else AppScreen.HOME
                         AppScreen.STUDENT_LIVE_CLASSES -> AppScreen.HOME
                         AppScreen.STUDENT_LIVE_SESSION -> AppScreen.STUDENT_LIVE_CLASSES
@@ -872,7 +868,6 @@ class MainActivity : ComponentActivity() {
                         AppScreen.ADMIN_ANALYSIS -> AppScreen.ADMIN_HOME
                         AppScreen.ADMIN_USERS -> AppScreen.ADMIN_HOME
                         AppScreen.ADMIN_MORE -> AppScreen.ADMIN_HOME
-                        AppScreen.ADMIN_AFFILIATE -> adminAffiliatePreviousScreen
                         AppScreen.ADMIN_ACCOUNT -> adminAccountPreviousScreen
                         AppScreen.ADMIN_PLANS -> AppScreen.ADMIN_HOME
                         AppScreen.ADMIN_TRANSACTIONS -> adminTransactionsPreviousScreen
@@ -1301,9 +1296,6 @@ class MainActivity : ComponentActivity() {
                                 accountPreviousScreen = AppScreen.PROFILE
                                 currentScreen = AppScreen.ACCOUNT
                             },
-                            onNavigateToAffiliate = {
-                                currentScreen = AppScreen.STUDENT_AFFILIATE
-                            },
                             onNavigateToSettings = {
                                 settingsPreviousScreen = AppScreen.PROFILE
                                 currentScreen = AppScreen.SETTINGS
@@ -1333,34 +1325,7 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.WELCOME
                             }
                         )
-                        AppScreen.STUDENT_AFFILIATE -> StudentAffiliateScreen(
-                            studentName = studentName,
-                            initialBalance = 1500,
-                            initialReferralCode = "STUDENT100",
-                            onNavigateBack = {
-                                currentScreen = AppScreen.PROFILE
-                            },
-                            onNavigateToHome = {
-                                currentScreen = AppScreen.HOME
-                            },
-                            onNavigateToSubjects = {
-                                currentScreen = AppScreen.SUBJECTS
-                            },
-                            onNavigateToDownloads = {
-                                currentScreen = AppScreen.DOWNLOADS
-                            },
-                            onNavigateToProfile = {
-                                currentScreen = AppScreen.PROFILE
-                            },
-                            onPlanPurchased = { planDuration, planExpiry ->
-                                activePlanDuration = planDuration
-                                activePlanExpiry = planExpiry
-                                prefs.edit()
-                                    .putString("student_active_plan_duration", planDuration)
-                                    .putString("student_active_plan_expiry", planExpiry)
-                                    .apply()
-                            }
-                        )
+
                         AppScreen.SETTINGS -> SettingsScreen(
                             onNavigateBack = {
                                 currentScreen = settingsPreviousScreen
@@ -1816,17 +1781,12 @@ class MainActivity : ComponentActivity() {
                             teachersCount = "0",
                             notesCount = "0",
                             assignmentsCount = "0",
-                            affiliatesCount = "0",
                             onNavigateToPlans = {
                                 currentScreen = AppScreen.ADMIN_PLANS
                             },
                             onNavigateToAccount = {
                                 adminAccountPreviousScreen = AppScreen.ADMIN_HOME
                                 currentScreen = AppScreen.ADMIN_ACCOUNT
-                            },
-                            onNavigateToAffiliate = {
-                                adminAffiliatePreviousScreen = AppScreen.ADMIN_HOME
-                                currentScreen = AppScreen.ADMIN_AFFILIATE
                             },
                             onNavigateToTransactions = {
                                 adminTransactionsPreviousScreen = AppScreen.ADMIN_HOME
@@ -1875,10 +1835,6 @@ class MainActivity : ComponentActivity() {
                                 adminHealthPreviousScreen = AppScreen.ADMIN_MORE
                                 currentScreen = AppScreen.ADMIN_HEALTH
                             },
-                            onNavigateToAffiliate = {
-                                adminAffiliatePreviousScreen = AppScreen.ADMIN_MORE
-                                currentScreen = AppScreen.ADMIN_AFFILIATE
-                            },
                             onNavigateToLogs = {
                                 adminLogsPreviousScreen = AppScreen.ADMIN_MORE
                                 currentScreen = AppScreen.ADMIN_LOGS
@@ -1904,13 +1860,6 @@ class MainActivity : ComponentActivity() {
                         )
                         AppScreen.ADMIN_LOGS -> AdminLogsScreen(
                             onNavigateBack = { currentScreen = adminLogsPreviousScreen }
-                        )
-                        AppScreen.ADMIN_AFFILIATE -> AdminAffiliateScreen(
-                            onNavigateBack = { currentScreen = adminAffiliatePreviousScreen },
-                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
-                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
-                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
-                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
                         )
                         AppScreen.ADMIN_ACCOUNT -> AdminAccountScreen(
                             initialBalance = "0",

@@ -217,7 +217,7 @@ CREATE INDEX IF NOT EXISTS idx_downloads_student ON public.student_downloads(stu
 CREATE INDEX IF NOT EXISTS idx_recent_student ON public.student_recent_topics(student_phone);
 
 -- ============================================================================
--- 7. SUBSCRIPTION PLANS TABLE (Single UGX 1,000 / Month Plan)
+-- 7. SUBSCRIPTION PLANS TABLE (Single UGX 2,000 / Month Plan)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.subscription_plans (
     id TEXT PRIMARY KEY,
@@ -230,7 +230,7 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
 );
 
 INSERT INTO public.subscription_plans (id, duration, caption, price_formatted, price_ugx, is_active)
-VALUES ('plan_1_month', '1 Month', 'Billed monthly', 'UGX 1,000', 1000, TRUE)
+VALUES ('plan_1_month', '1 Month', 'Billed monthly', 'UGX 2,000', 2000, TRUE)
 ON CONFLICT (id) DO UPDATE SET
     duration = EXCLUDED.duration,
     caption = EXCLUDED.caption,
@@ -240,7 +240,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- ============================================================================
 -- 8. PAYMENTS & PLATFORM TRANSACTIONS TABLE
--- Records Student Mobile Money payments (UGX 1,000), Affiliate Withdrawals,
+-- Records Student Mobile Money payments (UGX 2,000), Affiliate Withdrawals,
 -- Teacher Royalties, and Admin Platform Transactions
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.payments_transactions (
@@ -327,7 +327,7 @@ CREATE TABLE IF NOT EXISTS public.platform_settings (
 INSERT INTO public.platform_settings (setting_key, setting_value)
 VALUES
     ('platform_name', 'Cachap'),
-    ('monthly_plan_price_ugx', '1000'),
+    ('monthly_plan_price_ugx', '2000'),
     ('referral_reward_ugx', '100'),
     ('mtn_momo_enabled', 'true'),
     ('airtel_money_enabled', 'true'),

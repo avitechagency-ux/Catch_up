@@ -250,10 +250,8 @@ fun AdminHomeScreen(
     teachersCount: String = "0",
     notesCount: String = "0",
     assignmentsCount: String = "0",
-    affiliatesCount: String = "0",
     onNavigateToPlans: () -> Unit = {},
     onNavigateToAccount: () -> Unit = {},
-    onNavigateToAffiliate: () -> Unit = {},
     onNavigateToTransactions: () -> Unit = {},
     onNotificationClick: (() -> Unit)? = null,
     onNavigateToHome: () -> Unit = {},
@@ -273,7 +271,6 @@ fun AdminHomeScreen(
     var liveTeachersCount by remember(teachersCount) { mutableStateOf(teachersCount) }
     var liveNotesCount by remember(notesCount) { mutableStateOf(notesCount) }
     var liveAssignmentsCount by remember(assignmentsCount) { mutableStateOf(assignmentsCount) }
-    var liveAffiliatesCount by remember(affiliatesCount) { mutableStateOf(affiliatesCount) }
     var isSyncingBalance by remember { mutableStateOf(false) }
 
     suspend fun syncOverviewStats() {
@@ -286,7 +283,6 @@ fun AdminHomeScreen(
             liveTeachersCount = stats.teachersCount.toString()
             liveNotesCount = stats.notesCount.toString()
             liveAssignmentsCount = stats.assignmentsCount.toString()
-            liveAffiliatesCount = stats.affiliatesCount.toString()
         }
         isSyncingBalance = false
     }
@@ -681,13 +677,13 @@ fun AdminHomeScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // ------------------------------------------
-                    // SECTION 3 — Content & Affiliates (Colored Cards)
+                    // SECTION 3 — Content (Notes & Assignments)
                     // ------------------------------------------
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("admin_content_affiliates_row"),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            .testTag("admin_content_stats_row"),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         // Card 1: Notes (Vibrant Teal Card)
                         Surface(
@@ -706,7 +702,7 @@ fun AdminHomeScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
+                                    .padding(14.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
@@ -734,7 +730,7 @@ fun AdminHomeScreen(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "Notes",
+                                    text = "Notes Uploaded",
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = Color.White.copy(alpha = 0.90f),
@@ -760,7 +756,7 @@ fun AdminHomeScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(12.dp),
+                                    .padding(14.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center
                             ) {
@@ -793,61 +789,6 @@ fun AdminHomeScreen(
                                     fontWeight = FontWeight.Medium,
                                     color = Color.White.copy(alpha = 0.90f),
                                     modifier = Modifier.testTag("admin_assignments_label")
-                                )
-                            }
-                        }
-
-                        // Card 3: Affiliates (Vibrant Purple Card)
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .shadow(
-                                    elevation = 3.dp,
-                                    shape = RoundedCornerShape(16.dp),
-                                    ambientColor = PurpleTile.copy(alpha = 0.30f),
-                                    spotColor = Color(0x22000000)
-                                )
-                                .clickable { onNavigateToAffiliate() }
-                                .testTag("admin_stat_card_affiliates"),
-                            shape = RoundedCornerShape(16.dp),
-                            color = PurpleTile
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = Color.White.copy(alpha = 0.20f),
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Share,
-                                            contentDescription = "Affiliates",
-                                            tint = Color.White,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    text = liveAffiliatesCount,
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    modifier = Modifier.testTag("admin_affiliates_count")
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Affiliates",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color.White.copy(alpha = 0.90f),
-                                    modifier = Modifier.testTag("admin_affiliates_label")
                                 )
                             }
                         }
