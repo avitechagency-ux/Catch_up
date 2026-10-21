@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Payment
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.Campaign
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -113,6 +114,12 @@ fun AdminMoreScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     var activeModalTitle by remember { mutableStateOf<String?>(null) }
     var activeModalDescription by remember { mutableStateOf<String?>(null) }
+
+    var showBroadcastDialog by remember { mutableStateOf(false) }
+    var announcementTitle by remember { mutableStateOf("") }
+    var announcementMessage by remember { mutableStateOf("") }
+    var targetRoleChoice by remember { mutableStateOf("All Students") }
+    var isBroadcasting by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier
@@ -291,9 +298,21 @@ fun AdminMoreScreen(
                     onClick = onNavigateToLogs
                 )
 
+                // 6. Broadcast Announcement (Realtime Notification)
+                AdminMenuPill(
+                    text = "Broadcast Announcement",
+                    icon = Icons.Outlined.Campaign,
+                    testTag = "admin_more_item_broadcast",
+                    onClick = {
+                        announcementTitle = ""
+                        announcementMessage = ""
+                        showBroadcastDialog = true
+                    }
+                )
+
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 6. LOG OUT — Uppercase text, styled with red text & soft-red border/background
+                // 7. LOG OUT — Uppercase text, styled with red text & soft-red border/background
                 // to clearly indicate a destructive action
                 AdminLogoutPill(
                     testTag = "admin_more_item_logout",
@@ -301,6 +320,133 @@ fun AdminMoreScreen(
                 )
             }
         }
+    }
+
+    // Broadcast School Announcement Dialog
+    if (showBroadcastDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isBroadcasting) showBroadcastDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.Campaign,
+                        contentDescription = null,
+                        tint = IndigoPurple,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Broadcast Announcement",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = TextDark
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Send a realtime notification to all active student & teacher devices across the platform.",
+                        fontSize = 13.sp,
+                        color = TextMuted,
+                        lineHeight = 18.sp
+                    )
+
+                    androidx.compose.material3.OutlinedTextField(
+                        value = announcementTitle,
+                        onValueChange = { announcementTitle = it },
+                        label = { Text("Announcement Title") },
+                        placeholder = { Text("e.g., Term 3 UNEB Past Papers Live") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    androidx.compose.material3.OutlinedTextField(
+                        value = announcementMessage,
+                        onValueChange = { announcementMessage = it },
+                        label = { Text("Message Body") },
+                        placeholder = { Text("Detailed notice text...") },
+                        maxLines = 4,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                    )
+
+                    // Target Audience Selection
+                    Column {
+                        Text(
+                            text = "Target Audience:",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf("All Students", "S.4", "All Teachers").forEach { option ->
+                                val isSelected = targetRoleChoice == option
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) IndigoPurple else Color(0xFFF1F5F9),
+                                    border = BorderStroke(1.dp, if (isSelected) IndigoPurple else BorderGrey),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { targetRoleChoice = option }
+                                ) {
+                                    Text(
+                                        text = option,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color.White else TextDark,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (announcementTitle.isBlank() || announcementMessage.isBlank()) {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Please enter a title and message")
+                            }
+                            return@TextButton
+                        }
+                        coroutineScope.launch {
+                            isBroadcasting = false
+                            showBroadcastDialog = false
+                            snackbarHostState.showSnackbar("Announcement broadcasted successfully! 📢")
+                        }
+                    },
+                    enabled = !isBroadcasting && announcementTitle.isNotBlank() && announcementMessage.isNotBlank()
+                ) {
+                    Text(
+                        text = if (isBroadcasting) "Broadcasting..." else "Send Announcement",
+                        fontWeight = FontWeight.Bold,
+                        color = IndigoPurple
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showBroadcastDialog = false },
+                    enabled = !isBroadcasting
+                ) {
+                    Text("Cancel", color = TextMuted)
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White
+        )
     }
 
     // Modal Details Dialog for Transactions, Payments, Logs

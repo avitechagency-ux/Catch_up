@@ -35,6 +35,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+
+import androidx.compose.runtime.collectAsState
 import com.example.data.SupabaseConfig
 import com.example.data.SupabaseRepository
 import com.example.notifications.NotificationHelper
@@ -169,6 +171,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         SupabaseRepository.initialize(this)
         LiveClassRepository.initialize(this)
+        com.example.data.TeacherCodeRegistry.initFromStorage(this)
         NotificationHelper.createNotificationChannels(this)
         NotificationHelper.fetchAndStoreCurrentFcmToken(this)
         pendingNotificationIntent = intent
@@ -315,6 +318,9 @@ class MainActivity : ComponentActivity() {
                 }
                 val coroutineScope = rememberCoroutineScope()
 
+
+
+
                 // Continuous RBAC Route Guard: Validates every route transition in real-time
                 LaunchedEffect(currentScreen, userRoleState, isLoggedInState) {
                     if (isLoggedInState) {
@@ -356,6 +362,8 @@ class MainActivity : ComponentActivity() {
                 var activePlanExpiry by remember {
                     mutableStateOf(prefs.getString("student_active_plan_expiry", "") ?: "")
                 }
+
+
 
                 var activeLiveClassId by remember { mutableStateOf("") }
                 var activeLiveClassTitle by remember { mutableStateOf("") }
@@ -874,15 +882,16 @@ class MainActivity : ComponentActivity() {
                         AppScreen.ADMIN_SETTINGS -> AppScreen.ADMIN_MORE
                         AppScreen.ADMIN_HEALTH -> adminHealthPreviousScreen
                         AppScreen.ADMIN_LOGS -> adminLogsPreviousScreen
-                        AppScreen.ADMIN_HOME -> AppScreen.ADMIN_HOME
+
 
                         // Security fallback: always return to active role's authorized default
                         else -> AccountSecurityVault.getDefaultScreenForRole(userRoleState)
                     }
                 }
 
-                Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
-                    when (screen) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
+                        when (screen) {
                         AppScreen.ONBOARDING -> OnboardingScreen(
                             onFinishOnboarding = {
                                 prefs.edit().putBoolean("is_first_time", false).apply()
@@ -1526,6 +1535,13 @@ class MainActivity : ComponentActivity() {
                                         fileBytes = quickItem.fileBytes
                                     )
                                 }
+                                NotificationHelper.showNewNoteNotification(
+                                    context = context,
+                                    noteId = newUpload.id,
+                                    noteTitle = quickItem.title,
+                                    body = "New ${quickItem.subject} note shared with ${quickItem.targetClass.ifBlank { "All Classes" }}",
+                                    subject = quickItem.subject
+                                )
                             },
                             onOpenNote = { title, subject ->
                                 selectedPdfTitle = title
@@ -1606,6 +1622,13 @@ class MainActivity : ComponentActivity() {
                                                 teacherName = teacherName,
                                                 fileBytes = savedItem.fileBytes
                                             )
+                                            NotificationHelper.showNewNoteNotification(
+                                                context = context,
+                                                noteId = newUpload.id,
+                                                noteTitle = savedItem.title,
+                                                body = "New ${savedItem.subject} note shared with ${savedItem.targetClass.ifBlank { "All Classes" }}",
+                                                subject = savedItem.subject
+                                            )
                                         }
                                     }
                                     currentScreen = previousScreen
@@ -1635,6 +1658,28 @@ class MainActivity : ComponentActivity() {
                                         noteId = deletedItem.id,
                                         title = deletedItem.title,
                                         subjectName = deletedItem.subject
+                                    )
+                                }
+                            },
+                            onShareUpload = { sharedItem, targetClass, targetStreams ->
+                                teacherUploadsList = teacherUploadsList.map {
+                                    if (it.id == sharedItem.id ||
+                                        (it.title.equals(sharedItem.title, ignoreCase = true) &&
+                                            it.subject.equals(sharedItem.subject, ignoreCase = true))
+                                    ) {
+                                        it.copy(targetClass = targetClass, targetStreams = targetStreams)
+                                    } else it
+                                }
+                                coroutineScope.launch {
+                                    SupabaseRepository.updateNoteUploadInSupabase(
+                                        noteId = sharedItem.id,
+                                        originalTitle = sharedItem.title,
+                                        subjectName = sharedItem.subject,
+                                        updatedTitle = sharedItem.title,
+                                        updatedTargetClass = targetClass,
+                                        updatedType = sharedItem.type,
+                                        updatedDueDate = sharedItem.dueDate,
+                                        updatedTargetStreams = targetStreams
                                     )
                                 }
                             },
@@ -1692,6 +1737,44 @@ class MainActivity : ComponentActivity() {
                             onUpdateProfile = onSaveTeacherProfile,
                             onSwitchToStudentView = {
                                 // Security: Cross-role switching is strictly disabled without authenticating
+                            },
+                            onArchiveAndStartAfresh = { newCode ->
+                                val oldCode = teacherIdCode
+                                teacherIdCode = newCode
+                                prefs.edit().putString("teacher_id_code", newCode).apply()
+
+                                // Disconnect old students locally for this teacher
+                                val updatedStudents = connectedStudentsList.filter {
+                                    !it.teacherIdCode.equals(oldCode, ignoreCase = true)
+                                }
+                                connectedStudentsList = updatedStudents
+                                prefs.edit().putString(
+                                    "teacher_connected_students",
+                                    serializeConnectedStudents(updatedStudents)
+                                ).apply()
+
+                                // Remove connection for any student locally linked to this archived teacher ID
+                                val currentLinks = linkedSubjectTeachers.toMutableMap()
+                                var changed = false
+                                currentLinks.forEach { (sub, code) ->
+                                    if (code.equals(oldCode, ignoreCase = true)) {
+                                        currentLinks[sub] = ""
+                                        changed = true
+                                    }
+                                }
+                                if (changed) {
+                                    persistLinkedSubjectTeachers(currentLinks)
+                                }
+
+                                // Archive in cloud repository: disconnect students in DB and register new ID
+                                coroutineScope.launch {
+                                    SupabaseRepository.archiveTeacherAndStartAfresh(
+                                        oldTeacherCode = oldCode,
+                                        newTeacherCode = newCode,
+                                        teacherPhone = studentPhone,
+                                        teacherName = teacherName
+                                    )
+                                }
                             }
                         )
                         AppScreen.TEACHER_STUDENTS_CLASSES -> {
@@ -1977,6 +2060,9 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                // Realtime Floating In-App Banner overlaid on top of any active screen
+            }
             }
         }
     }
@@ -2005,7 +2091,6 @@ fun DownloadsScreenPreview() {
         DownloadsScreen()
     }
 }
-
 
 
 

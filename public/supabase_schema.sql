@@ -889,3 +889,185 @@ WITH CHECK (bucket_id = 'study-materials');
 CREATE POLICY "Allow deletes from study-materials"
 ON storage.objects FOR DELETE
 USING (bucket_id = 'study-materials');
+
+-- ============================================================================
+-- 14. REALTIME NOTIFICATIONS TABLE, TRIGGERS & POLICIES
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipient_user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    recipient_role TEXT NOT NULL DEFAULT 'all' CHECK (recipient_role IN ('all', 'student', 'teacher', 'admin')),
+    target_class TEXT NOT NULL DEFAULT '',     -- e.g., 'S.4', or '' for all classes
+    type TEXT NOT NULL CHECK (type IN ('new_note', 'live_class', 'payment', 'announcement', 'system')),
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    reference_id TEXT DEFAULT '',              -- note_id, live_class_id, transaction_id
+    metadata JSONB DEFAULT '{}'::jsonb,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.notification_reads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    notification_id UUID NOT NULL REFERENCES public.notifications(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    read_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(notification_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON public.notifications(recipient_user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_target_class ON public.notifications(target_class);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON public.notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON public.notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_reads_user ON public.notification_reads(user_id);
+
+-- Enable Supabase Realtime for instant WebSocket pushes
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN NULL;
+END $$;
+
+-- RLS for notifications and notification_reads
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notification_reads ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow full access to notifications" ON public.notifications;
+DROP POLICY IF EXISTS "Allow full access to notification_reads" ON public.notification_reads;
+
+CREATE POLICY "Allow full access to notifications" ON public.notifications FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow full access to notification_reads" ON public.notification_reads FOR ALL USING (true) WITH CHECK (true);
+
+-- RPC: Send an announcement from Admin Portal
+CREATE OR REPLACE FUNCTION public.broadcast_announcement(
+    p_title TEXT,
+    p_message TEXT,
+    p_target_role TEXT DEFAULT 'all',
+    p_target_class TEXT DEFAULT ''
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_id UUID;
+BEGIN
+    INSERT INTO public.notifications (
+        recipient_role,
+        target_class,
+        type,
+        title,
+        message,
+        metadata
+    )
+    VALUES (
+        p_target_role,
+        COALESCE(p_target_class, ''),
+        'announcement',
+        trim(p_title),
+        trim(p_message),
+        jsonb_build_object('broadcast_by', 'Admin', 'timestamp', to_char(NOW(), 'DD Mon YYYY, HH24:MI'))
+    )
+    RETURNING id INTO v_id;
+
+    -- Also record to admin audit log
+    INSERT INTO public.admin_audit_logs (title, description, category, level, actor, timestamp_label)
+    VALUES (
+        'Announcement Broadcast',
+        'Admin broadcasted: "' || trim(p_title) || '" to ' || p_target_role || ' (' || COALESCE(NULLIF(p_target_class, ''), 'All classes') || ').',
+        'CONTENT',
+        'INFO',
+        'Admin Portal',
+        to_char(NOW(), 'DD Mon YYYY, HH24:MI:SS')
+    );
+
+    RETURN v_id;
+END;
+$$;
+
+-- Trigger: When notes are published, auto-generate in-app notification
+CREATE OR REPLACE FUNCTION public.on_note_upload_notify()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    INSERT INTO public.notifications (
+        recipient_role,
+        target_class,
+        type,
+        title,
+        message,
+        reference_id,
+        metadata
+    )
+    VALUES (
+        'student',
+        COALESCE(NEW.target_class, ''),
+        'new_note',
+        'New ' || NEW.subject_name || ' ' || NEW.content_type,
+        NEW.author_name || ' posted "' || NEW.title || '" for ' || COALESCE(NULLIF(NEW.target_class, ''), 'your class') || '.',
+        NEW.id::TEXT,
+        jsonb_build_object(
+            'note_id', NEW.id,
+            'title', NEW.title,
+            'subject', NEW.subject_name,
+            'class', NEW.target_class,
+            'author', NEW.author_name,
+            'file_url', NEW.file_url
+        )
+    );
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_note_upload_notify ON public.notes_uploads;
+CREATE TRIGGER trg_note_upload_notify
+AFTER INSERT ON public.notes_uploads
+FOR EACH ROW
+EXECUTE FUNCTION public.on_note_upload_notify();
+
+-- Trigger: When payment is inserted, auto-generate in-app notification
+CREATE OR REPLACE FUNCTION public.on_payment_notify()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF NEW.status = 'COMPLETED' AND NEW.category = 'SUBSCRIPTION' THEN
+        INSERT INTO public.notifications (
+            recipient_user_id,
+            recipient_role,
+            type,
+            title,
+            message,
+            reference_id,
+            metadata
+        )
+        VALUES (
+            NEW.user_id,
+            'student',
+            'payment',
+            'Payment Confirmed 🎉',
+            'Your ' || NEW.provider || ' payment of UGX ' || NEW.amount_ugx::TEXT || ' is active (' || COALESCE(NEW.plan_duration, '1 Month') || ').',
+            NEW.id,
+            jsonb_build_object(
+                'transaction_id', NEW.id,
+                'amount', NEW.amount_ugx,
+                'provider', NEW.provider,
+                'plan_duration', NEW.plan_duration
+            )
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_payment_notify ON public.payments_transactions;
+CREATE TRIGGER trg_payment_notify
+AFTER INSERT ON public.payments_transactions
+FOR EACH ROW
+EXECUTE FUNCTION public.on_payment_notify();
+

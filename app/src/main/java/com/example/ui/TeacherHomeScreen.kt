@@ -89,6 +89,7 @@ const val DEFAULT_TEACHER_ID_CODE = "K7M4P9"
 fun generateTeacherIdCode(seed: String = ""): String {
     val trimmedSeed = seed.trim()
     if (trimmedSeed.isEmpty() || trimmedSeed.equals("Teacher", ignoreCase = true)) {
+        com.example.data.TeacherCodeRegistry.registerCode(DEFAULT_TEACHER_ID_CODE, "Mr. David Okello", "Geography, Mathematics, Social Studies")
         return DEFAULT_TEACHER_ID_CODE
     }
     val letters = "ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -100,7 +101,28 @@ fun generateTeacherIdCode(seed: String = ""): String {
     val c3 = digits[(hash / 29) % digits.length]
     val c4 = letters[(hash / 53) % letters.length]
     val c5 = digits[(hash / 97) % digits.length]
-    return "$c0$c1$c2$c3$c4$c5"
+    val code = "$c0$c1$c2$c3$c4$c5"
+    com.example.data.TeacherCodeRegistry.registerCode(code, trimmedSeed, "Ugandan Secondary Curriculum")
+    return code
+}
+
+/**
+ * Generates a brand new, unique monitored 6-character Teacher ID code (for school transfers or starting afresh).
+ */
+fun generateFreshTeacherIdCode(seed: String = "", subjects: String = "Ugandan Secondary Curriculum"): String {
+    val letters = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+    val digits = "23456789"
+    val randomPart = (1000..9999).random()
+    val hash = kotlin.math.abs((seed + System.currentTimeMillis() + randomPart).hashCode())
+    val c0 = letters[hash % letters.length]
+    val c1 = digits[(hash / 7) % digits.length]
+    val c2 = letters[(hash / 13) % letters.length]
+    val c3 = digits[(hash / 29) % digits.length]
+    val c4 = letters[(hash / 53) % letters.length]
+    val c5 = digits[(hash / 97) % digits.length]
+    val code = "$c0$c1$c2$c3$c4$c5"
+    com.example.data.TeacherCodeRegistry.registerCode(code, seed.ifBlank { "Teacher" }, subjects)
+    return code
 }
 
 /**
@@ -194,7 +216,9 @@ fun TeacherHomeScreen(
     onRecentNoteClick: (TeacherRecentUpload) -> Unit = {},
     onSeeAllRecentClick: () -> Unit = {},
     onSwitchToStudentView: () -> Unit = {},
-    onNavigateToStudents: () -> Unit = {}
+    onNavigateToStudents: () -> Unit = {},
+    unreadNotificationCount: Int = 0,
+    onNavigateToNotifications: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -252,7 +276,7 @@ fun TeacherHomeScreen(
                     .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 28.dp)
                     .testTag("teacher_app_header")
             ) {
-                // Upper Section: Platform Name centered, size h1 (32sp) & bold
+                // Upper Section: Platform Name centered, size h1 (32sp) & bold with notification bell
                 Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
@@ -283,7 +307,7 @@ fun TeacherHomeScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "Good morning 👋",
+                            text = getTimeBasedGreeting(),
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Normal,
                             color = LightLavender,

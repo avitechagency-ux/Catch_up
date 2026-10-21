@@ -278,13 +278,25 @@ val TeacherNavItems: List<BottomNavItem> = listOf(
 )
 
 /**
+ * Helper to determine time-based greeting (Good morning / afternoon / evening).
+ */
+fun getTimeBasedGreeting(): String {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    return when (hour) {
+        in 5..11 -> "Good morning 👋"
+        in 12..16 -> "Good afternoon 👋"
+        else -> "Good evening 👋"
+    }
+}
+
+/**
  * Main Home screen for the "Cachap" secondary school notes-sharing app.
  */
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     studentName: String = "Student",
-    greeting: String = "Good morning 👋",
+    greeting: String = getTimeBasedGreeting(),
     streakData: StreakData = StreakData(streakDays = 0, isTodayCompleted = false, nextMilestoneDays = 7),
     activePlanDuration: String = "",
     activePlanExpiry: String = "",
@@ -300,7 +312,9 @@ fun HomeScreen(
     onOpenNote: (title: String, subject: String) -> Unit = { _, _ -> },
     onNavigateToLiveClasses: () -> Unit = {},
     onNavigateToTeacher: () -> Unit = {},
-    onNavigateToAdmin: () -> Unit = {}
+    onNavigateToAdmin: () -> Unit = {},
+    unreadNotificationCount: Int = 0,
+    onNavigateToNotifications: () -> Unit = {}
 ) {
     var selectedNavIndex by remember { mutableIntStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -311,6 +325,7 @@ fun HomeScreen(
         mutableStateOf(linkedSubjectTeachers)
     }
     var subjectPendingLink by remember { mutableStateOf<String?>(null) }
+    var confirmationData by remember { mutableStateOf<TeacherConfirmationData?>(null) }
 
     // Synchronized with DefaultCurriculumSubjects from SubjectsScreen:
     // Prioritizes subjects the student has linked, then fills up to 4 from DefaultCurriculumSubjects
@@ -371,6 +386,8 @@ fun HomeScreen(
                 platformName = "Cachap",
                 greeting = greeting,
                 studentName = studentName,
+                unreadNotificationCount = unreadNotificationCount,
+                onNavigateToNotifications = onNavigateToNotifications,
                 onProfileClick = onNavigateToProfile,
                 onNavigateToTeacher = onNavigateToTeacher,
                 onNavigateToAdmin = onNavigateToAdmin
@@ -412,13 +429,32 @@ fun HomeScreen(
         TeacherIdLinkPopup(
             subjectName = targetSubjectName,
             onDismiss = { subjectPendingLink = null },
-            onSubmitTeacherId = { enteredCode ->
-                localLinkedTeachers = localLinkedTeachers + (targetSubjectName to enteredCode)
-                onLinkSubjectTeacher(targetSubjectName, enteredCode)
+            onTeacherVerified = { verifiedTeacher ->
+                val subj = targetSubjectName
                 subjectPendingLink = null
-                onNavigateToSubjectDetail(targetSubjectName)
-                onActionNotice("Opening $targetSubjectName notes...")
+                confirmationData = TeacherConfirmationData(
+                    subjectName = subj,
+                    verifiedTeacher = verifiedTeacher,
+                    shouldOpenSubject = true
+                )
             }
+        )
+    }
+
+    confirmationData?.let { data ->
+        TeacherConfirmationPopup(
+            subjectName = data.subjectName,
+            verifiedTeacher = data.verifiedTeacher,
+            onConfirm = {
+                val subj = data.subjectName
+                val teacher = data.verifiedTeacher
+                localLinkedTeachers = localLinkedTeachers + (subj to teacher.teacherIdCode)
+                onLinkSubjectTeacher(subj, teacher.teacherIdCode)
+                onNavigateToSubjectDetail(subj)
+                onActionNotice("Connected to ${teacher.teacherName} for $subj!")
+                confirmationData = null
+            },
+            onDismiss = { confirmationData = null }
         )
     }
 }
@@ -437,6 +473,8 @@ fun AppHeader(
     platformName: String = "Cachap",
     greeting: String,
     studentName: String,
+    unreadNotificationCount: Int = 0,
+    onNavigateToNotifications: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     onNavigateToTeacher: () -> Unit = {},
     onNavigateToAdmin: () -> Unit = {},
@@ -457,7 +495,7 @@ fun AppHeader(
             .statusBarsPadding()
             .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 28.dp)
     ) {
-        // Upper Section: Platform Name centered, size h1 (32sp) & bold
+        // Upper Section: Platform Name centered, size h1 (32sp) & bold, with Notification Bell on top right
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center

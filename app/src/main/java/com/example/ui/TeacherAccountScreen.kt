@@ -34,9 +34,11 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -48,6 +50,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -105,11 +108,16 @@ fun TeacherAccountScreen(
     schoolName: String = "Secondary School",
     onNavigateBack: () -> Unit = {},
     onUpdateProfile: (name: String, school: String, subjects: String) -> Unit = { _, _, _ -> },
-    onSwitchToStudentView: () -> Unit = {}
+    onSwitchToStudentView: () -> Unit = {},
+    onArchiveAndStartAfresh: ((newCode: String) -> Unit)? = null
 ) {
     var editName by remember(teacherName) { mutableStateOf(teacherName) }
     var editSubjects by remember(subjectsTaught) { mutableStateOf(subjectsTaught) }
     var editSchool by remember(schoolName) { mutableStateOf(schoolName) }
+    var currentTeacherId by remember(teacherIdCode) { mutableStateOf(teacherIdCode) }
+
+    var showArchiveConfirmDialog by remember { mutableStateOf(false) }
+    var archiveSuccessCode by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(subjectsTaught) {
         if (subjectsTaught.isNotBlank()) {
@@ -117,8 +125,8 @@ fun TeacherAccountScreen(
         }
     }
 
-    val normalizedTeacherId = remember(teacherIdCode, editName) {
-        val candidate = teacherIdCode.trim().uppercase()
+    val normalizedTeacherId = remember(currentTeacherId, editName) {
+        val candidate = currentTeacherId.trim().uppercase()
         if (isValidTeacherIdCode(candidate)) candidate else generateTeacherIdCode(editName)
     }
 
@@ -940,9 +948,315 @@ fun TeacherAccountScreen(
                     }
                 }
 
+                // ==========================================
+                // SECTION CARD 3: School Transfer & Account Archive (Start Afresh)
+                // ==========================================
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(
+                            elevation = 3.dp,
+                            shape = RoundedCornerShape(20.dp),
+                            ambientColor = Color(0x14000000),
+                            spotColor = Color(0x18000000)
+                        ),
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.White
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Top accent strip (Amber/Gold)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .background(AccountBrightGold)
+                        )
+
+                        Column(
+                            modifier = Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(RoundedCornerShape(11.dp))
+                                        .background(AccountBrightGold.copy(alpha = 0.18f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.School,
+                                        contentDescription = null,
+                                        tint = Color(0xFFE65100),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "School Transfer & Archive",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = TextDark
+                                    )
+                                    Text(
+                                        text = "Transferred or teaching new students? Start fresh with a new ID",
+                                        fontSize = 12.sp,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+
+                            // Informational card explaining how it works
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = SoftLavenderGrey.copy(alpha = 0.6f),
+                                border = BorderStroke(1.dp, BorderGrey.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.Top) {
+                                        Text(text = "• ", fontWeight = FontWeight.Bold, color = IndigoPurple)
+                                        Text(
+                                            text = "Generates a fresh 6-digit Teacher ID for your new learners.",
+                                            fontSize = 12.sp,
+                                            color = TextDark
+                                        )
+                                    }
+                                    Row(verticalAlignment = Alignment.Top) {
+                                        Text(text = "• ", fontWeight = FontWeight.Bold, color = IndigoPurple)
+                                        Text(
+                                            text = "All your previous notes remain safe in your Uploads library to share anytime without re-uploading.",
+                                            fontSize = 12.sp,
+                                            color = TextDark
+                                        )
+                                    }
+                                    Row(verticalAlignment = Alignment.Top) {
+                                        Text(text = "• ", fontWeight = FontWeight.Bold, color = IndigoPurple)
+                                        Text(
+                                            text = "Students linked to your old ID are automatically removed and will be asked to add their new teacher's ID.",
+                                            fontSize = 12.sp,
+                                            color = TextDark
+                                        )
+                                    }
+                                }
+                            }
+
+                            Button(
+                                onClick = { showArchiveConfirmDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300)),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp)
+                                    .testTag("teacher_archive_account_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Sync,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1A1A1A),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Archive Account & Start Afresh",
+                                    color = Color(0xFF1A1A1A),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(20.dp))
             }
         }
+    }
+
+    // Confirmation dialog before archiving account
+    if (showArchiveConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showArchiveConfirmDialog = false },
+            shape = RoundedCornerShape(22.dp),
+            containerColor = IndigoPurple,
+            modifier = Modifier.testTag("teacher_archive_confirm_dialog"),
+            icon = {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFFFB300).copy(alpha = 0.20f),
+                    modifier = Modifier.size(54.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.School,
+                            contentDescription = "Transfer",
+                            tint = Color(0xFFFFD54F),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            },
+            title = {
+                Text(
+                    text = "Start Afresh / Transfer?",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Are you transferring to a new school or teaching new students?",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = "• A new 6-digit Teacher ID will be generated for your new school.\n• All previously uploaded notes will be kept safe in your Uploads library to share easily.\n• Previous students will be disconnected and requested to add their new teacher's ID.",
+                        fontSize = 12.sp,
+                        color = LightLavender,
+                        lineHeight = 18.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showArchiveConfirmDialog = false
+                        val freshCode = generateFreshTeacherIdCode(editName, editSubjects)
+                        currentTeacherId = freshCode
+                        onArchiveAndStartAfresh?.invoke(freshCode)
+                        archiveSuccessCode = freshCode
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.testTag("confirm_archive_button")
+                ) {
+                    Text(
+                        text = "Yes, Archive & Start Afresh",
+                        color = Color(0xFF1A1A1A),
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showArchiveConfirmDialog = false },
+                    colors = ButtonDefaults.textButtonColors(
+                        containerColor = Color.White.copy(alpha = 0.15f),
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "Cancel",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        )
+    }
+
+    // Success dialog showing the new Teacher ID
+    val successCode = archiveSuccessCode
+    if (successCode != null) {
+        val newCode = successCode
+        AlertDialog(
+            onDismissRequest = { archiveSuccessCode = null },
+            shape = RoundedCornerShape(22.dp),
+            containerColor = IndigoPurple,
+            modifier = Modifier.testTag("teacher_archive_success_dialog"),
+            icon = {
+                Surface(
+                    shape = CircleShape,
+                    color = Color(0xFFFFB300).copy(alpha = 0.20f),
+                    modifier = Modifier.size(54.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.Verified,
+                            contentDescription = "Success",
+                            tint = Color(0xFFFFD54F),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            },
+            title = {
+                Text(
+                    text = "New Teacher ID Generated!",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Give this new ID to your new students:",
+                        fontSize = 13.sp,
+                        color = LightLavender
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFFFB300),
+                        modifier = Modifier.clickable {
+                            clipboardManager.setText(AnnotatedString(newCode))
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Copied $newCode")
+                            }
+                        }
+                    ) {
+                        Text(
+                            text = newCode,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF1A1A1A),
+                            letterSpacing = 4.sp,
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                        )
+                    }
+                    Text(
+                        text = "Previous students have been disconnected. Your existing notes are saved in your Uploads library ready to share!",
+                        fontSize = 12.sp,
+                        color = LightLavender,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { archiveSuccessCode = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB300)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "Done",
+                        color = Color(0xFF1A1A1A),
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+            }
+        )
     }
 
     // ==========================================================

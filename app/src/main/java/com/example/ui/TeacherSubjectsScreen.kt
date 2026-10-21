@@ -533,19 +533,13 @@ fun TeacherSubjectConfigScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "${subject.name} Configuration",
-                            fontSize = 18.sp,
+                            text = subject.name,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.testTag("config_subject_title")
-                        )
-                        Text(
-                            text = "Assigned to: ${subject.classes}",
-                            fontSize = 12.sp,
-                            color = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.testTag("config_subject_subtitle")
                         )
                     }
                 }
@@ -565,58 +559,31 @@ fun TeacherSubjectConfigScreen(
                             .fillMaxWidth()
                             .testTag("config_summary_card"),
                         shape = RoundedCornerShape(16.dp),
-                        color = SoftLavenderGrey
+                        color = subject.color
                     ) {
-                        Row(
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 20.dp, horizontal = 16.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(subject.color.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = subject.icon,
-                                        contentDescription = null,
-                                        tint = subject.color,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "${subject.name} Portal",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = TextDark
-                                    )
-                                    Text(
-                                        text = "${uploadsList.count { it.type == "Notes" }} Notes • ${uploadsList.count { it.type == "Assignment" }} Assignments",
-                                        fontSize = 12.sp,
-                                        color = TextMuted
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.White)
-                                    .border(1.dp, BorderGrey, RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
                             ) {
+                                Icon(
+                                    imageVector = subject.icon,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    text = subject.classes,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = IndigoPurple
+                                    text = "${subject.name} Portal",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    textAlign = TextAlign.Center
                                 )
                             }
                         }
@@ -643,18 +610,23 @@ fun TeacherSubjectConfigScreen(
                                 .height(56.dp)
                                 .testTag("action_upload_button"),
                             shape = RoundedCornerShape(16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = IndigoPurple,
+                                contentColor = Color.White
+                            )
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.CloudUpload,
                                 contentDescription = null,
+                                tint = Color.White,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Upload Notes or Assignment",
                                 fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
                             )
                         }
                     }

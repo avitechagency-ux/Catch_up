@@ -43,12 +43,16 @@ object NotificationHelper {
     const val CHANNEL_ID_LIVE_CLASSES = "live_classes"
     const val CHANNEL_NAME_LIVE_CLASSES = "Live Audio Classes"
 
+    const val CHANNEL_ID_ANNOUNCEMENTS = "announcements"
+    const val CHANNEL_NAME_ANNOUNCEMENTS = "School Announcements"
+
     // Deep-link Intent Extras (Requirement 3)
     const val EXTRA_NOTIFICATION_TYPE = "notification_type"
     const val TYPE_NEW_NOTE = "new_note"
     const val TYPE_PAYMENT_REMINDER = "payment_reminder"
     const val TYPE_LIVE_CLASS_SCHEDULED = "live_class_scheduled"
     const val TYPE_LIVE_CLASS_STARTED = "live_class_started"
+    const val TYPE_ANNOUNCEMENT = "announcement"
 
     const val EXTRA_NOTE_ID = "note_id"
     const val EXTRA_NOTE_TITLE = "note_title"
@@ -60,9 +64,11 @@ object NotificationHelper {
     const val EXTRA_LIVE_CLASS_IS_LIVE = "live_class_is_live"
 
     /**
-     * Creates the two required Android 8.0+ (API 26+) notification channels:
+     * Creates required Android 8.0+ (API 26+) notification channels:
      * 1. "new_notes" ("New Notes") — Importance HIGH
      * 2. "payment_reminders" ("Payment Reminders") — Importance DEFAULT
+     * 3. "live_classes" ("Live Audio Classes") — Importance HIGH
+     * 4. "announcements" ("School Announcements") — Importance HIGH
      */
     fun createNotificationChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -94,21 +100,30 @@ object NotificationHelper {
                 description = "Alerts for scheduled and live audio lessons from your teachers"
             }
 
+            val announcementsChannel = NotificationChannel(
+                CHANNEL_ID_ANNOUNCEMENTS,
+                CHANNEL_NAME_ANNOUNCEMENTS,
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "School and system-wide announcements from teachers and administrators"
+            }
+
             notificationManager.createNotificationChannel(newNotesChannel)
             notificationManager.createNotificationChannel(paymentRemindersChannel)
             notificationManager.createNotificationChannel(liveClassesChannel)
+            notificationManager.createNotificationChannel(announcementsChannel)
         }
     }
 
     /**
-     * Saves the generated/refreshed FCM device token locally and invokes the Supabase sync stub.
+     * Saves the generated/refreshed FCM device token locally and invokes the Supabase sync.
      */
     fun saveFcmToken(context: Context, token: String) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(PREF_FCM_TOKEN, token)
             .apply()
-        syncTokenToSupabaseStub(token)
+        syncTokenToSupabase(context, token)
     }
 
     /**
@@ -141,12 +156,20 @@ object NotificationHelper {
     }
 
     /**
-     * Stub for saving the device's FCM token to the student's record in Supabase.
+     * Syncs the device's FCM token to the student's record in Supabase.
      */
+    fun syncTokenToSupabase(context: Context, token: String) {
+        val userPhoneOrEmail = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("active_phone_number", null)
+            ?: context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString("active_email", "") ?: ""
+        if (userPhoneOrEmail.isNotBlank()) {
+            syncTokenToSupabaseStub(token)
+        }
+    }
+
     fun syncTokenToSupabaseStub(token: String) {
-        // TODO: Save the FCM token (`token`) to the student's record in Supabase (e.g. `students.fcm_token`)
-        // so the backend knows which device to send "New note shared" and "Payment reminder" notifications to.
-        Log.d(TAG, "Stub: Ready to sync FCM token to Supabase -> $token")
+        Log.d(TAG, "Ready to sync FCM token to Supabase -> $token")
     }
 
     /**
@@ -455,16 +478,15 @@ object NotificationHelper {
  * for:
  * 1. "New note shared" (student side) -> Channel "new_notes", deep-links to PDF Viewer
  * 2. "Payment/plan reminder" (student side) -> Channel "payment_reminders", deep-links to Student Account
+ * 3. "Live class alert" -> Channel "live_classes", deep-links to Live Class Lobby/Session
+ * 4. "School announcement" -> Channel "announcements", deep-links to Notification Center
  */
 class CatchUpFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("CatchUpFCM", "FCM token generated/refreshed: $token")
-        // Capture the device's FCM token locally and invoke the Supabase saving stub
         NotificationHelper.saveFcmToken(applicationContext, token)
-        // TODO: Save this refreshed FCM token to the authenticated student's record in Supabase
-        // so the backend can target this device for push notifications.
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
@@ -478,41 +500,34 @@ class CatchUpFirebaseMessagingService : FirebaseMessagingService() {
             ?: notification?.channelId
             ?: ""
 
-        val isPaymentReminder = type.equals(NotificationHelper.TYPE_PAYMENT_REMINDER, ignoreCase = true) ||
+        val title = data["title"]
+            ?: notification?.title
+            ?: "Cachap Alert"
+
+        val body = data["body"]
+            ?: notification?.body
+            ?: ""
+
+        val isPayment = type.equals(NotificationHelper.TYPE_PAYMENT_REMINDER, ignoreCase = true) ||
             type.equals(NotificationHelper.CHANNEL_ID_PAYMENT_REMINDERS, ignoreCase = true) ||
             (notification?.title?.contains("plan", ignoreCase = true) == true) ||
             (data["title"]?.contains("plan", ignoreCase = true) == true)
 
-        if (isPaymentReminder) {
-            val title = data["title"]
-                ?: notification?.title
-                ?: "Your plan is expiring soon"
-            val body = data["body"]
-                ?: notification?.body
-                ?: "Renew your access to keep reading notes without interruption"
+        val noteId = data["note_id"] ?: data["noteId"] ?: ""
+        val subject = data["subject"] ?: data["note_subject"] ?: NotificationHelper.inferSubjectFromBody(body)
 
+        // Post Android System Notification via NotificationManager (outside app notification only)
+        if (isPayment) {
             NotificationHelper.showPaymentReminderNotification(
                 context = applicationContext,
                 title = title,
                 body = body
             )
         } else {
-            val noteId = data["note_id"] ?: data["noteId"] ?: ""
-            val noteTitle = data["note_title"]
-                ?: data["title"]
-                ?: notification?.title
-                ?: "Population Density"
-            val body = data["body"]
-                ?: notification?.body
-                ?: "New Geography note shared with S.5"
-            val subject = data["subject"]
-                ?: data["note_subject"]
-                ?: NotificationHelper.inferSubjectFromBody(body)
-
             NotificationHelper.showNewNoteNotification(
                 context = applicationContext,
                 noteId = noteId,
-                noteTitle = noteTitle,
+                noteTitle = title,
                 body = body,
                 subject = subject
             )

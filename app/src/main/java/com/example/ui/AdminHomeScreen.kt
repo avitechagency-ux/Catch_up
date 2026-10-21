@@ -253,13 +253,14 @@ fun AdminHomeScreen(
     onNavigateToPlans: () -> Unit = {},
     onNavigateToAccount: () -> Unit = {},
     onNavigateToTransactions: () -> Unit = {},
-    onNotificationClick: (() -> Unit)? = null,
     onNavigateToHome: () -> Unit = {},
     onNavigateToAnalysis: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
     onNavigateToMore: () -> Unit = {},
     onSwitchToStudentView: () -> Unit = {},
-    onSwitchToTeacherView: () -> Unit = {}
+    onSwitchToTeacherView: () -> Unit = {},
+    unreadNotificationCount: Int = 0,
+    onNotificationClick: (() -> Unit)? = null
 ) {
     val scrollState = rememberScrollState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -353,28 +354,6 @@ fun AdminHomeScreen(
                             color = Color.White,
                             modifier = Modifier.testTag("admin_header_title")
                         )
-
-                        IconButton(
-                            onClick = {
-                                if (onNotificationClick != null) {
-                                    onNotificationClick()
-                                } else {
-                                    coroutineScope.launch {
-                                        snackbarHostState.showSnackbar("No new admin notifications")
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .testTag("admin_notification_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Notifications,
-                                contentDescription = "Admin Notifications",
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

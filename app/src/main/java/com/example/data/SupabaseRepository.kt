@@ -379,6 +379,12 @@ interface SupabasePostgrestApi {
     ): Response<List<SupabaseUserDto>>
 
     @GET("users")
+    suspend fun getUserByTeacherIdCode(
+        @Query("teacher_id_code") teacherIdCodeFilter: String,
+        @Query("select") select: String = "*"
+    ): Response<List<SupabaseUserDto>>
+
+    @GET("users")
     suspend fun getAllUsers(
         @Query("select") select: String = "*",
         @Query("order") order: String = "created_at.desc"
@@ -456,6 +462,11 @@ interface SupabasePostgrestApi {
         @Query("student_name") studentNameFilter: String,
         @Query("select") select: String = "*"
     ): Response<List<SupabaseStudentTeacherLinkDto>>
+
+    @DELETE("student_teacher_links")
+    suspend fun deleteStudentLinksByTeacherCode(
+        @Query("teacher_id_code") teacherCodeFilter: String
+    ): Response<Unit>
 
     // --- 4. Notes & Assignments (`notes_uploads`) ---
     @Headers("Prefer: return=representation")
@@ -706,6 +717,7 @@ interface SupabasePostgrestApi {
         @Query("id") idFilter: String,
         @Body fields: Map<String, @JvmSuppressWildcards Any?>
     ): Response<List<SupabasePaymentTransactionDto>>
+
 }
 
 data class SupabasePlatformSettingDto(
@@ -1474,6 +1486,30 @@ object SupabaseRepository {
         (sessionSnapshot + remoteList).distinctBy { it.phoneNumber.trim().lowercase().ifBlank { it.fullName.trim().lowercase() } }
     }
 
+    /**
+     * Looks up a registered teacher user by their 6-character Teacher ID code.
+     */
+    suspend fun fetchTeacherByCode(teacherIdCode: String): SupabaseUserDto? = withContext(Dispatchers.IO) {
+        val cleanCode = teacherIdCode.trim().uppercase()
+        if (cleanCode.isBlank()) return@withContext null
+        synchronized(recentSyncedUsers) {
+            recentSyncedUsers.firstOrNull { it.teacherIdCode?.trim()?.equals(cleanCode, ignoreCase = true) == true }
+        }?.let { return@withContext it }
+
+        if (!SupabaseConfig.isConfigured()) return@withContext null
+        try {
+            val resp = api.getUserByTeacherIdCode("eq.$cleanCode")
+            if (resp.isSuccessful) {
+                val user = resp.body()?.firstOrNull()
+                if (user != null) {
+                    recordRecentSyncedUser(user)
+                    return@withContext user
+                }
+            }
+        } catch (_: Exception) { }
+        null
+    }
+
     // ========================================================================
     // 2. STUDENT NOTE READ HISTORY & SAVED DOWNLOADS (`student_note_history`, `student_saved_notes`)
     // ========================================================================
@@ -1758,6 +1794,42 @@ object SupabaseRepository {
                 emptyList()
             }
         }
+
+    /**
+     * Removes all student connections linked to an old/archived teacher ID code.
+     */
+    suspend fun disconnectAllStudentsForTeacher(oldTeacherCode: String): Boolean = withContext(Dispatchers.IO) {
+        if (!SupabaseConfig.isConfigured() || oldTeacherCode.isBlank()) return@withContext false
+        try {
+            val resp = api.deleteStudentLinksByTeacherCode("eq.${oldTeacherCode.trim().uppercase()}")
+            resp.isSuccessful
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Archives a teacher's account session: clears old student connections while preserving
+     * all uploaded notes in the archives, and updates their active Teacher ID in Supabase.
+     */
+    suspend fun archiveTeacherAndStartAfresh(
+        oldTeacherCode: String,
+        newTeacherCode: String,
+        teacherPhone: String,
+        teacherName: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        disconnectAllStudentsForTeacher(oldTeacherCode)
+        if (teacherPhone.isNotBlank()) {
+            try {
+                api.updateUserByPhone("ilike.${teacherPhone.trim()}", mapOf("teacher_id_code" to newTeacherCode))
+            } catch (_: Exception) { }
+        } else if (teacherName.isNotBlank()) {
+            try {
+                api.updateUserByFullName("eq.$teacherName", mapOf("teacher_id_code" to newTeacherCode))
+            } catch (_: Exception) { }
+        }
+        true
+    }
 
     // ========================================================================
     // 4. NOTES, ASSIGNMENTS & STORAGE (`public.notes_uploads` & `/storage/v1/`)
