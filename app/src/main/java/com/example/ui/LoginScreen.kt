@@ -426,6 +426,14 @@ fun LoginScreen(
                                     return@launch
                                 }
 
+                                val currentDeviceId = com.example.data.AccountSecurityVault.getUniqueDeviceId(context)
+                                if (remoteUser.deviceId.isNotBlank() && remoteUser.deviceId != currentDeviceId) {
+                                    isLoading = false
+                                    errorMessage = "This account is already active on another device. Please sign out from the first device before logging in here."
+                                    return@launch
+                                }
+                                SupabaseRepository.updateUserDeviceId(cleanIdentifier, currentDeviceId)
+
                                 isLoading = false
                                 runCatching {
                                     context.getSharedPreferences("catch_up_prefs", android.content.Context.MODE_PRIVATE)

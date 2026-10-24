@@ -396,8 +396,8 @@ fun TeacherClassStreamsScreen(
     val streamGroups = remember(teacherStudentsInClass) {
         teacherStudentsInClass
             .groupBy { student ->
-                val s = normalizeStream(student.stream)
-                if (s.isBlank()) "GENERAL" else s
+                val s = normalizeStream(student.stream).uppercase()
+                if (s.isBlank() || s == "GENERAL" || s == "UNSTREAMED") "Unstreamed" else s
             }
             .map { (streamName, list) ->
                 Pair(streamName, list.size)

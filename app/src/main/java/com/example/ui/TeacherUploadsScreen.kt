@@ -114,6 +114,7 @@ fun TeacherUploadsScreen(
     onNavigateToUploads: () -> Unit = {},
     onNavigateToUploadNotes: () -> Unit = {},
     onNavigateToTeacherProfile: () -> Unit = {},
+    connectedStudents: List<ConnectedStudent> = emptyList(),
     onDeleteUpload: (TeacherUploadItem) -> Unit = {},
     onShareUpload: ((TeacherUploadItem, String, String) -> Unit)? = null,
     onOpenUpload: (String, String) -> Unit = { _, _ -> }
@@ -342,6 +343,7 @@ fun TeacherUploadsScreen(
     if (note != null) {
         ShareUploadDialog(
             item = note,
+            connectedStudents = connectedStudents,
             onDismiss = { noteToShare = null },
             onConfirmShare = { targetClass, targetStreams ->
                 val updatedList = uploadsList.map {
@@ -464,6 +466,7 @@ fun TeacherUploadTopicCard(
 @Composable
 fun ShareUploadDialog(
     item: TeacherUploadItem,
+    connectedStudents: List<ConnectedStudent> = emptyList(),
     onDismiss: () -> Unit,
     onConfirmShare: (targetClass: String, targetStreams: String) -> Unit
 ) {
@@ -475,11 +478,22 @@ fun ShareUploadDialog(
         mutableStateOf(initialTargetStreams.equals("ALL", ignoreCase = true) || initialTargetStreams.isBlank())
     }
 
-    val standardStreams = listOf(
-        "Blue", "Red", "Green", "Yellow", "White",
-        "North", "South", "East", "West", "Central",
-        "Stream A", "Stream B"
-    )
+    val availableStreamsForSubject = remember(connectedStudents, item) {
+        connectedStudents
+            .filter { it.subjectName.equals(item.subject, ignoreCase = true) }
+            .map { it.stream }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+    }
+
+    val standardStreams = availableStreamsForSubject.ifEmpty {
+        listOf(
+            "Blue", "Red", "Green", "Yellow", "White",
+            "North", "South", "East", "West", "Central",
+            "Stream A", "Stream B"
+        )
+    }
 
     val selectedStreams = remember {
         mutableStateListOf<String>().apply {

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
+import com.example.data.AccountSecurityVault
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -637,118 +638,114 @@ fun SignupScreen(
                         }
                     }
 
-                    // Individual Stream Field
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Stream Selection
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            text = "Stream",
+                            text = "Stream Status",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
 
-                        OutlinedTextField(
-                            value = streamInput,
-                            onValueChange = {
-                                streamInput = it
-                                errorMessage = null
-                            },
-                            placeholder = {
-                                Text(
-                                    "Write your stream (e.g. Green / North)",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White.copy(alpha = 0.6f)
-                                )
-                            },
-                            singleLine = true,
-                            textStyle = TextStyle(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            ),
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Book,
-                                    contentDescription = null,
-                                    tint = PaymentBrightGold,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("signup_stream_input"),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.White.copy(alpha = 0.15f),
-                                unfocusedContainerColor = Color.White.copy(alpha = 0.12f),
-                                focusedBorderColor = PaymentBrightGold,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.35f),
-                                cursorColor = PaymentBrightGold,
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
-                            )
-                        )
-                    }
-
-                    // Selected Monthly Plan (UGX 2,000 / Month)
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "Selected Plan",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("signup_selected_plan_card"),
-                            shape = RoundedCornerShape(14.dp),
-                            color = Color.White.copy(alpha = 0.16f),
-                            border = BorderStroke(1.5.dp, PaymentBrightGold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Row(
+                            val isStreamed = streamInput != "Unstreamed"
+                            
+                            // Streamed Option
+                            Surface(
                                 modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .weight(1f)
+                                    .height(56.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { streamInput = "" }
+                                    .testTag("signup_stream_pill_Streamed"),
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isStreamed) PaymentGold else Color.White.copy(alpha = 0.15f),
+                                border = BorderStroke(
+                                    1.5.dp,
+                                    if (isStreamed) PaymentBrightGold else Color.White.copy(alpha = 0.30f)
+                                )
                             ) {
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     RadioButton(
-                                        selected = true,
-                                        onClick = {},
+                                        selected = isStreamed,
+                                        onClick = { streamInput = "" },
                                         colors = RadioButtonDefaults.colors(
-                                            selectedColor = PaymentBrightGold,
-                                            unselectedColor = Color.White
+                                            selectedColor = if (isStreamed) PaymentDarkText else Color.White,
+                                            unselectedColor = Color.White.copy(alpha = 0.7f)
                                         )
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Column {
-                                        Text(
-                                            text = "1 Month Plan",
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = Color.White
-                                        )
-                                        Text(
-                                            text = "Billed monthly • Paid via Mobile Money",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = LightLavender
-                                        )
-                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Streamed",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (isStreamed) PaymentDarkText else Color.White
+                                    )
                                 }
-
-                                Text(
-                                    text = "UGX 2,000",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = PaymentBrightGold
-                                )
                             }
+
+                            // Unstreamed Option
+                            val isUnstreamed = streamInput == "Unstreamed"
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(56.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { streamInput = "Unstreamed" }
+                                    .testTag("signup_stream_pill_Unstreamed"),
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isUnstreamed) PaymentCrimson else Color.White.copy(alpha = 0.15f),
+                                border = BorderStroke(
+                                    1.5.dp,
+                                    if (isUnstreamed) PaymentCrimsonBorder else Color.White.copy(alpha = 0.30f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = isUnstreamed,
+                                        onClick = { streamInput = "Unstreamed" },
+                                        colors = RadioButtonDefaults.colors(
+                                            selectedColor = Color.White,
+                                            unselectedColor = Color.White.copy(alpha = 0.7f)
+                                        )
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Unstreamed",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Individual Stream Field (Only show if Streamed)
+                    if (streamInput != "Unstreamed") {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Stream Name",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            OutlinedTextField(
+                                value = streamInput,
+                                onValueChange = { streamInput = it },
+                                placeholder = { Text("Write your stream (e.g. Green)", color = Color.White.copy(alpha = 0.6f)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                            )
                         }
                     }
                 }
@@ -1229,7 +1226,7 @@ fun SignupScreen(
                     )
                 } else {
                     Text(
-                        text = "Sign Up & Login",
+                        text = if (isStudentRole) "Continue to Payment" else "Sign Up & Login",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = PaymentDarkText

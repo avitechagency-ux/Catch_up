@@ -104,7 +104,14 @@ data class AdminUserItem(
     val status: String = "Active",
     val planOrDepartment: String = "Termly Plan",
     val joinedDate: String = "Sept 2026",
-    val avatarColor: Color = BlueTile
+    val avatarColor: Color = BlueTile,
+    val academicClass: String = "",
+    val stream: String = "",
+    val teacherIdCode: String = "",
+    val subjectsTaught: String = "",
+    val isPlanActive: Boolean = true,
+    val planDuration: String = "1 Month",
+    val rawDto: SupabaseUserDto? = null
 )
 
 /**
@@ -136,8 +143,15 @@ fun SupabaseUserDto.toAdminUserItem(): AdminUserItem? {
                 email = contactStr,
                 status = "Active",
                 planOrDepartment = "ID: $code",
-                joinedDate = "Sept 2026",
-                avatarColor = NavyTile
+                joinedDate = createdAt?.take(10) ?: "Sept 2026",
+                avatarColor = NavyTile,
+                academicClass = academicClass,
+                stream = stream,
+                teacherIdCode = code,
+                subjectsTaught = subjectsTaught,
+                isPlanActive = isPlanActive,
+                planDuration = planDuration,
+                rawDto = this
             )
         }
         "student" -> {
@@ -152,10 +166,17 @@ fun SupabaseUserDto.toAdminUserItem(): AdminUserItem? {
                 role = UserRoleFilter.STUDENTS,
                 detailTag = combinedClassStream,
                 email = contactStr,
-                status = "Active",
+                status = if (isPlanActive) "Active" else "Expired",
                 planOrDepartment = resolvedPlan,
-                joinedDate = "Sept 2026",
-                avatarColor = IndigoPurple
+                joinedDate = createdAt?.take(10) ?: "Sept 2026",
+                avatarColor = IndigoPurple,
+                academicClass = academicClass,
+                stream = stream,
+                teacherIdCode = teacherIdCode.orEmpty(),
+                subjectsTaught = subjectsTaught,
+                isPlanActive = isPlanActive,
+                planDuration = planDuration,
+                rawDto = this
             )
         }
         else -> null
@@ -252,6 +273,7 @@ fun AdminUsersScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(UserRoleFilter.STUDENTS) }
+    var selectedUser by remember { mutableStateOf<AdminUserItem?>(null) }
 
     // Active dataset based on selected pill tab
     val currentRoleList = when (selectedTab) {
@@ -487,10 +509,25 @@ fun AdminUsersScreen(
                     ) { user ->
                         AdminUserCard(
                             user = user,
+                            onClick = { selectedUser = user },
                             modifier = Modifier.testTag("admin_user_card_${user.id}")
                         )
                     }
                 }
+            }
+
+            selectedUser?.let { user ->
+                AdminUserDetailDialog(
+                    user = user,
+                    onDismiss = { selectedUser = null },
+                    onUserDeleted = {
+                        loadUsersFromSupabase()
+                        selectedUser = null
+                    },
+                    onPasswordReset = {
+                        loadUsersFromSupabase()
+                    }
+                )
             }
         }
     }
@@ -658,6 +695,7 @@ fun FilterPillButton(
 @Composable
 fun AdminUserCard(
     user: AdminUserItem,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     // Generate initials from name (e.g. "Ezekiel Joseph" -> "EJ")
@@ -675,6 +713,7 @@ fun AdminUserCard(
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .shadow(
                 elevation = 4.dp,
                 shape = RoundedCornerShape(16.dp),
@@ -749,5 +788,250 @@ fun AdminUserCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun AdminUserDetailDialog(
+    user: AdminUserItem,
+    onDismiss: () -> Unit,
+    onUserDeleted: () -> Unit,
+    onPasswordReset: () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    var isDeleting by remember { mutableStateOf(false) }
+    var isResettingPassword by remember { mutableStateOf(false) }
+    var newPasswordInput by remember { mutableStateOf("") }
+    var showPasswordInputBox by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+
+    var uploadedNotesCount by remember { mutableStateOf(0) }
+    var connectedStudentsList by remember { mutableStateOf<List<ConnectedStudent>>(emptyList()) }
+    var isLoadingTeacherStats by remember { mutableStateOf(false) }
+
+    LaunchedEffect(user.id) {
+        if (user.role == UserRoleFilter.TEACHERS) {
+            isLoadingTeacherStats = true
+            try {
+                val uploads = SupabaseRepository.fetchUploadsForTeacher(user.teacherIdCode, user.name)
+                uploadedNotesCount = uploads.size
+                val students = SupabaseRepository.fetchConnectedStudentsForTeacher(user.teacherIdCode)
+                connectedStudentsList = students
+            } catch (_: Exception) {}
+            finally {
+                isLoadingTeacherStats = false
+            }
+        }
+    }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = Color.White,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = user.name,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (user.role == UserRoleFilter.STUDENTS) "Student Account" else "Teacher Account",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = IndigoPurple
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                        Icon(imageVector = Icons.Outlined.Clear, contentDescription = "Close", tint = TextMuted)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(color = SoftLavenderGrey, shape = RoundedCornerShape(14.dp))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DetailRow(label = "Contact / Phone", value = user.email)
+                    DetailRow(label = "School Name", value = user.rawDto?.schoolName?.ifBlank { "Secondary School" } ?: "Secondary School")
+
+                    if (user.role == UserRoleFilter.STUDENTS) {
+                        DetailRow(label = "Class & Stream", value = user.detailTag.ifBlank { "Not Specified" })
+                        DetailRow(label = "Plan Status", value = if (user.isPlanActive) "Active (${user.planDuration})" else "Expired")
+                    } else {
+                        DetailRow(label = "Teacher ID Code", value = user.teacherIdCode.ifBlank { "N/A" })
+                        DetailRow(label = "Subjects Taught", value = user.subjectsTaught.ifBlank { "General Curriculum" })
+                        DetailRow(label = "Uploaded Notes", value = if (isLoadingTeacherStats) "Loading..." else "$uploadedNotesCount notes")
+                        DetailRow(label = "Connected Students", value = if (isLoadingTeacherStats) "Loading..." else "${connectedStudentsList.size} students connected")
+                    }
+                }
+
+                statusMessage?.let { msg ->
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(text = msg, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = IndigoPurple)
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                if (showPasswordInputBox) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, BorderGrey, RoundedCornerShape(12.dp))
+                            .padding(12.dp)
+                    ) {
+                        Text(text = "Reset New Password", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        BasicTextField(
+                            value = newPasswordInput,
+                            onValueChange = { newPasswordInput = it },
+                            singleLine = true,
+                            textStyle = TextStyle(fontSize = 14.sp, color = TextDark),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White, RoundedCornerShape(8.dp))
+                                .border(1.dp, BorderGrey, RoundedCornerShape(8.dp))
+                                .padding(10.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { showPasswordInputBox = false; newPasswordInput = "" }) {
+                                Text("Cancel", fontSize = 12.sp, color = TextMuted)
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            androidx.compose.material3.Button(
+                                onClick = {
+                                    if (newPasswordInput.isBlank()) {
+                                        statusMessage = "Please enter a valid new password."
+                                        return@Button
+                                    }
+                                    coroutineScope.launch {
+                                        isResettingPassword = true
+                                        statusMessage = "Updating password..."
+                                        val targetPhoneOrEmail = user.rawDto?.phoneNumber?.ifBlank { user.email } ?: user.email
+                                        val success = SupabaseRepository.resetUserPassword(targetPhoneOrEmail, newPasswordInput)
+                                        isResettingPassword = false
+                                        if (success) {
+                                            statusMessage = "Password successfully reset!"
+                                            showPasswordInputBox = false
+                                            newPasswordInput = ""
+                                            onPasswordReset()
+                                        } else {
+                                            statusMessage = "Failed to reset password. Please try again."
+                                        }
+                                    }
+                                },
+                                enabled = !isResettingPassword,
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = IndigoPurple)
+                            ) {
+                                Text(if (isResettingPassword) "Saving..." else "Confirm Reset", fontSize = 12.sp, color = Color.White)
+                            }
+                        }
+                    }
+                } else if (showDeleteConfirm) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFFFEBEE), RoundedCornerShape(12.dp))
+                            .padding(12.dp)
+                    ) {
+                        Text(text = "Confirm Account Deletion", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "Are you sure you want to delete ${user.name}? This action cannot be undone.", fontSize = 12.sp, color = TextDark)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showDeleteConfirm = false }) {
+                                Text("Cancel", fontSize = 12.sp, color = TextMuted)
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            androidx.compose.material3.Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isDeleting = true
+                                        statusMessage = "Deleting user account..."
+                                        val targetPhoneOrEmail = user.rawDto?.phoneNumber?.ifBlank { user.email } ?: user.email
+                                        val success = SupabaseRepository.deleteUserAccount(targetPhoneOrEmail)
+                                        isDeleting = false
+                                        if (success) {
+                                            statusMessage = "Account deleted successfully."
+                                            onUserDeleted()
+                                        } else {
+                                            statusMessage = "Failed to delete account. Please try again."
+                                        }
+                                    }
+                                },
+                                enabled = !isDeleting,
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                            ) {
+                                Text(if (isDeleting) "Deleting..." else "Yes, Delete", fontSize = 12.sp, color = Color.White)
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { showPasswordInputBox = true; statusMessage = null },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Reset Password", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = IndigoPurple)
+                        }
+
+                        androidx.compose.material3.Button(
+                            onClick = { showDeleteConfirm = true; statusMessage = null },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))
+                        ) {
+                            Text("Delete Account", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = label, fontSize = 12.sp, color = TextMuted, fontWeight = FontWeight.Medium)
+        Text(text = value, fontSize = 12.sp, color = TextDark, fontWeight = FontWeight.SemiBold)
     }
 }

@@ -28,7 +28,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.background
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.tooling.preview.Preview
@@ -179,6 +183,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyApplicationTheme(dynamicColor = false) {
                 val context = LocalContext.current
+                val coroutineScope = rememberCoroutineScope()
                 remember(context) {
                     SupabaseRepository.initialize(context)
                     LiveClassRepository.initialize(context)
@@ -316,7 +321,6 @@ class MainActivity : ComponentActivity() {
                 var previousScreen by remember {
                     mutableStateOf(AccountSecurityVault.getDefaultScreenForRole(userRoleState))
                 }
-                val coroutineScope = rememberCoroutineScope()
 
 
 
@@ -738,8 +742,7 @@ class MainActivity : ComponentActivity() {
                         }
                         notifType == NotificationHelper.TYPE_PAYMENT_REMINDER -> {
                             if (userRoleState == UserRole.STUDENT) {
-                                accountPreviousScreen = AppScreen.HOME
-                                currentScreen = AppScreen.ACCOUNT
+                                currentScreen = AppScreen.STUDENT_PAYMENT
                             }
                             activeIntent.removeExtra(NotificationHelper.EXTRA_NOTIFICATION_TYPE)
                             pendingNotificationIntent = null
@@ -886,6 +889,16 @@ class MainActivity : ComponentActivity() {
 
                         // Security fallback: always return to active role's authorized default
                         else -> AccountSecurityVault.getDefaultScreenForRole(userRoleState)
+                    }
+                }
+
+                val isStudentPlanExpired = remember(userRoleState, isLoggedInState, activePlanDuration) {
+                    userRoleState == UserRole.STUDENT && isLoggedInState && activePlanDuration.isBlank()
+                }
+
+                LaunchedEffect(isStudentPlanExpired) {
+                    if (isStudentPlanExpired && currentScreen != AppScreen.HOME && currentScreen != AppScreen.WELCOME && currentScreen != AppScreen.LOGIN && currentScreen != AppScreen.SIGNUP && currentScreen != AppScreen.ONBOARDING) {
+                        currentScreen = AppScreen.HOME
                     }
                 }
 
@@ -1093,8 +1106,7 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.PROFILE
                             },
                             onNavigateToAccount = {
-                                accountPreviousScreen = AppScreen.HOME
-                                currentScreen = AppScreen.ACCOUNT
+                                currentScreen = AppScreen.STUDENT_PAYMENT
                             },
                             onNavigateToSubjectDetail = { subject ->
                                 selectedSubjectName = subject
@@ -1689,7 +1701,8 @@ class MainActivity : ComponentActivity() {
                                 recordRecentTopic(title, subject, null)
                                 previousScreen = AppScreen.TEACHER_UPLOADS
                                 currentScreen = AppScreen.PDF_VIEWER
-                            }
+                            },
+                            connectedStudents = connectedStudentsList
                         )
                         AppScreen.TEACHER_PROFILE -> TeacherProfileScreen(
                             teacherName = teacherName,
@@ -1878,6 +1891,7 @@ class MainActivity : ComponentActivity() {
                             onNavigateToHome = { /* Already on Admin Home */ },
                             onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
                             onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
+                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE },
                             onSwitchToStudentView = {
                                 // Security: Admin role isolation - direct switching disabled
                             },
@@ -2057,6 +2071,39 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                             }
+                        }
+                    }
+
+                    if (isStudentPlanExpired) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF1E1E1E).copy(alpha = 0.93f))
+                                .pointerInput(Unit) {},
+                            contentAlignment = Alignment.Center
+                        ) {
+                            StudentPaymentScreen(
+                                studentName = studentName,
+                                signupPhoneNumber = studentPhone,
+                                studentEmail = prefs.getString("user_email", "") ?: "",
+                                selectedPlan = DefaultPlanTiers.first(),
+                                onNavigateBack = {
+                                    Toast.makeText(context, "Please complete payment to renew your plan.", Toast.LENGTH_SHORT).show()
+                                },
+                                onPaymentSuccess = { paidPlan, paidPhone ->
+                                    val accountIdentifier = (prefs.getString("user_email", "") ?: "").ifBlank { paidPhone }
+                                    studentPhone = accountIdentifier
+                                    activePlanDuration = paidPlan.duration
+                                    activePlanExpiry = "Valid for 30 days"
+                                    prefs.edit()
+                                        .putString("user_phone", accountIdentifier)
+                                        .putString("momo_phone", paidPhone)
+                                        .putString("student_active_plan_duration", activePlanDuration)
+                                        .putString("student_active_plan_expiry", activePlanExpiry)
+                                        .apply()
+                                    Toast.makeText(context, "Plan renewed successfully!", Toast.LENGTH_SHORT).show()
+                                }
+                            )
                         }
                     }
                 }

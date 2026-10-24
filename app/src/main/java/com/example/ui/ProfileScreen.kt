@@ -318,19 +318,6 @@ fun ProfileScreen(
                     .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 36.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // 1. "Account" — plain purple pill, white text
-                ProfilePillRow(
-                    text = "Account",
-                    height = 52.dp,
-                    cornerRadius = 26.dp,
-                    backgroundColor = IndigoPurple,
-                    textColor = Color.White,
-                    startPadding = 20.dp,
-                    elevation = 2.dp,
-                    testTag = "profile_pill_account",
-                    onClick = onNavigateToAccount
-                )
-
                 // 2. "Settings" — plain purple pill, white text
                 ProfilePillRow(
                     text = "Settings",

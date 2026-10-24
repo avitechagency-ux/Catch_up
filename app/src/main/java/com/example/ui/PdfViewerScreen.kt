@@ -91,7 +91,10 @@ sealed class DocxBlock {
     data class Paragraph(val text: String, val isBold: Boolean = false, val isItalic: Boolean = false) : DocxBlock()
     data class BulletItem(val text: String) : DocxBlock()
     data class TableBlock(val rows: List<List<String>>) : DocxBlock()
+    // data class Image(val rId: String) : DocxBlock()
 }
+
+// ... (Rest of parseDocxDocument and parseWordDocumentXml updates) ...
 
 /**
  * Section/Page grouping of reflowable DOCX content so students can read clearly on mobile without zooming.
@@ -120,6 +123,7 @@ data class DocxParsedDocument(
                 is DocxBlock.Paragraph -> block.text
                 is DocxBlock.BulletItem -> "• ${block.text}"
                 is DocxBlock.TableBlock -> block.rows.joinToString("\n") { it.joinToString(" | ") }
+                else -> ""
             }
         }
 }

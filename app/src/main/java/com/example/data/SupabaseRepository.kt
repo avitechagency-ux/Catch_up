@@ -74,6 +74,7 @@ data class SupabaseUserDto(
     @Json(name = "notify_announcements") val notifyAnnouncements: Boolean = false,
     @Json(name = "wifi_only_downloads") val wifiOnlyDownloads: Boolean = false,
     @Json(name = "preferred_language") val preferredLanguage: String = "English",
+    @Json(name = "device_id") val deviceId: String = "",
     @Json(name = "created_at") val createdAt: String? = null
 )
 
@@ -389,6 +390,11 @@ interface SupabasePostgrestApi {
         @Query("select") select: String = "*",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<SupabaseUserDto>>
+
+    @DELETE("users")
+    suspend fun deleteUserByPhone(
+        @Query("phone_number") phoneFilter: String
+    ): Response<Unit>
 
     // --- 2. Student Note Read History & Saved Notes (`student_note_history`, `student_saved_notes`) ---
     @Headers("Prefer: resolution=merge-duplicates,return=representation")
@@ -1007,7 +1013,8 @@ object SupabaseRepository {
         subjectsTaught: String = "",
         isPlanActive: Boolean = false,
         planDuration: String = "",
-        planExpiryDate: String = ""
+        planExpiryDate: String = "",
+        deviceId: String = ""
     ): Boolean = withContext(Dispatchers.IO) {
         val hashedPassword = SupabaseSecurityVault.hashPassword(plainPassword)
         val cleanName = fullName.trim()
@@ -1026,7 +1033,8 @@ object SupabaseRepository {
             isPlanActive = isPlanActive,
             planDuration = planDuration,
             planExpiryDate = planExpiryDate,
-            referralCode = referralCode
+            referralCode = referralCode,
+            deviceId = deviceId.trim()
         )
         recordRecentSyncedUser(dto)
 
@@ -1067,7 +1075,8 @@ object SupabaseRepository {
                     "stream" to stream.trim(),
                     "subjects_taught" to subjectsTaught.trim(),
                     "is_plan_active" to isPlanActive,
-                    "plan_duration" to planDuration
+                    "plan_duration" to planDuration,
+                    "device_id" to deviceId.trim()
                 )
                 if (!teacherIdCode.isNullOrBlank()) {
                     coreMap["teacher_id_code"] = teacherIdCode.trim()
@@ -1829,6 +1838,36 @@ object SupabaseRepository {
             } catch (_: Exception) { }
         }
         true
+    }
+
+    /**
+     * Updates a user's active device ID in Supabase to enforce single-device login session management.
+     */
+    suspend fun updateUserDeviceId(identifier: String, deviceId: String): Boolean = withContext(Dispatchers.IO) {
+        if (identifier.isBlank()) return@withContext false
+        val cleanId = identifier.trim()
+        val fields = mapOf("device_id" to deviceId.trim())
+        synchronized(recentSyncedUsers) {
+            val idx = recentSyncedUsers.indexOfFirst {
+                it.phoneNumber.equals(cleanId, ignoreCase = true) ||
+                    it.email.equals(cleanId, ignoreCase = true) ||
+                    it.fullName.equals(cleanId, ignoreCase = true)
+            }
+            if (idx >= 0) {
+                recentSyncedUsers[idx] = recentSyncedUsers[idx].copy(deviceId = deviceId.trim())
+            }
+        }
+        if (!SupabaseConfig.isConfigured()) return@withContext true
+        try {
+            val r1 = api.updateUserByPhone("ilike.$cleanId", fields)
+            if (r1.isSuccessful && !r1.body().isNullOrEmpty()) return@withContext true
+            val r2 = api.updateUserByEmail("ilike.$cleanId", fields)
+            if (r2.isSuccessful && !r2.body().isNullOrEmpty()) return@withContext true
+            val r3 = api.updateUserByFullName("ilike.$cleanId", fields)
+            r3.isSuccessful
+        } catch (_: Exception) {
+            false
+        }
     }
 
     // ========================================================================
@@ -3109,5 +3148,20 @@ object SupabaseRepository {
                 // Return any logs collected so far
             }
             logs
+        }
+
+        suspend fun deleteUserAccount(phoneOrEmail: String): Boolean = withContext(Dispatchers.IO) {
+            runCatching {
+                api.deleteUserByPhone(phoneOrEmail)
+                true
+            }.getOrDefault(false)
+        }
+
+        suspend fun resetUserPassword(phoneOrEmail: String, newPlainPassword: String): Boolean = withContext(Dispatchers.IO) {
+            runCatching {
+                val hashed = SupabaseSecurityVault.hashPassword(newPlainPassword)
+                api.updateUserByPhone(phoneOrEmail, mapOf("password_hash" to hashed))
+                true
+            }.getOrDefault(false)
         }
 }

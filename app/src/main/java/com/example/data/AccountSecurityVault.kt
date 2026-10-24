@@ -206,4 +206,24 @@ object AccountSecurityVault {
         if (cleanCode.isBlank()) return emptyList()
         return students.filter { getCode(it).trim().uppercase() == cleanCode }
     }
+
+    /**
+     * Generates or retrieves a persistent unique device ID for the current device.
+     */
+    fun getUniqueDeviceId(context: android.content.Context): String {
+        val prefs = context.getSharedPreferences("catch_up_prefs", android.content.Context.MODE_PRIVATE)
+        var deviceId = prefs.getString("device_unique_id", null)
+        if (deviceId.isNullOrBlank()) {
+            deviceId = try {
+                android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID)
+            } catch (_: Exception) {
+                null
+            }
+            if (deviceId.isNullOrBlank() || deviceId == "9774d56d682e549c") {
+                deviceId = java.util.UUID.randomUUID().toString()
+            }
+            prefs.edit().putString("device_unique_id", deviceId).apply()
+        }
+        return deviceId!!
+    }
 }

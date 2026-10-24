@@ -100,14 +100,15 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Validates that an uploaded file name is a Word (.docx) document.
+ * Validates that an uploaded file name is a Word (.docx) or PDF (.pdf) document.
  */
-fun isAllowedDocxFile(fileName: String): Boolean {
+fun isAllowedFile(fileName: String): Boolean {
     val trimmed = fileName.trim().lowercase(Locale.ROOT)
-    return trimmed.endsWith(".docx")
+    return trimmed.endsWith(".docx") || trimmed.endsWith(".pdf")
 }
 
 val DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+val PDF_MIME_TYPE = "application/pdf"
 
 /**
  * Teacher Upload Notes Screen (Original layout restored).
@@ -242,9 +243,9 @@ fun TeacherUploadNotesScreen(
             } catch (_: Exception) {
             }
 
-            if (!isAllowedDocxFile(resolvedDisplayName) && !isAllowedDocxFile(rawName)) {
+            if (!isAllowedFile(resolvedDisplayName) && !isAllowedFile(rawName)) {
                 coroutineScope.launch {
-                    snackbarHostState.showSnackbar("Only Word (.docx) documents are allowed so students can read clearly without zooming.")
+                    snackbarHostState.showSnackbar("Only Word (.docx) and PDF (.pdf) documents are allowed.")
                 }
                 return@rememberLauncherForActivityResult
             }

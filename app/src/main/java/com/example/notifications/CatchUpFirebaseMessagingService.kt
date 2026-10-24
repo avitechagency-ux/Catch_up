@@ -470,6 +470,45 @@ object NotificationHelper {
             false
         }
     }
+
+    /**
+     * Broadcasts a personalized holiday or celebration announcement (e.g. Christmas, New Year) to all app users.
+     */
+    fun broadcastAnnouncementNotification(
+        context: Context,
+        title: String,
+        body: String
+    ): Boolean {
+        createNotificationChannels(context)
+
+        val deepLinkIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_NOTIFICATION_TYPE, TYPE_ANNOUNCEMENT)
+        }
+
+        val requestCode = (title + body).hashCode()
+        val pendingIntentFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            requestCode,
+            deepLinkIntent,
+            pendingIntentFlags
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_ANNOUNCEMENTS)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+
+        return postNotificationSafely(context, requestCode, notification)
+    }
 }
 
 /**
