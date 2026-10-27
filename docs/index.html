@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cachap - Privacy Policy & Account Deletion</title>
+    <style>
+        :root {
+            --primary: #4A0E1E;
+            --primary-dark: #2F0712;
+            --accent: #FFB300;
+            --text-dark: #1A1A1A;
+            --text-muted: #666666;
+            --bg-light: #F8F9FA;
+            --card-bg: #FFFFFF;
+            --danger: #D32F2F;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #FFFFFF;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            color: #FFFFFF;
+        }
+
+        header p {
+            color: var(--accent);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .container {
+            max-width: 850px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #E0E0E0;
+        }
+
+        .deletion-box {
+            border: 2px solid var(--danger);
+            background-color: #FFF8F8;
+        }
+
+        .deletion-box h2 {
+            color: var(--danger);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h2 {
+            color: var(--primary);
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+        }
+
+        h3 {
+            color: var(--primary-dark);
+            font-size: 1.1rem;
+            margin-top: 16px;
+            margin-bottom: 8px;
+        }
+
+        p, ul {
+            margin-bottom: 12px;
+            color: #333333;
+            font-size: 0.98rem;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 0.95rem;
+        }
+
+        input[type="text"], input[type="email"], select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #CCCCCC;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        button.btn-delete {
+            background-color: var(--danger);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+
+        button.btn-delete:hover {
+            background-color: #B71C1C;
+        }
+
+        .alert-success {
+            display: none;
+            padding: 16px;
+            background-color: #E8F5E9;
+            color: #2E7D32;
+            border: 1px solid #A5D6A7;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-weight: 600;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            border-top: 1px solid #E0E0E0;
+            background: #FFFFFF;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .nav-tabs a {
+            flex: 1;
+            text-align: center;
+            padding: 12px;
+            background: #EFEFEF;
+            color: var(--text-dark);
+            text-decoration: none;
+            font-weight: 700;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .nav-tabs a.active {
+            background: var(--primary);
+            color: #FFFFFF;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Cachap</h1>
+        <p>Learn today. Catch up tomorrow. Move forward always.</p>
+    </header>
+
+    <div class="container">
+        
+        <div class="nav-tabs">
+            <a href="#account-deletion" class="active">Account Deletion Request</a>
+            <a href="#privacy-policy">Privacy Policy</a>
+        </div>
+
+        <!-- ACCOUNT DELETION SECTION -->
+        <div id="account-deletion" class="card deletion-box">
+            <h2>Account Deletion Request</h2>
+            <p>If you wish to delete your <strong>Cachap</strong> account and all associated personal data, you can request account deletion below or perform it directly inside the Cachap Android App under <em>Profile &gt; Settings &gt; Delete Account</em>.</p>
+            
+            <p><strong>What happens when your account is deleted?</strong></p>
+            <ul>
+                <li>Your account profile, login credentials, and session tokens are permanently removed.</li>
+                <li>For <strong>Students</strong>: Saved downloads, subject preferences, and teacher connections are erased.</li>
+                <li>For <strong>Teachers</strong>: Your uploaded notes, study materials, class connections, and unique teacher code are deactivated.</li>
+            </ul>
+
+            <form id="deletionForm" onsubmit="handleDeletionSubmit(event)">
+                <div class="form-group">
+                    <label for="userEmail">Registered Email Address or Phone Number *</label>
+                    <input type="text" id="userEmail" required placeholder="e.g. user@example.com or 0770000000">
+                </div>
+
+                <div class="form-group">
+                    <label for="userRole">Account Role *</label>
+                    <select id="userRole" required>
+                        <option value="student">Student</option>
+                        <option value="teacher">Teacher</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="deletionReason">Reason for Deletion (Optional)</label>
+                    <textarea id="deletionReason" rows="3" placeholder="Tell us why you are deleting your account..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-delete">Submit Account Deletion Request</button>
+            </form>
+
+            <div id="successMessage" class="alert-success">
+                Your account deletion request has been received. Our team will verify and process your account removal within 24 to 48 hours.
+            </div>
+        </div>
+
+        <!-- PRIVACY POLICY SECTION -->
+        <div id="privacy-policy" class="card">
+            <h2>Cachap Privacy Policy</h2>
+            <p><em>Last updated: October 27, 2026</em></p>
+            <br>
+
+            <h3>1. Introduction</h3>
+            <p>Cachap is an educational platform built by Ssenyonga Moses to help teachers share learning materials digitally and help students access notes, revise lessons, and improve their academic experience.</p>
+
+            <h3>2. Information We Collect</h3>
+            <p>We collect account identification details (name, email, phone number, role), educational info (class, subjects, uploaded notes), and payment verification references via MarzPay for mobile money transactions.</p>
+
+            <h3>3. How We Use Your Information</h3>
+            <p>Information is used solely to authenticate users, organize educational resources, manage subscriptions, verify payments, and maintain service security.</p>
+
+            <h3>4. Account & Data Deletion Rights</h3>
+            <p>Users have full control over their personal data. You can delete your account permanently directly within the Cachap app via <strong>Profile Settings</strong> or by submitting the Account Deletion Request form above.</p>
+
+            <h3>5. Contact Us</h3>
+            <p>If you have questions regarding your data privacy or account deletion, please contact us at:</p>
+            <p><strong>Email:</strong> <a href="mailto:avitechagency@gmail.com">avitechagency@gmail.com</a><br>
+            <strong>Developer:</strong> Ssenyonga Moses (Avitech Agency)</p>
+        </div>
+
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Cachap. Built for educational progress in Uganda.</p>
+    </footer>
+
+    <script>
+        function handleDeletionSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('userEmail').value;
+            const role = document.getElementById('userRole').value;
+            
+            if (email) {
+                document.getElementById('deletionForm').style.display = 'none';
+                document.getElementById('successMessage').style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>

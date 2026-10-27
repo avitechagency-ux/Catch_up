@@ -190,6 +190,36 @@ CREATE INDEX IF NOT EXISTS idx_notes_teacher_code ON public.notes_uploads(teache
 CREATE INDEX IF NOT EXISTS idx_notes_content_type ON public.notes_uploads(content_type);
 
 -- ============================================================================
+-- 5B. VISUAL LEARNING ITEMS TABLE (Pinterest-Inspired Educational Discovery)
+-- Stores approved educational visuals, aspect ratios, and connected articles.
+-- Teacher uploads require Admin approval (is_approved = TRUE, status = 'Approved')
+-- before appearing in the student discovery feed.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.visual_learning_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    target_class TEXT NOT NULL DEFAULT 'S.4',
+    author TEXT NOT NULL DEFAULT 'Curriculum Specialist',
+    image_url TEXT NOT NULL DEFAULT '',
+    aspect_ratio TEXT NOT NULL DEFAULT '3:4' CHECK (aspect_ratio IN ('1:1', '4:5', '3:4', '16:9')),
+    source_type TEXT NOT NULL DEFAULT 'LEARNING_HUB' CHECK (source_type IN ('LEARNING_HUB', 'TEACHER_UPLOAD')),
+    status TEXT NOT NULL DEFAULT 'Approved' CHECK (status IN ('Approved', 'Pending', 'Rejected')),
+    is_approved BOOLEAN NOT NULL DEFAULT TRUE,
+    article_title TEXT NOT NULL,
+    article_introduction TEXT NOT NULL,
+    article_sections JSONB NOT NULL DEFAULT '[]'::jsonb,
+    key_facts JSONB NOT NULL DEFAULT '[]'::jsonb,
+    curriculum_tip TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_visual_learning_subject ON public.visual_learning_items(subject);
+CREATE INDEX IF NOT EXISTS idx_visual_learning_status ON public.visual_learning_items(status);
+CREATE INDEX IF NOT EXISTS idx_visual_learning_approved ON public.visual_learning_items(is_approved);
+
+-- ============================================================================
 -- 6. STUDENT DOWNLOADS & RECENTLY OPENED TOPICS TABLES
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS public.student_downloads (

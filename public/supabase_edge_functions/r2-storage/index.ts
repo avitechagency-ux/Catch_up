@@ -74,7 +74,10 @@ Deno.serve(async (req: Request) => {
       const sanitizedFileName = sanitizePath(rawFileName);
       const contentType = body.contentType || "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       
-      const key = `notes_files/${teacherCode}/${sanitizedFileName}`;
+      const folder = body.folder || (body.category ? `study_materials/${sanitizePath(body.category)}` : null);
+      const key = body.key 
+        ? sanitizePath(body.key) 
+        : (folder ? `${sanitizePath(folder)}/${sanitizedFileName}` : `notes_files/${teacherCode}/${sanitizedFileName}`);
 
       const command = new PutObjectCommand({
         Bucket: bucketName,
@@ -106,7 +109,10 @@ Deno.serve(async (req: Request) => {
       const rawFileName = body.fileName || url.searchParams.get("fileName") || `note_${Date.now()}.docx`;
       const sanitizedFileName = sanitizePath(rawFileName);
       const contentType = body.contentType || "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-      const key = `notes_files/${teacherCode}/${sanitizedFileName}`;
+      const folder = body.folder || (body.category ? `study_materials/${sanitizePath(body.category)}` : null);
+      const key = body.key 
+        ? sanitizePath(body.key) 
+        : (folder ? `${sanitizePath(folder)}/${sanitizedFileName}` : `notes_files/${teacherCode}/${sanitizedFileName}`);
 
       const base64Content = body.fileBase64 || body.base64 || "";
       if (!base64Content) {

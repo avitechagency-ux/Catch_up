@@ -209,6 +209,7 @@ fun TeacherHomeScreen(
     recentUploads: List<TeacherRecentUpload> = DefaultTeacherRecentUploads,
     onNavigateToMySubjects: () -> Unit = {},
     onNavigateToLiveClasses: () -> Unit = {},
+    onNavigateToLearningHub: () -> Unit = {},
     onCreateLiveClassClick: () -> Unit = {},
     onNavigateToUploads: () -> Unit = {},
     onNavigateToTeacherProfile: () -> Unit = {},
@@ -541,6 +542,12 @@ fun TeacherHomeScreen(
                         }
                     }
                 }
+
+                // SECTION — Learning Hub (Quick Access for Teachers)
+                Spacer(modifier = Modifier.height(24.dp))
+                LearningHubQuickAccessBanner(
+                    onNavigateToLearningHub = onNavigateToLearningHub
+                )
 
                 // 24dp spacing between sections
                 Spacer(modifier = Modifier.height(24.dp))

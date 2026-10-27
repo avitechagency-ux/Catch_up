@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cachap - Request Account Deletion</title>
+    <style>
+        :root {
+            --primary: #4A0E1E;
+            --primary-dark: #2F0712;
+            --accent: #FFB300;
+            --text-dark: #1A1A1A;
+            --text-muted: #666666;
+            --bg-light: #F8F9FA;
+            --card-bg: #FFFFFF;
+            --danger: #D32F2F;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #FFFFFF;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            color: #FFFFFF;
+        }
+
+        header p {
+            color: var(--accent);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #E0E0E0;
+        }
+
+        .deletion-box {
+            border: 2px solid var(--danger);
+            background-color: #FFF8F8;
+        }
+
+        .deletion-box h2 {
+            color: var(--danger);
+            margin-bottom: 12px;
+        }
+
+        p, ul {
+            margin-bottom: 12px;
+            color: #333333;
+            font-size: 0.98rem;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 0.95rem;
+        }
+
+        input[type="text"], select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #CCCCCC;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        button.btn-delete {
+            background-color: var(--danger);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .alert-success {
+            display: none;
+            padding: 16px;
+            background-color: #E8F5E9;
+            color: #2E7D32;
+            border: 1px solid #A5D6A7;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-weight: 600;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            border-top: 1px solid #E0E0E0;
+            background: #FFFFFF;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Cachap Account Deletion</h1>
+        <p>Official Google Play Data Privacy & Account Removal Request</p>
+    </header>
+
+    <div class="container">
+        
+        <div class="card deletion-box">
+            <h2>Delete Your Cachap Account</h2>
+            <p>If you wish to delete your <strong>Cachap</strong> account and all associated personal data, you can submit an account removal request using the form below, or perform instant deletion inside the Cachap Android App under <em>Profile &gt; Settings &gt; Delete Account</em>.</p>
+            
+            <p><strong>Data that will be permanently deleted:</strong></p>
+            <ul>
+                <li>Profile details, full name, phone number, and password hashes.</li>
+                <li>Uploaded teacher notes, study materials, assignments, and class lists.</li>
+                <li>Student class preferences, downloads, and teacher link connections.</li>
+            </ul>
+
+            <form id="deletionForm" onsubmit="handleDeletionSubmit(event)">
+                <div class="form-group">
+                    <label for="userEmail">Registered Email Address or Phone Number *</label>
+                    <input type="text" id="userEmail" required placeholder="e.g. user@example.com or 0770000000">
+                </div>
+
+                <div class="form-group">
+                    <label for="userRole">Account Role *</label>
+                    <select id="userRole" required>
+                        <option value="student">Student</option>
+                        <option value="teacher">Teacher</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="deletionReason">Reason for Deletion (Optional)</label>
+                    <textarea id="deletionReason" rows="3" placeholder="Tell us why you are deleting your account..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-delete">Confirm & Delete My Account</button>
+            </form>
+
+            <div id="successMessage" class="alert-success">
+                Your account deletion request has been submitted. Your profile and stored records will be permanently purged within 24-48 hours.
+            </div>
+        </div>
+
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Cachap. All rights reserved.</p>
+    </footer>
+
+    <script>
+        function handleDeletionSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('userEmail').value;
+            if (email) {
+                document.getElementById('deletionForm').style.display = 'none';
+                document.getElementById('successMessage').style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>

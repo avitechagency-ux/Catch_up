@@ -311,6 +311,7 @@ fun HomeScreen(
     onNavigateToSubjectDetail: (String) -> Unit = {},
     onOpenNote: (title: String, subject: String) -> Unit = { _, _ -> },
     onNavigateToLiveClasses: () -> Unit = {},
+    onNavigateToLearningHub: () -> Unit = {},
     onNavigateToTeacher: () -> Unit = {},
     onNavigateToAdmin: () -> Unit = {},
     unreadNotificationCount: Int = 0,
@@ -419,6 +420,7 @@ fun HomeScreen(
                 },
                 onRecentSeeAll = { onActionNotice("Opening all recent notes") },
                 onNavigateToLiveClasses = onNavigateToLiveClasses,
+                onNavigateToLearningHub = onNavigateToLearningHub,
                 onNavigateToAdmin = onNavigateToAdmin
             )
         }
@@ -559,6 +561,7 @@ fun WhiteBody(
     onRecentClick: (RecentNoteData) -> Unit,
     onRecentSeeAll: () -> Unit,
     onNavigateToLiveClasses: () -> Unit = {},
+    onNavigateToLearningHub: () -> Unit = {},
     onNavigateToAdmin: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -580,6 +583,13 @@ fun WhiteBody(
             Spacer(modifier = Modifier.height(24.dp))
             LiveClassesBannerSection(onNavigateToLiveClasses = onNavigateToLiveClasses)
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Section: Learning Hub (Quick Access)
+        LearningHubQuickAccessBanner(
+            onNavigateToLearningHub = onNavigateToLearningHub
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 

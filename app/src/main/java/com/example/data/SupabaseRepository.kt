@@ -3150,9 +3150,42 @@ object SupabaseRepository {
             logs
         }
 
-        suspend fun deleteUserAccount(phoneOrEmail: String): Boolean = withContext(Dispatchers.IO) {
+        suspend fun deleteUserAccount(
+            phoneOrEmail: String,
+            role: String = "student",
+            teacherIdCode: String? = null
+        ): Boolean = withContext(Dispatchers.IO) {
             runCatching {
-                api.deleteUserByPhone(phoneOrEmail)
+                val clean = phoneOrEmail.trim()
+                if (clean.isBlank()) return@withContext false
+
+                // 1. Delete from users table in PostgREST
+                api.deleteUserByPhone("ilike.$clean")
+
+                // 2. Clear student links if teacher
+                if (!teacherIdCode.isNullOrBlank()) {
+                    runCatching {
+                        api.deleteStudentLinksByTeacherCode("eq.${teacherIdCode.trim().uppercase()}")
+                    }
+                }
+
+                // 3. Invoke account-deletion Edge Function for comprehensive server-side purge
+                runCatching {
+                    val jsonBody = """{"identifier":"$clean","role":"$role"}"""
+                        .toRequestBody("application/json".toMediaTypeOrNull())
+                    val request = okhttp3.Request.Builder()
+                        .url("${SupabaseConfig.functionsBaseUrl}account-deletion")
+                        .post(jsonBody)
+                        .build()
+                    OkHttpClient.Builder()
+                        .connectTimeout(10, TimeUnit.SECONDS)
+                        .readTimeout(10, TimeUnit.SECONDS)
+                        .build()
+                        .newCall(request)
+                        .execute()
+                        .close()
+                }
+
                 true
             }.getOrDefault(false)
         }

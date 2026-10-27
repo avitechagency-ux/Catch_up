@@ -98,7 +98,8 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit = {},
-    onClearCachedNotes: () -> Unit = {}
+    onClearCachedNotes: () -> Unit = {},
+    onDeleteAccount: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(NotificationHelper.PREFS_NAME, Context.MODE_PRIVATE) }
@@ -127,6 +128,7 @@ fun SettingsScreen(
     // Account Preferences
     var wifiOnlyDownload by remember { mutableStateOf(false) }
     var showClearCacheDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
 
     val languageSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -365,6 +367,51 @@ fun SettingsScreen(
                         }
                     }
                 }
+
+                // ======================================
+                // SECTION 4 — Danger Zone (Account Deletion)
+                // ======================================
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("settings_section_danger_zone")
+                ) {
+                    Text(
+                        text = "Danger Zone",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CoralTile,
+                        modifier = Modifier.testTag("section_label_danger_zone")
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFFFF0F2),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFCDD2))
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SettingsDestructiveRow(
+                                label = "Delete Account & Data",
+                                buttonText = "Delete",
+                                onClick = { showDeleteAccountDialog = true },
+                                testTag = "setting_delete_account_button"
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Permanently erases your profile, curriculum notes, downloads, streaks and sessions.",
+                        fontSize = 12.sp,
+                        color = TextMuted,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
             }
         }
     }
@@ -492,6 +539,73 @@ fun SettingsScreen(
                 }
             },
             modifier = Modifier.testTag("clear_cache_confirmation_dialog")
+        )
+    }
+
+    // ======================================
+    // DELETE ACCOUNT CONFIRMATION DIALOG
+    // ======================================
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountDialog = false },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White,
+            title = {
+                Text(
+                    text = "Permanently Delete Account?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = CoralTile
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "This action is permanent and cannot be reversed.",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                    Text(
+                        text = "All your personal profile data, study notes, offline downloads, streak milestones, and session tokens will be permanently removed from Cachap systems in accordance with Google Play data safety policies.",
+                        fontSize = 13.5.sp,
+                        color = TextMuted,
+                        lineHeight = 19.sp
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showDeleteAccountDialog = false
+                        onDeleteAccount()
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = CoralTile
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("confirm_delete_account_button")
+                ) {
+                    Text(
+                        text = "Delete Forever",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteAccountDialog = false },
+                    modifier = Modifier.testTag("cancel_delete_account_button")
+                ) {
+                    Text(
+                        text = "Keep Account",
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF1A1A1A)
+                    )
+                }
+            },
+            modifier = Modifier.testTag("delete_account_confirmation_dialog")
         )
     }
 }

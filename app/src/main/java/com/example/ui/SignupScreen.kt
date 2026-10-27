@@ -42,6 +42,8 @@ import androidx.compose.material.icons.outlined.VisibilityOff
 import com.example.data.AccountSecurityVault
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -132,6 +134,8 @@ fun SignupScreen(
     var subjectSearchQuery by remember { mutableStateOf("") }
 
     var passwordVisible by remember { mutableStateOf(false) }
+    var agreedToTerms by remember { mutableStateOf(false) }
+    var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -1096,6 +1100,57 @@ fun SignupScreen(
                 }
             }
 
+            // PRIVACY POLICY FULLSCREEN DIALOG POPUP
+            if (showPrivacyPolicyDialog) {
+                Dialog(
+                    onDismissRequest = { showPrivacyPolicyDialog = false },
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    PrivacyPolicyScreen(
+                        onNavigateBack = { showPrivacyPolicyDialog = false }
+                    )
+                }
+            }
+
+            // TERMS & PRIVACY CHECKBOX ROW
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { agreedToTerms = !agreedToTerms }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = agreedToTerms,
+                    onCheckedChange = { agreedToTerms = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = PaymentBrightGold,
+                        uncheckedColor = Color.White.copy(alpha = 0.7f),
+                        checkmarkColor = PaymentDarkText
+                    ),
+                    modifier = Modifier.testTag("signup_agree_terms_checkbox")
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "I agree to the ",
+                        fontSize = 13.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Terms of Use & Privacy Policy",
+                        fontSize = 13.sp,
+                        color = PaymentBrightGold,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clickable { showPrivacyPolicyDialog = true }
+                            .testTag("signup_terms_policy_link")
+                    )
+                }
+            }
+
             if (errorMessage != null) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -1143,6 +1198,9 @@ fun SignupScreen(
                         }
                         !isStudentRole && selectedTeacherSubjects.isEmpty() -> {
                             errorMessage = "Please select at least one subject you will be teaching"
+                        }
+                        !agreedToTerms -> {
+                            errorMessage = "Please accept the Terms of Use and Privacy Policy to create an account"
                         }
                         else -> {
                             isLoading = true

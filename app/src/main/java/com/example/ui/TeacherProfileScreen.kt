@@ -105,7 +105,8 @@ fun TeacherProfileScreen(
     onNavigateToAdmin: () -> Unit = {},
     onUpdateProfile: (name: String, school: String, subjects: String) -> Unit = { _, _, _ -> },
     onSwitchToStudentView: () -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    onDeleteAccount: () -> Unit = {}
 ) {
     var currentTeacherName by remember(teacherName) { mutableStateOf(teacherName) }
     var currentSubjects by remember(subjectsTaught) { mutableStateOf(subjectsTaught) }
@@ -118,6 +119,7 @@ fun TeacherProfileScreen(
     var showHelpDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier
@@ -296,6 +298,21 @@ fun TeacherProfileScreen(
                     },
                     testTag = "teacher_pill_log_out",
                     onClick = { showLogoutDialog = true }
+                )
+
+                // 6. "Delete Account" (coral destructive outlined pill)
+                ProfilePillRow(
+                    text = "Delete Account",
+                    height = 52.dp,
+                    cornerRadius = 26.dp,
+                    backgroundColor = Color(0xFFFFF0F2),
+                    borderColor = Color(0xFFFFCDD2),
+                    borderWidth = 1.dp,
+                    textColor = com.example.ui.theme.CoralTile,
+                    startPadding = 20.dp,
+                    elevation = 0.dp,
+                    testTag = "teacher_pill_delete_account",
+                    onClick = { showDeleteAccountDialog = true }
                 )
             }
         }
@@ -537,6 +554,69 @@ fun TeacherProfileScreen(
                     )
                 }
             }
+        )
+    }
+
+    // Delete Account Confirmation Dialog
+    if (showDeleteAccountDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountDialog = false },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White,
+            title = {
+                Text(
+                    text = "Permanently Delete Teacher Account?",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = com.example.ui.theme.CoralTile
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "This action is permanent and cannot be reversed.",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                    Text(
+                        text = "All your teacher profile details, registered classes, uploaded curriculum notes, student connections, and session tokens will be permanently removed from Cachap servers in accordance with Google Play data safety policies.",
+                        fontSize = 13.5.sp,
+                        color = TextMuted,
+                        lineHeight = 19.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteAccountDialog = false
+                        onDeleteAccount()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = com.example.ui.theme.CoralTile),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("teacher_confirm_delete_account_button")
+                ) {
+                    Text(
+                        text = "Delete Forever",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteAccountDialog = false },
+                    modifier = Modifier.testTag("teacher_cancel_delete_account_button")
+                ) {
+                    Text(
+                        text = "Keep Account",
+                        color = TextDark,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            },
+            modifier = Modifier.testTag("teacher_delete_account_dialog")
         )
     }
 }

@@ -63,6 +63,7 @@ import com.example.ui.DefaultPlanTiers
 import com.example.ui.DownloadsScreen
 import com.example.ui.HelpAndSupportScreen
 import com.example.ui.HomeScreen
+import com.example.ui.LearningHubScreen
 import com.example.ui.PdfViewerScreen
 import com.example.ui.PlanTier
 import com.example.ui.PrivacyPolicyScreen
@@ -74,6 +75,13 @@ import com.example.ui.StreakData
 import com.example.ui.StudentPaymentScreen
 import com.example.ui.SubjectNotesScreen
 import com.example.ui.SubjectsScreen
+import com.example.ui.LibraryScreen
+import com.example.ui.StudyMaterialScreen
+import com.example.ui.StudyMaterialListScreen
+import com.example.ui.StudyMaterialCategory
+import com.example.ui.RevisionSubjectsScreen
+import com.example.ui.SubjectRevisionScreen
+import com.example.data.Book
 import com.example.ui.OnboardingScreen
 import com.example.ui.WelcomeScreen
 import com.example.ui.LoginScreen
@@ -159,7 +167,22 @@ enum class AppScreen {
     ADMIN_TRANSACTIONS,
     ADMIN_SETTINGS,
     ADMIN_HEALTH,
-    ADMIN_LOGS
+    ADMIN_LOGS,
+    LEARNING_HUB,
+    VISUAL_LEARNING,
+    LIBRARY,
+    STUDY_MATERIAL,
+    REVISION_NOTES,
+    EXAM_PAPERS,
+    TOPIC_GUIDES,
+    LEARNING_RESOURCES,
+    REVISION,
+    SUBJECT_REVISION,
+    QUIZZES_HOME,
+    SUBJECT_QUIZZES,
+    QUIZ_INSTRUCTIONS,
+    QUIZ_TAKING,
+    QUIZ_RESULTS
 }
 
 class MainActivity : ComponentActivity() {
@@ -347,6 +370,12 @@ class MainActivity : ComponentActivity() {
                 var subjectNotesPreviousScreen by remember { mutableStateOf(AppScreen.SUBJECTS) }
                 var selectedPdfTitle by remember { mutableStateOf("Algebra") }
                 var selectedPdfSubject by remember { mutableStateOf("Math") }
+
+                var selectedQuizSubject by remember { mutableStateOf("Math") }
+                var selectedQuiz by remember { mutableStateOf<com.example.data.Quiz?>(null) }
+                var activeQuizScore by remember { mutableStateOf(0) }
+                var activeQuizTotal by remember { mutableStateOf(0) }
+                var activeQuizUserAnswers by remember { mutableStateOf<List<com.example.data.UserQuestionAnswer>>(emptyList()) }
 
                 var studentName by remember {
                     mutableStateOf(prefs.getString("student_name", "Student") ?: "Student")
@@ -886,6 +915,27 @@ class MainActivity : ComponentActivity() {
                         AppScreen.ADMIN_HEALTH -> adminHealthPreviousScreen
                         AppScreen.ADMIN_LOGS -> adminLogsPreviousScreen
 
+                        AppScreen.LEARNING_HUB -> {
+                            when (userRoleState) {
+                                UserRole.TEACHER -> AppScreen.TEACHER_HOME
+                                UserRole.ADMIN -> AppScreen.ADMIN_HOME
+                                else -> AppScreen.HOME
+                            }
+                        }
+                        AppScreen.LIBRARY,
+                        AppScreen.STUDY_MATERIAL,
+                        AppScreen.REVISION -> AppScreen.LEARNING_HUB
+                        AppScreen.REVISION_NOTES,
+                        AppScreen.EXAM_PAPERS,
+                        AppScreen.TOPIC_GUIDES,
+                        AppScreen.LEARNING_RESOURCES -> AppScreen.STUDY_MATERIAL
+                        AppScreen.SUBJECT_REVISION -> AppScreen.REVISION
+                        AppScreen.QUIZZES_HOME -> AppScreen.LEARNING_HUB
+                        AppScreen.SUBJECT_QUIZZES -> AppScreen.QUIZZES_HOME
+                        AppScreen.QUIZ_INSTRUCTIONS -> AppScreen.SUBJECT_QUIZZES
+                        AppScreen.QUIZ_TAKING -> AppScreen.QUIZ_INSTRUCTIONS
+                        AppScreen.QUIZ_RESULTS -> AppScreen.SUBJECT_QUIZZES
+
 
                         // Security fallback: always return to active role's authorized default
                         else -> AccountSecurityVault.getDefaultScreenForRole(userRoleState)
@@ -900,6 +950,35 @@ class MainActivity : ComponentActivity() {
                     if (isStudentPlanExpired && currentScreen != AppScreen.HOME && currentScreen != AppScreen.WELCOME && currentScreen != AppScreen.LOGIN && currentScreen != AppScreen.SIGNUP && currentScreen != AppScreen.ONBOARDING) {
                         currentScreen = AppScreen.HOME
                     }
+                }
+
+                val performAccountDeletion: () -> Unit = {
+                    val accountId = studentPhone.ifBlank { prefs.getString("user_email", null).orEmpty() }.ifBlank { prefs.getString("user_phone", "").orEmpty() }.trim()
+                    val isTeacher = userRoleState == UserRole.TEACHER
+                    val teacherCode = if (isTeacher) teacherIdCode else null
+                    val userRole = if (isTeacher) "teacher" else "student"
+
+                    coroutineScope.launch {
+                        if (accountId.isNotBlank()) {
+                            SupabaseRepository.deleteUserAccount(
+                                phoneOrEmail = accountId,
+                                role = userRole,
+                                teacherIdCode = teacherCode
+                            )
+                        }
+                    }
+
+                    AccountSecurityVault.clearSessionOnLogout(prefs)
+                    userRoleState = UserRole.UNAUTHENTICATED
+                    isLoggedInState = false
+                    downloadsList = emptyList()
+                    recentNotesList = emptyList()
+                    if (isTeacher) {
+                        teacherUploadsList = emptyList()
+                        connectedStudentsList = emptyList()
+                    }
+                    Toast.makeText(context, "Account permanently deleted", Toast.LENGTH_LONG).show()
+                    currentScreen = AppScreen.WELCOME
                 }
 
                 Box(modifier = Modifier.fillMaxSize()) {
@@ -1125,6 +1204,9 @@ class MainActivity : ComponentActivity() {
                                     currentScreen = AppScreen.STUDENT_LIVE_CLASSES
                                 }
                             },
+                            onNavigateToLearningHub = {
+                                currentScreen = AppScreen.LEARNING_HUB
+                            },
                             onNavigateToTeacher = {
                                 currentScreen = AppScreen.TEACHER_HOME
                             },
@@ -1344,7 +1426,8 @@ class MainActivity : ComponentActivity() {
                                 isLoggedInState = false
                                 coroutineScope.launch { SupabaseRepository.revokeCurrentSession() }
                                 currentScreen = AppScreen.WELCOME
-                            }
+                            },
+                            onDeleteAccount = performAccountDeletion
                         )
 
                         AppScreen.SETTINGS -> SettingsScreen(
@@ -1353,7 +1436,8 @@ class MainActivity : ComponentActivity() {
                             },
                             onClearCachedNotes = {
                                 downloadsList = emptyList()
-                            }
+                            },
+                            onDeleteAccount = performAccountDeletion
                         )
                         AppScreen.HELP_AND_SUPPORT -> HelpAndSupportScreen(
                             onNavigateBack = {
@@ -1370,6 +1454,151 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = privacyPreviousScreen
                             }
                         )
+                        AppScreen.LEARNING_HUB -> LearningHubScreen(
+                            onNavigateBack = {
+                                currentScreen = when (userRoleState) {
+                                    UserRole.TEACHER -> AppScreen.TEACHER_HOME
+                                    UserRole.ADMIN -> AppScreen.ADMIN_HOME
+                                    else -> AppScreen.HOME
+                                }
+                            },
+                            onNavigateToLibrary = { currentScreen = AppScreen.LIBRARY },
+                            onNavigateToStudyMaterial = { currentScreen = AppScreen.STUDY_MATERIAL },
+                            onNavigateToRevision = { currentScreen = AppScreen.REVISION },
+                            onNavigateToQuizzes = { currentScreen = AppScreen.QUIZZES_HOME },
+                            onNavigateToVisualLearning = { currentScreen = AppScreen.VISUAL_LEARNING },
+                            onOpenResource = { title, subject ->
+                                selectedPdfTitle = title
+                                selectedPdfSubject = subject
+                                recordRecentTopic(title, subject, null)
+                                previousScreen = AppScreen.LEARNING_HUB
+                                currentScreen = AppScreen.PDF_VIEWER
+                            }
+                        )
+                        AppScreen.VISUAL_LEARNING -> com.example.ui.VisualLearningScreen(
+                            onNavigateBack = {
+                                currentScreen = AppScreen.LEARNING_HUB
+                            }
+                        )
+                        AppScreen.LIBRARY -> LibraryScreen(
+                            onNavigateBack = {
+                                currentScreen = AppScreen.LEARNING_HUB
+                            },
+                            onBookClick = { book ->
+                                selectedPdfTitle = book.title
+                                selectedPdfSubject = "Library"
+                                recordRecentTopic(book.title, "Library", null)
+                                previousScreen = AppScreen.LIBRARY
+                                currentScreen = AppScreen.PDF_VIEWER
+                            }
+                        )
+                        AppScreen.STUDY_MATERIAL -> StudyMaterialScreen(
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB },
+                            onCategoryClick = { category -> currentScreen = category.screen }
+                        )
+                        AppScreen.REVISION_NOTES -> StudyMaterialListScreen(
+                            category = StudyMaterialCategory.REVISION,
+                            onNavigateBack = { currentScreen = AppScreen.STUDY_MATERIAL },
+                            onResourceClick = { resource ->
+                                selectedPdfTitle = resource.title
+                                selectedPdfSubject = "Revision Notes"
+                                recordRecentTopic(resource.title, "Revision Notes", null)
+                                previousScreen = AppScreen.REVISION_NOTES
+                                currentScreen = AppScreen.PDF_VIEWER
+                            }
+                        )
+                        AppScreen.EXAM_PAPERS -> StudyMaterialListScreen(
+                            category = StudyMaterialCategory.PAPERS,
+                            onNavigateBack = { currentScreen = AppScreen.STUDY_MATERIAL },
+                            onResourceClick = { resource ->
+                                selectedPdfTitle = resource.title
+                                selectedPdfSubject = "Exam Papers"
+                                recordRecentTopic(resource.title, "Exam Papers", null)
+                                previousScreen = AppScreen.EXAM_PAPERS
+                                currentScreen = AppScreen.PDF_VIEWER
+                            }
+                        )
+                        AppScreen.TOPIC_GUIDES -> StudyMaterialListScreen(
+                            category = StudyMaterialCategory.GUIDES,
+                            onNavigateBack = { currentScreen = AppScreen.STUDY_MATERIAL },
+                            onResourceClick = { resource ->
+                                selectedPdfTitle = resource.title
+                                selectedPdfSubject = "Topic Guides"
+                                recordRecentTopic(resource.title, "Topic Guides", null)
+                                previousScreen = AppScreen.TOPIC_GUIDES
+                                currentScreen = AppScreen.PDF_VIEWER
+                            }
+                        )
+                        AppScreen.LEARNING_RESOURCES -> StudyMaterialListScreen(
+                            category = StudyMaterialCategory.RESOURCES,
+                            onNavigateBack = { currentScreen = AppScreen.STUDY_MATERIAL },
+                            onResourceClick = { resource ->
+                                selectedPdfTitle = resource.title
+                                selectedPdfSubject = "Learning Resources"
+                                recordRecentTopic(resource.title, "Learning Resources", null)
+                                previousScreen = AppScreen.LEARNING_RESOURCES
+                                currentScreen = AppScreen.PDF_VIEWER
+                            }
+                        )
+                        AppScreen.REVISION -> RevisionSubjectsScreen(
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB },
+                            onSubjectClick = { subject ->
+                                selectedSubjectName = subject.name
+                                previousScreen = AppScreen.REVISION
+                                currentScreen = AppScreen.SUBJECT_REVISION
+                            }
+                        )
+                        AppScreen.SUBJECT_REVISION -> SubjectRevisionScreen(
+                            subjectName = selectedSubjectName,
+                            onNavigateBack = { currentScreen = AppScreen.REVISION }
+                        )
+                        AppScreen.QUIZZES_HOME -> com.example.ui.quiz.QuizzesHomeScreen(
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB },
+                            onSubjectClick = { subject ->
+                                selectedQuizSubject = subject.name
+                                currentScreen = AppScreen.SUBJECT_QUIZZES
+                            }
+                        )
+                        AppScreen.SUBJECT_QUIZZES -> com.example.ui.quiz.SubjectQuizzesScreen(
+                            subjectName = selectedQuizSubject,
+                            onNavigateBack = { currentScreen = AppScreen.QUIZZES_HOME },
+                            onQuizClick = { quiz ->
+                                selectedQuiz = quiz
+                                currentScreen = AppScreen.QUIZ_INSTRUCTIONS
+                            }
+                        )
+                        AppScreen.QUIZ_INSTRUCTIONS -> {
+                            val activeQuiz = selectedQuiz ?: com.example.data.DefaultApprovedQuizzes.first()
+                            com.example.ui.quiz.QuizInstructionsScreen(
+                                quiz = activeQuiz,
+                                onNavigateBack = { currentScreen = AppScreen.SUBJECT_QUIZZES },
+                                onStartQuiz = { currentScreen = AppScreen.QUIZ_TAKING }
+                            )
+                        }
+                        AppScreen.QUIZ_TAKING -> {
+                            val activeQuiz = selectedQuiz ?: com.example.data.DefaultApprovedQuizzes.first()
+                            com.example.ui.quiz.QuizTakingScreen(
+                                quiz = activeQuiz,
+                                onNavigateBack = { currentScreen = AppScreen.QUIZ_INSTRUCTIONS },
+                                onQuizCompleted = { score, total, answers ->
+                                    activeQuizScore = score
+                                    activeQuizTotal = total
+                                    activeQuizUserAnswers = answers
+                                    currentScreen = AppScreen.QUIZ_RESULTS
+                                }
+                            )
+                        }
+                        AppScreen.QUIZ_RESULTS -> {
+                            val activeQuiz = selectedQuiz ?: com.example.data.DefaultApprovedQuizzes.first()
+                            com.example.ui.quiz.QuizResultsScreen(
+                                quiz = activeQuiz,
+                                score = activeQuizScore,
+                                totalQuestions = activeQuizTotal,
+                                userAnswers = activeQuizUserAnswers,
+                                onRetryQuiz = { currentScreen = AppScreen.QUIZ_TAKING },
+                                onBackToQuizzes = { currentScreen = AppScreen.SUBJECT_QUIZZES }
+                            )
+                        }
                         AppScreen.ACCOUNT -> {
                             val savedEmail = prefs.getString("user_email", "")?.trim().orEmpty()
                             AccountScreen(
@@ -1422,6 +1651,9 @@ class MainActivity : ComponentActivity() {
                                     if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
                                         currentScreen = AppScreen.TEACHER_LIVE_CLASSES
                                     }
+                                },
+                                onNavigateToLearningHub = {
+                                    currentScreen = AppScreen.LEARNING_HUB
                                 },
                                 onCreateLiveClassClick = {
                                     if (com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
@@ -1739,7 +1971,8 @@ class MainActivity : ComponentActivity() {
                                 isLoggedInState = false
                                 coroutineScope.launch { SupabaseRepository.revokeCurrentSession() }
                                 currentScreen = AppScreen.WELCOME
-                            }
+                            },
+                            onDeleteAccount = performAccountDeletion
                         )
                         AppScreen.TEACHER_ACCOUNT -> TeacherAccountScreen(
                             teacherName = teacherName,
@@ -1751,6 +1984,7 @@ class MainActivity : ComponentActivity() {
                             onSwitchToStudentView = {
                                 // Security: Cross-role switching is strictly disabled without authenticating
                             },
+                            onDeleteAccount = performAccountDeletion,
                             onArchiveAndStartAfresh = { newCode ->
                                 val oldCode = teacherIdCode
                                 teacherIdCode = newCode
