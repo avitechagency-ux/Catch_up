@@ -9,7 +9,9 @@ enum class VisualAspectRatio(val ratio: Float, val label: String) {
     RATIO_1_1(1.0f, "1:1 Square"),
     RATIO_4_5(0.8f, "4:5 Portrait"),
     RATIO_3_4(0.75f, "3:4 Tall"),
-    RATIO_16_9(16f / 9f, "16:9 Landscape")
+    RATIO_9_16(9f / 16f, "9:16 Portrait"),
+    RATIO_16_9(16f / 9f, "16:9 Landscape"),
+    RATIO_4_3(4f / 3f, "4:3 Landscape")
 }
 
 /**

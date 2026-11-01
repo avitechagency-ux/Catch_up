@@ -74,7 +74,8 @@ object AccountSecurityVault {
         AppScreen.ADMIN_TRANSACTIONS,
         AppScreen.ADMIN_SETTINGS,
         AppScreen.ADMIN_HEALTH,
-        AppScreen.ADMIN_LOGS
+        AppScreen.ADMIN_LOGS,
+        AppScreen.ADMIN_LEARNING_HUB_PORTAL
     )
 
     val COMMON_AUTHENTICATED_SCREENS: Set<AppScreen> = setOf(

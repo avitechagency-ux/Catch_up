@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.LocalLibrary
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.TrendingUp
@@ -256,6 +257,7 @@ fun AdminHomeScreen(
     onNavigateToAnalysis: () -> Unit = {},
     onNavigateToUsers: () -> Unit = {},
     onNavigateToMore: () -> Unit = {},
+    onNavigateToLearningHubPortal: () -> Unit = {},
     onSwitchToStudentView: () -> Unit = {},
     onSwitchToTeacherView: () -> Unit = {},
     unreadNotificationCount: Int = 0,
@@ -775,7 +777,83 @@ fun AdminHomeScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // ------------------------------------------
-                    // SECTION 4 — Plans & Transactions (Colored Pill Buttons)
+                    // SECTION 4 — Learning Hub Management
+                    // ------------------------------------------
+                    Text(
+                        text = "Learning Hub",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextMuted
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(84.dp)
+                            .shadow(
+                                elevation = 4.dp,
+                                shape = RoundedCornerShape(18.dp),
+                                ambientColor = com.example.ui.theme.AmberTile.copy(alpha = 0.35f),
+                                spotColor = Color(0x22000000)
+                            )
+                            .clip(RoundedCornerShape(18.dp))
+                            .clickable(onClick = onNavigateToLearningHubPortal)
+                            .testTag("admin_learning_hub_portal_card"),
+                        shape = RoundedCornerShape(18.dp),
+                        color = com.example.ui.theme.AmberTile
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color.White.copy(alpha = 0.20f),
+                                    modifier = Modifier.size(46.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.LocalLibrary,
+                                            contentDescription = "Learning Hub",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column {
+                                    Text(
+                                        text = "Learning Hub Portal",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = "Manage library, notes & revision materials",
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(alpha = 0.85f)
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                                contentDescription = "Open Portal",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    // ------------------------------------------
+                    // SECTION 5 — Plans & Transactions (Colored Pill Buttons)
                     // Filled pill shapes, 52dp height, bold white text & icons (NOT white cards)
                     // ------------------------------------------
                     Row(

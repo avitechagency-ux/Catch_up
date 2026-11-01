@@ -1,19 +1,17 @@
 package com.example.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,49 +19,37 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.items
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.Lightbulb
-import androidx.compose.material.icons.outlined.MenuBook
-import androidx.compose.material.icons.outlined.School
-import androidx.compose.material.icons.outlined.SwipeLeft
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -71,46 +57,43 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.example.data.VisualLearningArticle
+import com.example.data.VisualAspectRatio
 import com.example.data.VisualLearningItem
 import com.example.data.VisualLearningRepository
-import com.example.ui.theme.BorderGrey
-import com.example.ui.theme.DeepMaroon
-import com.example.ui.theme.GoldMustard
-import com.example.ui.theme.SoftPastelBackground
-import com.example.ui.theme.TextDark
-import com.example.ui.theme.TextMuted
+import com.example.ui.theme.IndigoPurple
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Main Cachap Visual Learning Screen.
- * Implements:
- * 1. Deep maroon top header with back navigation and title.
- * 2. Compact horizontal subject filter row (All, Biology, Physics, Chemistry, etc.).
- * 3. Pinterest-inspired two-column masonry discovery feed with variable aspect ratios (1:1, 4:5, 3:4, 16:9).
- * 4. Immersive full-screen image viewer on tap.
- * 5. Fluid horizontal swipe from image to connected educational article.
- * 6. Preserved scroll positions and filter states during navigation.
+ * Redesigned Cachap Visual Learning Screen.
+ * Implements an immersive educational image discovery platform with top hero header,
+ * category chips, sticky floating search bar, perfectly balanced aspect-ratio grid arrangements,
+ * and a beautifully designed immersive viewer with topic search and title overlay.
  */
 @Composable
 fun VisualLearningScreen(
-    modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -118,85 +101,169 @@ fun VisualLearningScreen(
         VisualLearningRepository.initialize(context)
     }
 
+    var searchQuery by remember { mutableStateOf("") }
     var selectedSubject by remember { mutableStateOf("All") }
-    var selectedVisualItem by remember { mutableStateOf<VisualLearningItem?>(null) }
-    val feedGridState = rememberLazyStaggeredGridState()
-
+    var isSearchActive by remember { mutableStateOf(false) }
+    var selectedItemIndex by remember { mutableIntStateOf(-1) }
+    
     val availableSubjects = remember { VisualLearningRepository.getAvailableSubjects() }
-    val approvedVisuals = remember(selectedSubject) {
-        VisualLearningRepository.getApprovedVisuals(selectedSubject)
+
+    val approvedVisuals = remember(searchQuery, selectedSubject) {
+        val results = if (searchQuery.isBlank()) {
+            VisualLearningRepository.getApprovedVisuals(selectedSubject)
+        } else {
+            VisualLearningRepository.searchApprovedVisuals(searchQuery).filter {
+                selectedSubject.equals("All", ignoreCase = true) || it.subject.equals(selectedSubject, ignoreCase = true)
+            }
+        }
+        results
     }
 
-    // When an immersive viewer is active, show the dual image/article pager
-    if (selectedVisualItem != null) {
-        ImmersiveVisualViewer(
-            item = selectedVisualItem!!,
-            onClose = { selectedVisualItem = null }
-        )
-    } else {
-        BackHandler {
-            onNavigateBack()
+    val galleryState = rememberLazyListState()
+
+    Box(modifier = Modifier.fillMaxSize().background(IndigoPurple)) {
+        if (selectedItemIndex == -1) {
+            VisualLearningGalleryWithStickyHeader(
+                items = approvedVisuals,
+                listState = galleryState,
+                searchQuery = searchQuery,
+                onSearchQueryChange = { searchQuery = it },
+                selectedSubject = selectedSubject,
+                onSelectSubject = { selectedSubject = it },
+                availableSubjects = availableSubjects,
+                onBackClick = onNavigateBack,
+                onItemClick = { item ->
+                    selectedItemIndex = approvedVisuals.indexOf(item)
+                }
+            )
+            
+            BackHandler {
+                if (!selectedSubject.equals("All", ignoreCase = true)) {
+                    selectedSubject = "All"
+                } else if (searchQuery.isNotEmpty()) {
+                    searchQuery = ""
+                } else {
+                    onNavigateBack()
+                }
+            }
+        } else {
+            VisualLearningImmersiveViewer(
+                items = approvedVisuals,
+                initialIndex = selectedItemIndex,
+                onClose = { selectedItemIndex = -1 }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun VisualLearningGalleryWithStickyHeader(
+    items: List<VisualLearningItem>,
+    listState: LazyListState,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    selectedSubject: String,
+    onSelectSubject: (String) -> Unit,
+    availableSubjects: List<String>,
+    onBackClick: () -> Unit,
+    onItemClick: (VisualLearningItem) -> Unit
+) {
+    val groupedItems = remember(items) {
+        val rows = mutableListOf<GalleryRow>()
+        val queue = items.toMutableList()
+        
+        while (queue.isNotEmpty()) {
+            val item = queue[0]
+            if (item.aspectRatio == VisualAspectRatio.RATIO_1_1 || item.aspectRatio == VisualAspectRatio.RATIO_16_9) {
+                rows.add(GalleryRow.FullWidth(item))
+                queue.removeAt(0)
+                continue
+            }
+            
+            val matchIndex = queue.drop(1).indexOfFirst { it.aspectRatio == item.aspectRatio }
+            if (matchIndex != -1) {
+                val matchItem = queue.removeAt(matchIndex + 1)
+                queue.removeAt(0)
+                rows.add(GalleryRow.TwoEqual(item, matchItem))
+            } else {
+                rows.add(GalleryRow.FullWidth(item))
+                queue.removeAt(0)
+            }
+        }
+        rows
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("visual_gallery_list"),
+        contentPadding = PaddingValues(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item(key = "hero") {
+            VisualLearningHeroSection(
+                selectedSubject = selectedSubject,
+                onSelectSubject = onSelectSubject,
+                availableSubjects = availableSubjects,
+                onBackClick = onBackClick
+            )
         }
 
-        Scaffold(
-            modifier = modifier
-                .fillMaxSize()
-                .background(SoftPastelBackground)
-                .testTag("visual_learning_screen"),
-            containerColor = SoftPastelBackground,
-            contentWindowInsets = WindowInsets(0, 0, 0, 0)
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                // 1. TOP HEADER (Deep Maroon Brand Bar)
-                VisualLearningTopHeader(
-                    onBackClick = onNavigateBack
-                )
+        stickyHeader(key = "sticky_search_bar") {
+            VisualLearningStickySearchBar(
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange
+            )
+        }
 
-                // 2. HORIZONTAL SUBJECT FILTER ROW
-                VisualLearningSubjectFilters(
-                    subjects = availableSubjects,
-                    selectedSubject = selectedSubject,
-                    onSelectSubject = { subject ->
-                        selectedSubject = subject
-                    }
-                )
+        item(key = "feed_subtitle_header") {
+            Text(
+                text = "Explore",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            )
+        }
 
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // 3. PINTEREST-INSPIRED TWO-COLUMN MASONRY FEED
-                if (approvedVisuals.isEmpty()) {
-                    VisualLearningEmptyState(
-                        subject = selectedSubject,
-                        onResetFilter = { selectedSubject = "All" }
-                    )
-                } else {
-                    LazyVerticalStaggeredGrid(
-                        columns = StaggeredGridCells.Fixed(2),
-                        state = feedGridState,
+        items(groupedItems, key = { row -> 
+            when (row) {
+                is GalleryRow.FullWidth -> row.item.id
+                is GalleryRow.TwoEqual -> "${row.item1.id}_${row.item2.id}"
+            }
+        }) { row ->
+            when (row) {
+                is GalleryRow.FullWidth -> {
+                    GalleryItem(
+                        item = row.item,
+                        ratio = row.item.aspectRatio.ratio,
                         modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("visual_learning_grid"),
-                        contentPadding = PaddingValues(
-                            start = 14.dp,
-                            end = 14.dp,
-                            top = 8.dp,
-                            bottom = 32.dp
-                        ),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalItemSpacing = 12.dp
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        onClick = { onItemClick(row.item) }
+                    )
+                }
+                is GalleryRow.TwoEqual -> {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(approvedVisuals, key = { it.id }) { item ->
-                            VisualLearningCard(
-                                item = item,
-                                onClick = {
-                                    selectedVisualItem = item
-                                }
-                            )
-                        }
+                        GalleryItem(
+                            item = row.item1,
+                            ratio = row.item1.aspectRatio.ratio,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onItemClick(row.item1) }
+                        )
+                        GalleryItem(
+                            item = row.item2,
+                            ratio = row.item2.aspectRatio.ratio,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onItemClick(row.item2) }
+                        )
                     }
                 }
             }
@@ -204,136 +271,76 @@ fun VisualLearningScreen(
     }
 }
 
-/**
- * Top Header bar following Cachap deep maroon styling.
- */
 @Composable
-fun VisualLearningTopHeader(
+fun VisualLearningHeroSection(
+    selectedSubject: String,
+    onSelectSubject: (String) -> Unit,
+    availableSubjects: List<String>,
     onBackClick: () -> Unit
 ) {
-    Surface(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(4.dp),
-        color = DeepMaroon,
-        tonalElevation = 2.dp
+            .background(
+                color = IndigoPurple,
+                shape = RoundedCornerShape(
+                    bottomStart = 28.dp,
+                    bottomEnd = 28.dp
+                )
+            )
+            .statusBarsPadding()
+            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 20.dp)
     ) {
-        Column(
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .testTag("btn_visual_learning_back")
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Color.White
+                )
+            }
+
+            Text(
+                text = "Cachap",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                modifier = Modifier.testTag("cachap_wordmark")
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val scrollState = rememberScrollState()
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 10.dp)
+                .horizontalScroll(scrollState),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = onBackClick,
-                    modifier = Modifier.testTag("btn_visual_learning_back")
+            availableSubjects.forEach { subject ->
+                val isSelected = subject.equals(selectedSubject, ignoreCase = true)
+                Surface(
+                    onClick = { onSelectSubject(subject) },
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSelected) Color(0xFFFFB300) else Color(0xFFDC8CC0).copy(alpha = 0.35f),
+                    border = BorderStroke(1.dp, if (isSelected) Color(0xFFFFB300) else Color(0xFFDC8CC0)),
+                    modifier = Modifier.testTag("chip_$subject")
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = "Back to Learning Hub",
-                        tint = Color.White
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Visual Learning",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.testTag("visual_learning_title")
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = GoldMustard.copy(alpha = 0.25f),
-                            border = BorderStroke(1.dp, GoldMustard.copy(alpha = 0.6f))
-                        ) {
-                            Text(
-                                text = "Discovery",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = GoldMustard,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = "Browse curriculum diagrams & swipe left to explore",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.82f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Compact horizontal subject filter row.
- * Selected chip uses Deep Maroon with white text and gold border.
- */
-@Composable
-fun VisualLearningSubjectFilters(
-    subjects: List<String>,
-    selectedSubject: String,
-    onSelectSubject: (String) -> Unit
-) {
-    val scrollState = rememberScrollState()
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scrollState)
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-            .testTag("visual_subject_filters"),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        subjects.forEach { subject ->
-            val isSelected = subject.equals(selectedSubject, ignoreCase = true)
-            val backgroundColor = if (isSelected) DeepMaroon else Color.White
-            val textColor = if (isSelected) Color.White else TextDark
-            val borderColor = if (isSelected) GoldMustard else BorderGrey
-
-            Surface(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .clickable { onSelectSubject(subject) }
-                    .testTag("filter_chip_$subject"),
-                shape = RoundedCornerShape(20.dp),
-                color = backgroundColor,
-                border = BorderStroke(1.dp, borderColor),
-                shadowElevation = if (isSelected) 3.dp else 1.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Outlined.AutoAwesome,
-                            contentDescription = null,
-                            tint = GoldMustard,
-                            modifier = Modifier
-                                .size(14.dp)
-                                .padding(end = 4.dp)
-                        )
-                    }
                     Text(
                         text = subject,
                         fontSize = 13.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = textColor
+                        color = if (isSelected) Color(0xFF1A1A1A) else Color.White,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
                     )
                 }
             }
@@ -341,903 +348,371 @@ fun VisualLearningSubjectFilters(
     }
 }
 
-/**
- * Single Pinterest-style visual card in the discovery masonry feed.
- * Respects source image's aspect ratio (1:1, 4:5, 3:4, 16:9), renders a bottom gradient overlay
- * with clear readable title and subject pill.
- */
 @Composable
-fun VisualLearningCard(
-    item: VisualLearningItem,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+fun VisualLearningStickySearchBar(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit
 ) {
-    Surface(
-        modifier = modifier
+    Box(
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .testTag("visual_card_${item.id}"),
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White,
-        shadowElevation = 3.dp,
-        border = BorderStroke(1.dp, Color(0xFFEFECE9))
+            .background(Color.Transparent)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(item.aspectRatio.ratio)
-        ) {
-            // 1. IMAGE CONTENT
-            if (item.drawableResId != null) {
-                Image(
-                    painter = painterResource(id = item.drawableResId),
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else if (!item.imageUrl.isNullOrBlank()) {
-                val context = LocalContext.current
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(item.imageUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else {
-                // Safe Fallback Container
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF2C243B)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Image,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.5f),
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
-            }
-
-            // 2. GRADIENT OVERLAY (Subtle dark scrim at bottom for readability)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.55f)
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color(0x66000000),
-                                Color(0xCC000000)
-                            )
-                        )
-                    )
-            )
-
-            // 3. TITLE & SUBJECT BADGE OVERLAY
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomStart)
-                    .padding(10.dp)
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = DeepMaroon.copy(alpha = 0.9f),
-                    border = BorderStroke(0.5.dp, GoldMustard.copy(alpha = 0.8f))
-                ) {
-                    Text(
-                        text = item.subject,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = item.title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.testTag("card_title_${item.id}")
-                )
-            }
-        }
-    }
-}
-
-/**
- * Immersive Image Viewer & Connected Article Screen.
- * Uses HorizontalPager with 2 pages:
- * Page 0: Full-focus Immersive Image with dark background and gesture hint.
- * Page 1: Structured Educational Article connected directly to this visual.
- * Swiping left on image reveals article; swiping right on article returns to image.
- */
-@Composable
-fun ImmersiveVisualViewer(
-    item: VisualLearningItem,
-    onClose: () -> Unit
-) {
-    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 2 })
-    val coroutineScope = rememberCoroutineScope()
-
-    // Handle back button: if in article (page 1), return to image (page 0); if in image, close viewer.
-    BackHandler {
-        if (pagerState.currentPage == 1) {
-            coroutineScope.launch {
-                pagerState.animateScrollToPage(0)
-            }
-        } else {
-            onClose()
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .testTag("immersive_viewer_root")
-    ) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-            beyondViewportPageCount = 1
-        ) { pageIndex ->
-            when (pageIndex) {
-                0 -> ImmersiveImagePage(
-                    item = item,
-                    onClose = onClose,
-                    onNavigateToArticle = {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(1)
-                        }
-                    }
-                )
-                1 -> ConnectedArticlePage(
-                    item = item,
-                    onNavigateBackToImage = {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(0)
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
-/**
- * Page 0: The Immersive Image Viewer.
- * Preserves complete image without cropping, respects original aspect ratio,
- * shows title near bottom, provides an unobtrusive close button, and a subtle
- * "Swipe left to explore" indicator.
- */
-@Composable
-fun ImmersiveImagePage(
-    item: VisualLearningItem,
-    onClose: () -> Unit,
-    onNavigateToArticle: () -> Unit
-) {
-    val context = LocalContext.current
-    var showHint by remember { mutableStateOf(true) }
-
-    // Subtle horizontal bobbing animation for the swipe hint
-    val hintOffset = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        hintOffset.animateTo(
-            targetValue = -12f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 800, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            )
-        )
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0xFF0F0E13))
-            .testTag("immersive_image_page")
-    ) {
-        // 1. FULL-FOCUS EDUCATIONAL VISUAL (Fitted cleanly without cropping)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 70.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            if (item.drawableResId != null) {
-                Image(
-                    painter = painterResource(id = item.drawableResId),
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("immersive_image_view")
-                )
-            } else if (!item.imageUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(item.imageUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("immersive_image_view")
-                )
-            } else {
-                Text(
-                    text = "Educational visual preview unavailable",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 14.sp
-                )
-            }
-        }
-
-        // 2. UNOBTRUSIVE TOP BAR (Close Button & Page Indicator)
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .fillMaxWidth(0.95f)
+                .height(44.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color.White) // White search bar pill
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                shape = CircleShape,
-                color = Color.Black.copy(alpha = 0.65f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
-                modifier = Modifier.size(42.dp)
-            ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = Color.Black,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            BasicTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("sticky_search_input"),
+                textStyle = TextStyle(fontSize = 14.sp, color = Color.Black, fontWeight = FontWeight.Medium),
+                cursorBrush = SolidColor(Color.Black),
+                singleLine = true,
+                decorationBox = { innerTextField ->
+                    if (searchQuery.isEmpty()) {
+                        Text("Search by topic, subject or concept...", color = Color.Gray, fontSize = 13.sp, fontWeight = FontWeight.Normal)
+                    }
+                    innerTextField()
+                }
+            )
+            if (searchQuery.isNotEmpty()) {
                 IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.testTag("btn_close_viewer")
+                    onClick = { onSearchQueryChange("") },
+                    modifier = Modifier.size(24.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Close,
-                        contentDescription = "Close Viewer",
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp)
+                        contentDescription = "Clear",
+                        tint = Color.Black,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
+        }
+    }
+}
 
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color.Black.copy(alpha = 0.65f),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f))
-            ) {
-                Text(
-                    text = "1 of 2 • Visual",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.9f),
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                )
-            }
+sealed class GalleryRow {
+    data class FullWidth(val item: VisualLearningItem) : GalleryRow()
+    data class TwoEqual(val item1: VisualLearningItem, val item2: VisualLearningItem) : GalleryRow()
+}
+
+@Composable
+fun GalleryItem(
+    item: VisualLearningItem,
+    ratio: Float,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .aspectRatio(ratio)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.1f))
+            .clickable(onClick = onClick)
+            .testTag("gallery_item_${item.id}")
+    ) {
+        val context = LocalContext.current
+        if (item.drawableResId != null) {
+            Image(
+                painter = painterResource(id = item.drawableResId),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (!item.imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(item.imageUrl)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
         }
 
-        // 3. BOTTOM SCRIM OVERLAY (Title, Subject, and Interactive Swipe Hint)
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            Color(0xAA000000),
-                            Color(0xF5000000)
-                        )
+                        colors = listOf(Color.Transparent, Color(0xAA000000))
                     )
                 )
-                .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .padding(10.dp)
+        ) {
+            Column {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = Color(0xFFFFB300)
+                ) {
+                    Text(
+                        text = item.subject,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1A1A1A),
+                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = item.title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun VisualLearningImmersiveViewer(
+    items: List<VisualLearningItem>,
+    initialIndex: Int,
+    onClose: () -> Unit
+) {
+    val pagerState = rememberPagerState(initialPage = initialIndex, pageCount = { items.size })
+    val coroutineScope = rememberCoroutineScope()
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize().testTag("immersive_vertical_pager")
+        ) { index ->
+            ImmersiveViewItem(
+                item = items[index],
+                onClose = onClose
+            )
+        }
+        
+        BackHandler {
+            onClose()
+        }
+    }
+}
+
+@Composable
+fun ImmersiveViewItem(
+    item: VisualLearningItem,
+    onClose: () -> Unit
+) {
+    var isInfoVisible by remember { mutableStateOf(false) }
+    val horizontalOffset = remember { Animatable(0f) }
+    val screenWidth = with(LocalDensity.current) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
+    val coroutineScope = rememberCoroutineScope()
+
+    val draggableState = rememberDraggableState { delta ->
+        coroutineScope.launch {
+            val newOffset = horizontalOffset.value + delta
+            if (!isInfoVisible && newOffset <= 0) {
+                horizontalOffset.snapTo(newOffset)
+            } else if (isInfoVisible && newOffset >= -screenWidth) {
+                horizontalOffset.snapTo(newOffset)
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .draggable(
+                state = draggableState,
+                orientation = Orientation.Horizontal,
+                onDragStopped = { velocity ->
+                    coroutineScope.launch {
+                        if (!isInfoVisible) {
+                            if (horizontalOffset.value < -screenWidth / 4 || velocity < -500f) {
+                                horizontalOffset.animateTo(-screenWidth, spring(stiffness = Spring.StiffnessLow))
+                                isInfoVisible = true
+                            } else {
+                                horizontalOffset.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
+                            }
+                        } else {
+                            if (horizontalOffset.value > -screenWidth * 0.75f || velocity > 500f) {
+                                horizontalOffset.animateTo(0f, spring(stiffness = Spring.StiffnessLow))
+                                isInfoVisible = false
+                            } else {
+                                horizontalOffset.animateTo(-screenWidth, spring(stiffness = Spring.StiffnessLow))
+                            }
+                        }
+                    }
+                }
+            )
+    ) {
+        // Background Image
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    val progress = abs(horizontalOffset.value) / screenWidth
+                    scaleX = 1f - (progress * 0.1f)
+                    scaleY = 1f - (progress * 0.1f)
+                    alpha = 1f - (progress * 0.3f)
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            val context = LocalContext.current
+            if (item.drawableResId != null) {
+                Image(
+                    painter = painterResource(id = item.drawableResId),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else if (!item.imageUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(item.imageUrl)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+
+        // Top Overlay (Topic Search Bar & Title)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xCC000000), Color.Transparent)
+                    )
+                )
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = DeepMaroon,
-                    border = BorderStroke(1.dp, GoldMustard)
+                // Topic Search Bar
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color.White.copy(alpha = 0.2f))
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "${item.subject} • ${item.targetClass}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        text = "Topic: ${item.subject}",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.9f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // SUBTLE HINT: Swipe left to explore
-                AnimatedVisibility(
-                    visible = showHint,
-                    enter = fadeIn(),
-                    exit = fadeOut()
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Close Button
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .testTag("btn_close_viewer")
                 ) {
-                    Surface(
-                        modifier = Modifier
-                            .offset { IntOffset(x = hintOffset.value.roundToInt(), y = 0) }
-                            .clip(RoundedCornerShape(20.dp))
-                            .clickable(onClick = onNavigateToArticle)
-                            .testTag("hint_swipe_left"),
-                        shape = RoundedCornerShape(20.dp),
-                        color = GoldMustard,
-                        shadowElevation = 4.dp
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Swipe left to explore",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = DeepMaroon
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
-                                contentDescription = null,
-                                tint = DeepMaroon,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = "Close",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
+            // Title below search bar
             Text(
                 text = item.title,
-                fontSize = 20.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
-                lineHeight = 26.sp,
-                modifier = Modifier.testTag("immersive_title")
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Author: ${item.author}",
-                fontSize = 12.sp,
-                color = Color.White.copy(alpha = 0.7f)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 4.dp)
             )
         }
-    }
-}
 
-/**
- * Page 1: The Connected Educational Article.
- * Beautifully formatted for comfortable reading on a phone, with introduction,
- * structured subheadings, concise paragraphs, key facts callout, and UNEB tips.
- * Allows independent vertical scrolling without triggering accidental horizontal navigation.
- */
-@Composable
-fun ConnectedArticlePage(
-    item: VisualLearningItem,
-    onNavigateBackToImage: () -> Unit
-) {
-    val scrollState = rememberScrollState()
-    val article = item.article
-
-    Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("connected_article_page"),
-        containerColor = SoftPastelBackground,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0)
-    ) { paddingValues ->
-        Column(
+        // Information Card (1:1 White Square)
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .offset { IntOffset(horizontalOffset.value.roundToInt() + screenWidth.roundToInt(), 0) }
+                .graphicsLayer {
+                    val progress = (horizontalOffset.value + screenWidth) / screenWidth
+                    rotationY = -15f * (1f - progress)
+                    cameraDistance = 12f * density
+                    shadowElevation = 8f * progress
+                }
+                .zIndex(1f),
+            contentAlignment = Alignment.Center
         ) {
-            // TOP BAR (Back to Image button & Article Indicator)
             Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = DeepMaroon,
-                shadowElevation = 3.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(18.dp))
-                            .clickable(onClick = onNavigateBackToImage)
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = "Back to Image",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Back to Visual",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = GoldMustard.copy(alpha = 0.25f),
-                        border = BorderStroke(1.dp, GoldMustard.copy(alpha = 0.6f))
-                    ) {
-                        Text(
-                            text = "2 of 2 • Article",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GoldMustard,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            // VERTICAL SCROLLING ARTICLE CONTENT
-            Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(horizontal = 20.dp, vertical = 18.dp)
+                    .fillMaxWidth(0.85f)
+                    .aspectRatio(1f)
+                    .testTag("info_card"),
+                color = Color.White,
+                shape = RoundedCornerShape(8.dp),
+                shadowElevation = 8.dp
             ) {
-                // SUBJECT & CLASS BADGES
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = DeepMaroon.copy(alpha = 0.1f),
-                        border = BorderStroke(1.dp, DeepMaroon.copy(alpha = 0.3f))
-                    ) {
-                        Text(
-                            text = item.subject,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DeepMaroon,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFF1F5F9),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                    ) {
-                        Text(
-                            text = item.targetClass,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextDark,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // ARTICLE TITLE
-                Text(
-                    text = article.title,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DeepMaroon,
-                    lineHeight = 28.sp,
-                    modifier = Modifier.testTag("article_title")
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Prepared by ${item.author} • Updated ${item.date}",
-                    fontSize = 12.sp,
-                    color = TextMuted
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // MINI DIAGRAM PREVIEW BANNER
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable(onClick = onNavigateBackToImage),
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color.Black
-                ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        if (item.drawableResId != null) {
-                            Image(
-                                painter = painterResource(id = item.drawableResId),
-                                contentDescription = item.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else if (!item.imageUrl.isNullOrBlank()) {
-                            val context = LocalContext.current
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(item.imageUrl)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = item.title,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-
-                        // Gradient banner overlay with tap instruction
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color.Transparent,
-                                            Color(0xB3000000)
-                                        )
-                                    )
-                                ),
-                            contentAlignment = Alignment.BottomStart
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.MenuBook,
-                                    contentDescription = null,
-                                    tint = GoldMustard,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Connected diagram • Tap to view full size",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // CONCISE INTRODUCTION
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color.White,
-                    border = BorderStroke(1.dp, Color(0xFFEAE7E4)),
-                    shadowElevation = 1.dp
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = article.introduction,
-                        fontSize = 15.sp,
-                        lineHeight = 23.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = TextDark,
-                        modifier = Modifier
-                            .padding(16.dp)
-                            .testTag("article_introduction")
+                        text = item.article.title,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        textAlign = TextAlign.Center
                     )
-                }
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // KEY FACTS / SUMMARY HIGHLIGHT CARD
-                if (article.keyFacts.isNotEmpty()) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFFFFFBEB), // Warm yellow/gold tint
-                        border = BorderStroke(1.dp, GoldMustard.copy(alpha = 0.5f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Lightbulb,
-                                    contentDescription = null,
-                                    tint = DeepMaroon,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Core Takeaways",
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = DeepMaroon
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            article.keyFacts.forEach { fact ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 3.dp),
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Text(
-                                        text = "•",
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = GoldMustard,
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    )
-                                    Text(
-                                        text = fact,
-                                        fontSize = 13.sp,
-                                        lineHeight = 19.sp,
-                                        color = TextDark
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
-
-                // STRUCTURED ARTICLE SECTIONS
-                article.sections.forEach { section ->
-                    ArticleSectionBlock(section = section)
                     Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                // CURRICULUM EXAMINATION TIP
-                if (!article.curriculumTip.isNullOrBlank()) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        color = DeepMaroon.copy(alpha = 0.06f),
-                        border = BorderStroke(1.dp, DeepMaroon.copy(alpha = 0.2f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.School,
-                                contentDescription = null,
-                                tint = DeepMaroon,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .padding(top = 2.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "Curriculum Tip",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = DeepMaroon
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = article.curriculumTip,
-                                    fontSize = 13.sp,
-                                    lineHeight = 19.sp,
-                                    color = TextDark
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(18.dp))
-                }
-
-                // BOTTOM SWIPE RIGHT PROMPT
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(onClick = onNavigateBackToImage),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color.White,
-                    border = BorderStroke(1.dp, BorderGrey)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = null,
-                            tint = DeepMaroon,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Swipe right or tap to return to visual",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = DeepMaroon
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(36.dp))
-            }
-        }
-    }
-}
-
-/**
- * Single section in an educational article with bold heading, concise paragraphs, and bullet points.
- */
-@Composable
-fun ArticleSectionBlock(
-    section: com.example.data.ArticleSection
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, Color(0xFFEAE7E4)),
-        shadowElevation = 1.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            Text(
-                text = section.heading,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = DeepMaroon
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = section.body,
-                fontSize = 14.sp,
-                lineHeight = 22.sp,
-                color = TextDark
-            )
-
-            if (section.keyPoints.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(10.dp))
-                section.keyPoints.forEach { point ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text(
-                            text = "•",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = DeepMaroon,
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                        Text(
-                            text = point,
-                            fontSize = 13.sp,
-                            lineHeight = 19.sp,
-                            color = TextDark
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Empty state when a subject has no visuals or when no approved items exist.
- */
-@Composable
-fun VisualLearningEmptyState(
-    subject: String,
-    onResetFilter: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp),
-            color = Color.White,
-            border = BorderStroke(1.dp, BorderGrey),
-            shadowElevation = 2.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = SoftPastelBackground,
-                    border = BorderStroke(1.dp, GoldMustard.copy(alpha = 0.5f)),
-                    modifier = Modifier.size(64.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Outlined.AutoAwesome,
-                            contentDescription = null,
-                            tint = DeepMaroon,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = if (subject.equals("All", ignoreCase = true)) {
-                        "No Visuals Available Yet"
-                    } else {
-                        "No Visuals for $subject Yet"
-                    },
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Approved educational illustrations and diagrams for this subject will appear here once verified by curriculum instructors.",
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                    color = TextMuted,
-                    textAlign = TextAlign.Center
-                )
-
-                if (!subject.equals("All", ignoreCase = true)) {
-                    Spacer(modifier = Modifier.height(18.dp))
-                    Button(
-                        onClick = onResetFilter,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = DeepMaroon,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        Text(text = "View All Visuals", fontWeight = FontWeight.SemiBold)
-                    }
+                    Text(
+                        text = item.article.introduction,
+                        fontSize = 15.sp,
+                        color = Color.DarkGray,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 22.sp
+                    )
                 }
             }
         }

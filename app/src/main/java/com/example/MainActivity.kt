@@ -50,6 +50,7 @@ import com.example.ui.AdminAccountScreen
 import com.example.ui.AdminAnalysisScreen
 import com.example.ui.AdminHealthScreen
 import com.example.ui.AdminHomeScreen
+import com.example.ui.AdminLearningHubPortalScreen
 import com.example.ui.AdminLogsScreen
 import com.example.ui.AdminMoreScreen
 import com.example.ui.AdminPlaceholderScreen
@@ -182,7 +183,8 @@ enum class AppScreen {
     SUBJECT_QUIZZES,
     QUIZ_INSTRUCTIONS,
     QUIZ_TAKING,
-    QUIZ_RESULTS
+    QUIZ_RESULTS,
+    ADMIN_LEARNING_HUB_PORTAL
 }
 
 class MainActivity : ComponentActivity() {
@@ -2126,12 +2128,16 @@ class MainActivity : ComponentActivity() {
                             onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
                             onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
                             onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE },
+                            onNavigateToLearningHubPortal = { currentScreen = AppScreen.ADMIN_LEARNING_HUB_PORTAL },
                             onSwitchToStudentView = {
                                 // Security: Admin role isolation - direct switching disabled
                             },
                             onSwitchToTeacherView = {
                                 // Security: Admin role isolation - direct switching disabled
                             }
+                        )
+                        AppScreen.ADMIN_LEARNING_HUB_PORTAL -> AdminLearningHubPortalScreen(
+                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
                         )
                         AppScreen.ADMIN_ANALYSIS -> AdminAnalysisScreen(
                             onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME },

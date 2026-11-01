@@ -304,6 +304,131 @@ object VisualLearningRepository {
                 ),
                 curriculumTip = "UNEB Exam Tip: When discussing state formation, combine archaeological evidence (earthworks, pottery) with oral traditions for maximum marks."
             )
+        ),
+        VisualLearningItem(
+            id = "vis-art-02",
+            title = "Renaissance Artistic Perspectives & Linear Perspective",
+            subject = "Art",
+            targetClass = "S.4",
+            author = "Fine Art Department",
+            date = "28 Oct 2026",
+            drawableResId = R.drawable.img_cell_biology,
+            aspectRatio = VisualAspectRatio.RATIO_9_16,
+            article = VisualLearningArticle(
+                title = "Linear Perspective and Compositional Balance in Renaissance Art",
+                introduction = "Linear perspective revolutionized visual arts during the Renaissance by establishing a mathematical method for rendering three-dimensional space onto a two-dimensional surface using vanishing points and horizon lines.",
+                sections = listOf(
+                    ArticleSection(
+                        heading = "The Horizon Line & Vanishing Points",
+                        body = "All receding parallel orthogonals converge at a single or multiple vanishing points located on the eye-level horizon line, creating a profound illusion of spatial depth and realism.",
+                        keyPoints = listOf(
+                            "One-point perspective directs focus to a central focal point.",
+                            "Two-point perspective introduces diagonal depth angles."
+                        )
+                    )
+                ),
+                keyFacts = listOf("Filippo Brunelleschi formulated mathematical linear perspective in Florence around 1415.")
+            )
+        ),
+        VisualLearningItem(
+            id = "vis-chem-02",
+            title = "Organic Molecules & Functional Group Isomerism",
+            subject = "Chemistry",
+            targetClass = "S.4",
+            author = "Chemistry Curriculum Lead",
+            date = "28 Oct 2026",
+            drawableResId = R.drawable.img_chem_bonding,
+            aspectRatio = VisualAspectRatio.RATIO_4_3,
+            article = VisualLearningArticle(
+                title = "Hydrocarbon Skeletons and Functional Groups in Organic Chemistry",
+                introduction = "Organic chemistry centers on carbon's tetravalency and its ability to form stable covalent chains, rings, and complex functional group isomers.",
+                sections = listOf(
+                    ArticleSection(
+                        heading = "Alcohols, Carboxylic Acids & Esters",
+                        body = "Hydroxyl (-OH) groups characterize alcohols, conferring hydrogen bonding and elevated boiling points, while carboxyl groups characterize organic acids.",
+                        keyPoints = listOf(
+                            "Esterification produces pleasant fruity fragrances.",
+                            "Reflux apparatus is required during volatile organic synthesis."
+                        )
+                    )
+                ),
+                keyFacts = listOf("Isomers share molecular formulas but exhibit distinct structural arrangements and physical properties.")
+            )
+        ),
+        VisualLearningItem(
+            id = "vis-geo-02",
+            title = "Topographical Contour Mapping & Relief Features",
+            subject = "Geography",
+            targetClass = "S.3",
+            author = "Geography Senior Examiner",
+            date = "27 Oct 2026",
+            drawableResId = R.drawable.img_rift_valley,
+            aspectRatio = VisualAspectRatio.RATIO_4_3,
+            article = VisualLearningArticle(
+                title = "Topographical Map Interpretation: Contour Lines and Cross-Sections",
+                introduction = "Topographical maps represent three-dimensional terrain features on two-dimensional paper using contour lines—imaginary lines joining points of equal elevation above sea level.",
+                sections = listOf(
+                    ArticleSection(
+                        heading = "Gradient, Slopes & Landforms",
+                        body = "Closely spaced contours denote steep slopes (such as escarpments or cliffs), while widely spaced contours indicate gentle slopes or plains.",
+                        keyPoints = listOf(
+                            "V-shaped contours pointing uphill indicate river valleys.",
+                            "Concentric closed contours denote hills or mountain peaks."
+                        )
+                    )
+                ),
+                keyFacts = listOf("Cross-section profiles visualize relief elevation changes across a chosen transect line.")
+            )
+        ),
+        VisualLearningItem(
+            id = "vis-bio-02",
+            title = "Human Digestive System & Enzymatic Hydrolysis",
+            subject = "Biology",
+            targetClass = "S.3",
+            author = "Biology Department",
+            date = "27 Oct 2026",
+            drawableResId = R.drawable.img_cell_biology,
+            aspectRatio = VisualAspectRatio.RATIO_9_16,
+            article = VisualLearningArticle(
+                title = "Human Alimentary Canal and Enzymatic Digestion of Macromolecules",
+                introduction = "Digestion converts large insoluble food molecules into small soluble molecules capable of absorption across the epithelial lining of the small intestine into the bloodstream.",
+                sections = listOf(
+                    ArticleSection(
+                        heading = "Gastric & Pancreatic Phase",
+                        body = "Pepsin in the acidic gastric juice initiates protein breakdown, while pancreatic amylase, trypsin, and lipase complete carbohydrate, protein, and lipid digestion in the duodenum.",
+                        keyPoints = listOf(
+                            "Bile emulsifies dietary fats, increasing surface area for lipase action.",
+                            "Villi and microvilli in the ileum maximize nutrient absorption surface area."
+                        )
+                    )
+                ),
+                keyFacts = listOf("Enzymes function optimally at specific pH levels (pepsin at pH 2; trypsin at pH 8).")
+            )
+        ),
+        VisualLearningItem(
+            id = "vis-art-03",
+            title = "Sculptural Form & African Traditional Artifacts",
+            subject = "Art",
+            targetClass = "S.3",
+            author = "Art Faculty",
+            date = "26 Oct 2026",
+            drawableResId = R.drawable.img_rift_valley,
+            aspectRatio = VisualAspectRatio.RATIO_1_1,
+            article = VisualLearningArticle(
+                title = "Symbolism and Form in African Traditional Sculpture",
+                introduction = "Traditional African sculpture emphasizes conceptual abstraction, symbolic proportions, and spiritual expression over naturalistic photographic replication.",
+                sections = listOf(
+                    ArticleSection(
+                        heading = "Proportion & Cultural Symbolism",
+                        body = "The head is frequently sculpted larger than anatomical scale to emphasize wisdom, spirituality, and speech as the seat of intelligence.",
+                        keyPoints = listOf(
+                            "Wood carving utilizes indigenous hardwoods like mahogany and ebony.",
+                            "Geometric patterns communicate ancestral lineage and tribal identity."
+                        )
+                    )
+                ),
+                keyFacts = listOf("Modern modernist masters like Picasso were profoundly inspired by African tribal masks.")
+            )
         )
     )
 
@@ -357,6 +482,25 @@ object VisualLearningRepository {
             .distinct()
             .sorted()
         return listOf("All") + subjects
+    }
+
+    /**
+     * Searches approved visuals by query string (title, subject, or article content).
+     */
+    fun searchApprovedVisuals(query: String): List<VisualLearningItem> {
+        if (query.isBlank()) return getApprovedVisuals()
+        
+        val allApproved = (DefaultApprovedVisuals + customVisualItems).filter { item ->
+            item.isApproved && item.status.equals("Approved", ignoreCase = true)
+        }
+        
+        val lowerQuery = query.lowercase()
+        return allApproved.filter { item ->
+            item.title.lowercase().contains(lowerQuery) ||
+            item.subject.lowercase().contains(lowerQuery) ||
+            item.article.title.lowercase().contains(lowerQuery) ||
+            item.article.introduction.lowercase().contains(lowerQuery)
+        }
     }
 
     /**

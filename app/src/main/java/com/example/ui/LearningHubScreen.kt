@@ -49,6 +49,7 @@ import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -56,6 +57,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,6 +79,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.SupabaseRepository
 import com.example.ui.theme.AmberTile
 import com.example.ui.theme.BlueTile
 import com.example.ui.theme.BorderGrey
@@ -93,155 +96,10 @@ import com.example.ui.theme.TealTile
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
 
-/**
- * The 6 Core Learning Hub Categories.
- * Styled following the visual pattern of SubjectCard in SubjectsScreen.
- *
- * NOTE: Strictly no subtitles, descriptions, or secondary text inside cards.
- */
-enum class LearningHubCategory(
-    val title: String,
-    val icon: ImageVector,
-    val color: Color
-) {
-    LIBRARY("Library", Icons.Outlined.LocalLibrary, DeepMaroon),
-    STUDY_MATERIAL("Study Material", Icons.Outlined.AutoStories, TealTile),
-    REVISION("Revision", Icons.Outlined.HistoryEdu, AmberTile),
-    QUIZZES("Quizzes", Icons.Outlined.Quiz, PurpleTile),
-    VISUAL_LEARNING("Visual Learning", Icons.Outlined.OndemandVideo, BlueTile),
-    GAMES("Games", Icons.Outlined.SportsEsports, CoralTile)
-}
+import com.example.data.LearningHubCategory
+import com.example.data.LearningHubResource
+import com.example.data.DefaultLearningHubResources
 
-/**
- * Educational resource model for Learning Hub.
- */
-data class LearningHubResource(
-    val id: String,
-    val title: String,
-    val subject: String,
-    val category: LearningHubCategory,
-    val targetClass: String = "S.4",
-    val author: String = "UNEB Senior Examiner",
-    val date: String = "26 Oct 2026",
-    val type: String = "Notes",
-    val isFeatured: Boolean = false
-)
-
-/**
- * Default curriculum resources for Cachap Learning Hub.
- */
-val DefaultLearningHubResources: List<LearningHubResource> = listOf(
-    LearningHubResource(
-        id = "res-1",
-        title = "Calculus & Pure Mathematics Revision Pack",
-        subject = "Mathematics",
-        category = LearningHubCategory.REVISION,
-        targetClass = "S.4",
-        author = "NCDC Certified Teacher",
-        date = "26 Oct 2026",
-        type = "Revision Guide",
-        isFeatured = true
-    ),
-    LearningHubResource(
-        id = "res-2",
-        title = "UNEB Physics Past Papers & Model Solutions",
-        subject = "Physics",
-        category = LearningHubCategory.REVISION,
-        targetClass = "S.4",
-        author = "Physics Department",
-        date = "25 Oct 2026",
-        type = "UNEB Solutions",
-        isFeatured = true
-    ),
-    LearningHubResource(
-        id = "res-3",
-        title = "Cell Structure & Genetics Illustrated Study Notes",
-        subject = "Biology",
-        category = LearningHubCategory.STUDY_MATERIAL,
-        targetClass = "S.3",
-        author = "Biology Faculty",
-        date = "25 Oct 2026",
-        type = "Comprehensive Notes",
-        isFeatured = true
-    ),
-    LearningHubResource(
-        id = "res-4",
-        title = "East African History & Decolonization Summary",
-        subject = "History",
-        category = LearningHubCategory.LIBRARY,
-        targetClass = "S.4",
-        author = "Senior History Master",
-        date = "24 Oct 2026",
-        type = "Library Book",
-        isFeatured = true
-    ),
-    LearningHubResource(
-        id = "res-5",
-        title = "Organic Chemistry Reactions & Mechanisms Guide",
-        subject = "Chemistry",
-        category = LearningHubCategory.STUDY_MATERIAL,
-        targetClass = "S.4",
-        author = "Chemistry Department",
-        date = "24 Oct 2026",
-        type = "Formulae Guide",
-        isFeatured = false
-    ),
-    LearningHubResource(
-        id = "res-6",
-        title = "Ugandan Physical Geography & Map Work Notes",
-        subject = "Geography",
-        category = LearningHubCategory.LIBRARY,
-        targetClass = "S.3",
-        author = "Geography Faculty",
-        date = "23 Oct 2026",
-        type = "Atlas & Map Work",
-        isFeatured = false
-    ),
-    LearningHubResource(
-        id = "res-7",
-        title = "English Grammar, Poetry & Comprehension Quiz 1",
-        subject = "English",
-        category = LearningHubCategory.QUIZZES,
-        targetClass = "S.2",
-        author = "Language Department",
-        date = "23 Oct 2026",
-        type = "Interactive Quiz",
-        isFeatured = false
-    ),
-    LearningHubResource(
-        id = "res-8",
-        title = "Light Waves, Reflection & Refraction Video Guide",
-        subject = "Physics",
-        category = LearningHubCategory.VISUAL_LEARNING,
-        targetClass = "S.4",
-        author = "Science Labs",
-        date = "22 Oct 2026",
-        type = "Video Walkthrough",
-        isFeatured = false
-    ),
-    LearningHubResource(
-        id = "res-9",
-        title = "Uganda Geography Trivia & UNEB Map Quest",
-        subject = "Geography",
-        category = LearningHubCategory.GAMES,
-        targetClass = "S.1",
-        author = "EdTech Studio",
-        date = "22 Oct 2026",
-        type = "Educational Game",
-        isFeatured = false
-    ),
-    LearningHubResource(
-        id = "res-10",
-        title = "Commerce & Entrepreneurship Past Paper Practice",
-        subject = "Commerce",
-        category = LearningHubCategory.REVISION,
-        targetClass = "S.4",
-        author = "Commerce Master",
-        date = "21 Oct 2026",
-        type = "Revision Guide",
-        isFeatured = false
-    )
-)
 
 /**
  * Page 1: Learning Hub Home Screen.
@@ -273,10 +131,20 @@ fun LearningHubScreen(
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategoryForSection by remember { mutableStateOf<LearningHubCategory?>(null) }
 
-    val allResources = remember { DefaultLearningHubResources }
+    var allResources by remember { mutableStateOf<List<LearningHubResource>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        allResources = SupabaseRepository.fetchAllHubResources()
+        if (allResources.isEmpty()) {
+            allResources = DefaultLearningHubResources
+        }
+        isLoading = false
+    }
 
     // Filter resources based on search query
-    val searchResults = remember(searchQuery) {
+    val searchResults = remember(searchQuery, allResources) {
         if (searchQuery.isBlank()) {
             emptyList()
         } else {
@@ -290,8 +158,8 @@ fun LearningHubScreen(
         }
     }
 
-    val featuredResources = remember { allResources.filter { it.isFeatured } }
-    val recentlyAddedResources = remember { allResources.take(6) }
+    val featuredResources = remember(allResources) { allResources.filter { it.isFeatured } }
+    val recentlyAddedResources = remember(allResources) { allResources.take(6) }
 
     Scaffold(
         modifier = modifier
@@ -301,190 +169,188 @@ fun LearningHubScreen(
         containerColor = Color.White,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding())
-        ) {
-            // ==========================================
-            // 1. HEADER: Deep Maroon card with curved bottom
-            // ==========================================
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = IndigoPurple)
+            }
+        } else {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        color = IndigoPurple,
-                        shape = RoundedCornerShape(
-                            topStart = 0.dp,
-                            topEnd = 0.dp,
-                            bottomStart = 28.dp,
-                            bottomEnd = 28.dp
-                        )
-                    )
-                    .statusBarsPadding()
-                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp)
+                    .fillMaxSize()
+                    .padding(bottom = innerPadding.calculateBottomPadding())
             ) {
-                // Header row: Back button, Title, and Gold badge
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        IconButton(
-                            onClick = onNavigateBack,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .testTag("learning_hub_back_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color.White
-                            )
-                        }
-
-                        Text(
-                            text = "Learning Hub",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.testTag("learning_hub_title")
-                        )
-                    }
-
-                    // Gold / Mustard badge removed
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Search Bar embedded inside Maroon header card
-                LearningHubSearchBar(
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
-                    onClearQuery = {
-                        searchQuery = ""
-                        focusManager.clearFocus()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // ==========================================
-            // 2. MAIN SCROLLABLE CONTENT
-            // ==========================================
-            if (searchQuery.isNotBlank()) {
-                // SEARCH RESULTS VIEW
-                if (searchResults.isEmpty()) {
-                    // Realistic Empty State
-                    LearningHubEmptySearchState(
-                        query = searchQuery,
-                        onClearSearch = {
-                            searchQuery = ""
-                            focusManager.clearFocus()
-                        }
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("learning_hub_search_results"),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        item {
-                            Text(
-                                text = "Search Results (${searchResults.size})",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextDark,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                        }
-
-                        items(searchResults, key = { it.id }) { resource ->
-                            LearningHubResourceCard(
-                                resource = resource,
-                                onClick = { onOpenResource(resource.title, resource.subject) }
-                            )
-                        }
-                    }
-                }
-            } else {
-                // DEFAULT HUB VIEW (Categories + Featured + Recently Added)
+                // ==========================================
+                // 1. HEADER: Deep Maroon card with curved bottom
+                // ==========================================
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState)
-                        .padding(bottom = 32.dp)
+                        .fillMaxWidth()
+                        .background(
+                            color = IndigoPurple,
+                            shape = RoundedCornerShape(
+                                topStart = 0.dp,
+                                topEnd = 0.dp,
+                                bottomStart = 28.dp,
+                                bottomEnd = 28.dp
+                            )
+                        )
+                        .statusBarsPadding()
+                        .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp)
                 ) {
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // ------------------------------------------
-                    // SECTION A: 6 CATEGORIES GRID (2x3)
-                    // ------------------------------------------
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    // Header row: Back button, Title, and Gold badge
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Row 1: Library (0), Study Material (1)
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            LearningHubCategoryCard(
-                                category = LearningHubCategory.LIBRARY,
-                                onClick = onNavigateToLibrary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            LearningHubCategoryCard(
-                                category = LearningHubCategory.STUDY_MATERIAL,
-                                onClick = onNavigateToStudyMaterial,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                            IconButton(
+                                onClick = onNavigateBack,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .testTag("learning_hub_back_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Color.White
+                                )
+                            }
 
-                        // Row 2: Revision (2), Quizzes (3)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            LearningHubCategoryCard(
-                                category = LearningHubCategory.REVISION,
-                                onClick = onNavigateToRevision,
-                                modifier = Modifier.weight(1f)
-                            )
-                            LearningHubCategoryCard(
-                                category = LearningHubCategory.QUIZZES,
-                                onClick = onNavigateToQuizzes,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        // Row 3: Visual Learning (4), Games (5)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            LearningHubCategoryCard(
-                                category = LearningHubCategory.VISUAL_LEARNING,
-                                onClick = onNavigateToVisualLearning,
-                                modifier = Modifier.weight(1f)
-                            )
-                            LearningHubCategoryCard(
-                                category = LearningHubCategory.GAMES,
-                                onClick = { selectedCategoryForSection = LearningHubCategory.GAMES },
-                                modifier = Modifier.weight(1f)
+                            Text(
+                                text = "Learning Hub",
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.testTag("learning_hub_title")
                             )
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Search Bar
+                    LearningHubSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        onClearQuery = {
+                            searchQuery = ""
+                            focusManager.clearFocus()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // ==========================================
+                // 2. MAIN SCROLLABLE CONTENT
+                // ==========================================
+                if (searchQuery.isNotBlank()) {
+                    // SEARCH RESULTS VIEW
+                    if (searchResults.isEmpty()) {
+                        LearningHubEmptySearchState(
+                            query = searchQuery,
+                            onClearSearch = {
+                                searchQuery = ""
+                                focusManager.clearFocus()
+                            }
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .testTag("learning_hub_search_results"),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            item {
+                                Text(
+                                    text = "Search Results (${searchResults.size})",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextDark,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                            }
+
+                            items(searchResults, key = { it.id }) { resource ->
+                                LearningHubResourceCard(
+                                    resource = resource,
+                                    onClick = { onOpenResource(resource.title, resource.subject) }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // DEFAULT HUB VIEW
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .padding(bottom = 32.dp)
+                    ) {
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            // Row 1
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.LIBRARY,
+                                    onClick = onNavigateToLibrary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.STUDY_MATERIAL,
+                                    onClick = onNavigateToStudyMaterial,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            // Row 2
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.REVISION,
+                                    onClick = onNavigateToRevision,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.QUIZZES,
+                                    onClick = onNavigateToQuizzes,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            // Row 3
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.VISUAL_LEARNING,
+                                    onClick = onNavigateToVisualLearning,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.GAMES,
+                                    onClick = { selectedCategoryForSection = LearningHubCategory.GAMES },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

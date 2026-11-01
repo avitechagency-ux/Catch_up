@@ -247,6 +247,19 @@ data class SupabaseAdminOverviewStats(
     val formattedMarzpayBalance: String = "0"
 )
 
+data class SupabaseLearningHubResourceDto(
+    @Json(name = "id") val id: String? = null,
+    @Json(name = "title") val title: String,
+    @Json(name = "subject") val subject: String,
+    @Json(name = "category") val category: String,
+    @Json(name = "target_class") val targetClass: String = "S.4",
+    @Json(name = "author") val author: String = "UNEB Senior Examiner",
+    @Json(name = "date") val date: String = "28 Oct 2026",
+    @Json(name = "type") val type: String = "Notes",
+    @Json(name = "is_featured") val isFeatured: Boolean = false,
+    @Json(name = "document_url") val documentUrl: String? = null
+)
+
 /**
  * Upgraded Storage Provider Quota: Cloudflare R2 (10 GB = 10,240 MB) + Supabase (500 MB Database).
  */
@@ -723,6 +736,24 @@ interface SupabasePostgrestApi {
         @Query("id") idFilter: String,
         @Body fields: Map<String, @JvmSuppressWildcards Any?>
     ): Response<List<SupabasePaymentTransactionDto>>
+
+    // --- 9. Learning Hub Resources (`learning_hub_resources`) ---
+    @GET("learning_hub_resources")
+    suspend fun getAllHubResources(
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<SupabaseLearningHubResourceDto>>
+
+    @Headers("Prefer: return=representation")
+    @POST("learning_hub_resources")
+    suspend fun insertHubResource(
+        @Body resource: SupabaseLearningHubResourceDto
+    ): Response<List<SupabaseLearningHubResourceDto>>
+
+    @DELETE("learning_hub_resources")
+    suspend fun deleteHubResource(
+        @Query("id") idFilter: String
+    ): Response<Unit>
 
 }
 
@@ -3197,4 +3228,50 @@ object SupabaseRepository {
                 true
             }.getOrDefault(false)
         }
+
+    // --- Learning Hub Management ---
+    suspend fun fetchAllHubResources(): List<LearningHubResource> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = api.getAllHubResources()
+            if (response.isSuccessful) {
+                response.body()?.map { dto ->
+                    LearningHubResource(
+                        id = dto.id ?: "res-fallback",
+                        title = dto.title,
+                        subject = dto.subject,
+                        category = runCatching { LearningHubCategory.valueOf(dto.category) }.getOrDefault(LearningHubCategory.STUDY_MATERIAL),
+                        targetClass = dto.targetClass,
+                        author = dto.author,
+                        date = dto.date,
+                        type = dto.type,
+                        isFeatured = dto.isFeatured,
+                        documentUrl = dto.documentUrl
+                    )
+                } ?: emptyList()
+            } else emptyList()
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun saveHubResource(resource: LearningHubResource): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val dto = SupabaseLearningHubResourceDto(
+                title = resource.title,
+                subject = resource.subject,
+                category = resource.category.name,
+                targetClass = resource.targetClass,
+                author = resource.author,
+                date = resource.date,
+                type = resource.type,
+                isFeatured = resource.isFeatured,
+                documentUrl = resource.documentUrl
+            )
+            api.insertHubResource(dto).isSuccessful
+        }.getOrDefault(false)
+    }
+
+    suspend fun deleteHubResource(id: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            api.deleteHubResource("eq.$id").isSuccessful
+        }.getOrDefault(false)
+    }
 }
