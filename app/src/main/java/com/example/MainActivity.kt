@@ -110,6 +110,11 @@ import com.example.ui.TeacherUploadItem
 import com.example.ui.TeacherUploadNotesScreen
 import com.example.ui.TeacherUploadsScreen
 import com.example.ui.SubjectUploadItem
+import com.example.ui.ClassesScreen
+import com.example.ui.GlossaryScreen
+import com.example.ui.MyLearningScreen
+import com.example.ui.ToolsScreen
+import com.example.ui.TipsScreen
 import com.example.data.LiveClassRepository
 import com.example.ui.live.StudentLiveClassesScreen
 import com.example.ui.live.TeacherLiveClassesScreen
@@ -184,7 +189,12 @@ enum class AppScreen {
     QUIZ_INSTRUCTIONS,
     QUIZ_TAKING,
     QUIZ_RESULTS,
-    ADMIN_LEARNING_HUB_PORTAL
+    ADMIN_LEARNING_HUB_PORTAL,
+    CLASSES,
+    GLOSSARY,
+    MY_LEARNING,
+    STUDY_TOOLS,
+    STUDY_TIPS
 }
 
 class MainActivity : ComponentActivity() {
@@ -926,7 +936,12 @@ class MainActivity : ComponentActivity() {
                         }
                         AppScreen.LIBRARY,
                         AppScreen.STUDY_MATERIAL,
-                        AppScreen.REVISION -> AppScreen.LEARNING_HUB
+                        AppScreen.REVISION,
+                        AppScreen.CLASSES,
+                        AppScreen.GLOSSARY,
+                        AppScreen.MY_LEARNING,
+                        AppScreen.STUDY_TOOLS,
+                        AppScreen.STUDY_TIPS -> AppScreen.LEARNING_HUB
                         AppScreen.REVISION_NOTES,
                         AppScreen.EXAM_PAPERS,
                         AppScreen.TOPIC_GUIDES,
@@ -1469,6 +1484,11 @@ class MainActivity : ComponentActivity() {
                             onNavigateToRevision = { currentScreen = AppScreen.REVISION },
                             onNavigateToQuizzes = { currentScreen = AppScreen.QUIZZES_HOME },
                             onNavigateToVisualLearning = { currentScreen = AppScreen.VISUAL_LEARNING },
+                            onNavigateToClasses = { currentScreen = AppScreen.CLASSES },
+                            onNavigateToGlossary = { currentScreen = AppScreen.GLOSSARY },
+                            onNavigateToMyLearning = { currentScreen = AppScreen.MY_LEARNING },
+                            onNavigateToTools = { currentScreen = AppScreen.STUDY_TOOLS },
+                            onNavigateToTips = { currentScreen = AppScreen.STUDY_TIPS },
                             onOpenResource = { title, subject ->
                                 selectedPdfTitle = title
                                 selectedPdfSubject = subject
@@ -1578,7 +1598,13 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         AppScreen.QUIZ_TAKING -> {
-                            val activeQuiz = selectedQuiz ?: com.example.data.DefaultApprovedQuizzes.first()
+                            val activeQuiz = selectedQuiz ?: com.example.data.Quiz(
+                                id = "fallback",
+                                title = "Quiz",
+                                subject = selectedQuizSubject,
+                                topic = "General",
+                                questions = emptyList()
+                            )
                             com.example.ui.quiz.QuizTakingScreen(
                                 quiz = activeQuiz,
                                 onNavigateBack = { currentScreen = AppScreen.QUIZ_INSTRUCTIONS },
@@ -1587,6 +1613,9 @@ class MainActivity : ComponentActivity() {
                                     activeQuizTotal = total
                                     activeQuizUserAnswers = answers
                                     currentScreen = AppScreen.QUIZ_RESULTS
+                                },
+                                onQuizQuestionsLoaded = { loadedQuestions ->
+                                    selectedQuiz = activeQuiz.copy(questions = loadedQuestions)
                                 }
                             )
                         }
@@ -2312,6 +2341,21 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+                        AppScreen.CLASSES -> ClassesScreen(
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB }
+                        )
+                        AppScreen.GLOSSARY -> GlossaryScreen(
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB }
+                        )
+                        AppScreen.MY_LEARNING -> MyLearningScreen(
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB }
+                        )
+                        AppScreen.STUDY_TOOLS -> ToolsScreen(
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB }
+                        )
+                        AppScreen.STUDY_TIPS -> TipsScreen(
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB }
+                        )
                     }
 
                     if (isStudentPlanExpired) {

@@ -48,3 +48,10 @@ val LiveIndicatorRed = Color(0xFFE53935)
 val LiveGoldLight = Color(0xFFFFF9E6)
 
 
+
+// Glossary Card Colors
+val SoftLavender = Color(0xFFE9E4F5)
+val SoftBlue = Color(0xFFE4EDF8)
+val SoftGreen = Color(0xFFE4F0E9)
+val SoftPeach = Color(0xFFF5EAE1)
+val SoftNeutral = Color(0xFFEEECEF)

@@ -28,15 +28,18 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.Quiz
 import com.example.data.QuizQuestion
 import com.example.data.QuizQuestionFormat
+import com.example.data.SupabaseRepository
 import com.example.data.UserQuestionAnswer
 import com.example.ui.theme.IndigoPurple
 import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
+import kotlinx.coroutines.launch
 
 /**
  * Screen 4: Taking a Quiz
@@ -52,12 +55,92 @@ import com.example.ui.theme.TextMuted
 fun QuizTakingScreen(
     quiz: Quiz,
     onNavigateBack: () -> Unit,
-    onQuizCompleted: (score: Int, total: Int, answers: List<UserQuestionAnswer>) -> Unit
+    onQuizCompleted: (score: Int, total: Int, answers: List<UserQuestionAnswer>) -> Unit,
+    onQuizQuestionsLoaded: (List<QuizQuestion>) -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
+    val coroutineScope = rememberCoroutineScope()
+
+    var questions by remember { mutableStateOf(quiz.questions) }
+    var isLoading by remember { mutableStateOf(quiz.questions.isEmpty()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    fun loadQuestions() {
+        isLoading = true
+        errorMessage = null
+        coroutineScope.launch {
+            try {
+                val fetched = SupabaseRepository.fetchQuizQuestions(quiz.id)
+                questions = fetched
+                if (fetched.isNotEmpty()) {
+                    onQuizQuestionsLoaded(fetched)
+                }
+                isLoading = false
+            } catch (e: Exception) {
+                errorMessage = e.localizedMessage ?: "Failed to load questions"
+                isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(quiz.id) {
+        if (quiz.questions.isEmpty()) {
+            loadQuestions()
+        }
+    }
+
+    if (isLoading) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = quiz.color)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(text = "Loading quiz questions...", fontSize = 14.sp, color = TextMuted)
+            }
+        }
+        return
+    }
+
+    if (errorMessage != null) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color.White).padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "Failed to load questions", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = errorMessage ?: "Please check your connection.", fontSize = 14.sp, color = TextMuted, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = { loadQuestions() }, colors = ButtonDefaults.buttonColors(containerColor = quiz.color)) {
+                    Text("Retry")
+                }
+            }
+        }
+        return
+    }
+
+    if (questions.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color.White).padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "No questions available", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = "This quiz currently has zero questions.", fontSize = 14.sp, color = TextMuted, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = onNavigateBack, colors = ButtonDefaults.buttonColors(containerColor = quiz.color)) {
+                    Text("Go Back")
+                }
+            }
+        }
+        return
+    }
 
     var currentQuestionIndex by remember { mutableIntStateOf(0) }
-    val currentQuestion = quiz.questions.getOrNull(currentQuestionIndex) ?: return
+    val currentQuestion = questions.getOrNull(currentQuestionIndex) ?: return
 
     var selectedOption by remember(currentQuestionIndex) { mutableStateOf<String?>(null) }
     var shortAnswerText by remember(currentQuestionIndex) { mutableStateOf("") }
@@ -65,7 +148,7 @@ fun QuizTakingScreen(
 
     val accumulatedAnswers = remember { mutableStateListOf<UserQuestionAnswer>() }
 
-    val totalQuestions = quiz.questions.size
+    val totalQuestions = questions.size
     val scrollState = rememberScrollState()
 
     // Determine correctness for current question

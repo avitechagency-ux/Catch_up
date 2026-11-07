@@ -755,6 +755,22 @@ interface SupabasePostgrestApi {
         @Query("id") idFilter: String
     ): Response<Unit>
 
+    // --- 10. Quizzes & Quiz Questions (`quizzes`, `quiz_questions`) ---
+    @GET("quizzes")
+    suspend fun getQuizzesForSubject(
+        @Query("subject") subjectFilter: String,
+        @Query("published") publishedFilter: String = "eq.true",
+        @Query("select") select: String = "*,quiz_questions(id)",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<SupabaseQuizDto>>
+
+    @GET("quiz_questions")
+    suspend fun getQuizQuestionsForQuiz(
+        @Query("quiz_id") quizIdFilter: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "position.asc"
+    ): Response<List<SupabaseQuizQuestionDto>>
+
 }
 
 data class SupabasePlatformSettingDto(
@@ -3274,4 +3290,107 @@ object SupabaseRepository {
             api.deleteHubResource("eq.$id").isSuccessful
         }.getOrDefault(false)
     }
+
+    suspend fun fetchQuizzesForSubject(subjectName: String): List<Quiz> = withContext(Dispatchers.IO) {
+        val response = api.getQuizzesForSubject("eq.${subjectName.trim()}")
+        if (response.isSuccessful) {
+            val dtos = response.body().orEmpty()
+            dtos.map { dto ->
+                val colorList = listOf(
+                    com.example.ui.theme.IndigoPurple,
+                    com.example.ui.theme.TealTile,
+                    com.example.ui.theme.PurpleTile,
+                    com.example.ui.theme.NavyTile,
+                    com.example.ui.theme.AmberTile,
+                    com.example.ui.theme.CoralTile,
+                    com.example.ui.theme.BlueTile,
+                    com.example.ui.theme.DeepMaroon
+                )
+                val color = colorList[java.lang.Math.abs(dto.id.hashCode()) % colorList.size]
+                Quiz(
+                    id = dto.id,
+                    title = dto.title,
+                    subject = dto.subject,
+                    topic = dto.topic,
+                    isApproved = dto.published,
+                    timeLimitMinutes = dto.timeLimitMinutes,
+                    color = color,
+                    questions = emptyList()
+                )
+            }
+        } else {
+            throw Exception("Failed to load quizzes: ${response.code()} ${response.message()}")
+        }
+    }
+
+    suspend fun fetchQuizQuestions(quizId: String): List<QuizQuestion> = withContext(Dispatchers.IO) {
+        val response = api.getQuizQuestionsForQuiz("eq.${quizId.trim()}")
+        if (response.isSuccessful) {
+            val dtos = response.body().orEmpty()
+            dtos.sortedBy { it.position }.map { dto ->
+                val format = if (dto.type.equals("true_false", ignoreCase = true) || dto.type.equals("true-false", ignoreCase = true)) {
+                    QuizQuestionFormat.TRUE_FALSE
+                } else {
+                    QuizQuestionFormat.MULTIPLE_CHOICE
+                }
+
+                val optionsList = if (format == QuizQuestionFormat.TRUE_FALSE) {
+                    listOf("True", "False")
+                } else {
+                    dto.options ?: emptyList()
+                }
+
+                val correctAns = if (format == QuizQuestionFormat.TRUE_FALSE) {
+                    if (dto.answerBool == true) "True" else "False"
+                } else {
+                    val idx = dto.answerIndex ?: 0
+                    dto.options?.getOrNull(idx) ?: ""
+                }
+
+                QuizQuestion(
+                    id = dto.id,
+                    questionText = dto.question,
+                    format = format,
+                    options = optionsList,
+                    correctAnswer = correctAns,
+                    explanation = dto.explanation
+                )
+            }
+        } else {
+            throw Exception("Failed to load questions: ${response.code()} ${response.message()}")
+        }
+    }
 }
+
+// ============================================================================
+// QUIZ SUPABASE DTOs
+// ============================================================================
+
+data class SupabaseQuizDto(
+    @Json(name = "id") val id: String,
+    @Json(name = "subject") val subject: String,
+    @Json(name = "title") val title: String,
+    @Json(name = "topic") val topic: String,
+    @Json(name = "level") val level: String? = null,
+    @Json(name = "time_limit_minutes") val timeLimitMinutes: Int? = null,
+    @Json(name = "published") val published: Boolean = true,
+    @Json(name = "created_at") val createdAt: String? = null,
+    @Json(name = "quiz_questions") val quizQuestions: List<SupabaseQuizQuestionIdDto>? = null
+)
+
+data class SupabaseQuizQuestionIdDto(
+    @Json(name = "id") val id: String
+)
+
+data class SupabaseQuizQuestionDto(
+    @Json(name = "id") val id: String,
+    @Json(name = "quiz_id") val quizId: String,
+    @Json(name = "position") val position: Int = 0,
+    @Json(name = "type") val type: String = "multiple_choice",
+    @Json(name = "question") val question: String,
+    @Json(name = "options") val options: List<String>? = null,
+    @Json(name = "answer_index") val answerIndex: Int? = null,
+    @Json(name = "answer_bool") val answerBool: Boolean? = null,
+    @Json(name = "explanation") val explanation: String? = null
+)
+

@@ -98,7 +98,12 @@ object AccountSecurityVault {
         AppScreen.SUBJECT_QUIZZES,
         AppScreen.QUIZ_INSTRUCTIONS,
         AppScreen.QUIZ_TAKING,
-        AppScreen.QUIZ_RESULTS
+        AppScreen.QUIZ_RESULTS,
+        AppScreen.CLASSES,
+        AppScreen.GLOSSARY,
+        AppScreen.MY_LEARNING,
+        AppScreen.STUDY_TOOLS,
+        AppScreen.STUDY_TIPS
     )
 
     fun parseUserRole(roleString: String?): UserRole {

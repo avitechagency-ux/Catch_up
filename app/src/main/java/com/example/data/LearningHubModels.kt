@@ -19,7 +19,12 @@ enum class LearningHubCategory(
     REVISION("Revision", Icons.Outlined.HistoryEdu, AmberTile),
     QUIZZES("Quizzes", Icons.Outlined.Quiz, PurpleTile),
     VISUAL_LEARNING("Visual Learning", Icons.Outlined.OndemandVideo, BlueTile),
-    GAMES("Games", Icons.Outlined.SportsEsports, CoralTile)
+    GAMES("Games", Icons.Outlined.SportsEsports, CoralTile),
+    CLASSES("Classes", Icons.Outlined.Headphones, IndigoPurple),
+    GLOSSARY("Glossary", Icons.Outlined.MenuBook, PurpleTile),
+    MY_LEARNING("My Learning", Icons.Outlined.CalendarMonth, AmberTile),
+    TOOLS("Tools", Icons.Outlined.Calculate, CoralTile),
+    TIPS("Tips", Icons.Outlined.Lightbulb, GoldMustard)
 }
 
 /**

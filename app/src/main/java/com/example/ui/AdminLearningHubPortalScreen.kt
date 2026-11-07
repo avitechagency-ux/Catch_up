@@ -974,6 +974,11 @@ fun AddResourceForm(
                 LearningHubCategory.QUIZZES -> "Interactive Quiz"
                 LearningHubCategory.VISUAL_LEARNING -> "Video Walkthrough"
                 LearningHubCategory.GAMES -> "Educational Game"
+                LearningHubCategory.CLASSES -> "Audio Lecture"
+                LearningHubCategory.GLOSSARY -> "Glossary Term List"
+                LearningHubCategory.MY_LEARNING -> "Study Schedule Template"
+                LearningHubCategory.TOOLS -> "Formula Sheet"
+                LearningHubCategory.TIPS -> "Study Hack"
             }
         )
     }
@@ -1048,6 +1053,11 @@ fun AddResourceForm(
             LearningHubCategory.QUIZZES -> listOf("Interactive Quiz", "Self-Assessment", "Multiple Choice Test", "Flashcard Pack")
             LearningHubCategory.VISUAL_LEARNING -> listOf("Video Walkthrough", "Diagram Animation", "Visual Lab Experiment", "3D Anatomy")
             LearningHubCategory.GAMES -> listOf("Educational Game", "Map Trivia Quest", "Formula Puzzle", "Vocabulary Challenge")
+            LearningHubCategory.CLASSES -> listOf("Audio Lecture", "Masterclass Lesson", "UNEB Past Paper Audio", "Oral Examination Prep")
+            LearningHubCategory.GLOSSARY -> listOf("Glossary Term List", "Scientific Vocabulary", "Definition Pack")
+            LearningHubCategory.MY_LEARNING -> listOf("Study Schedule Template", "Revision Checklist", "Term Syllabus Plan")
+            LearningHubCategory.TOOLS -> listOf("Formula Sheet", "Practical Guide", "Conversion Chart")
+            LearningHubCategory.TIPS -> listOf("Study Hack", "Exam Technique", "Memory Strategy", "Revision Guide")
         }
     }
 

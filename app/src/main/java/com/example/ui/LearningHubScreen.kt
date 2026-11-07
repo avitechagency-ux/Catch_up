@@ -121,6 +121,11 @@ fun LearningHubScreen(
     onNavigateToRevision: () -> Unit = {},
     onNavigateToQuizzes: () -> Unit = {},
     onNavigateToVisualLearning: () -> Unit = {},
+    onNavigateToClasses: () -> Unit = {},
+    onNavigateToGlossary: () -> Unit = {},
+    onNavigateToMyLearning: () -> Unit = {},
+    onNavigateToTools: () -> Unit = {},
+    onNavigateToTips: () -> Unit = {},
     onOpenResource: (title: String, subject: String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onNavigateBack() }
@@ -348,6 +353,53 @@ fun LearningHubScreen(
                                     onClick = { selectedCategoryForSection = LearningHubCategory.GAMES },
                                     modifier = Modifier.weight(1f)
                                 )
+                            }
+
+                            // Row 4: Classes & Glossary
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.CLASSES,
+                                    onClick = onNavigateToClasses,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.GLOSSARY,
+                                    onClick = onNavigateToGlossary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            // Row 5: My Learning & Tools
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.MY_LEARNING,
+                                    onClick = onNavigateToMyLearning,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.TOOLS,
+                                    onClick = onNavigateToTools,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            // Row 6: Tips
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                LearningHubCategoryCard(
+                                    category = LearningHubCategory.TIPS,
+                                    onClick = onNavigateToTips,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }

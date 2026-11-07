@@ -1037,7 +1037,8 @@ fun TeacherIdLinkPopup(
 fun SubjectSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placeholder: String = "Search subjects..."
 ) {
     Surface(
         modifier = modifier
@@ -1077,7 +1078,7 @@ fun SubjectSearchBar(
             ) {
                 if (query.isEmpty()) {
                     Text(
-                        text = "Search subjects...",
+                        text = placeholder,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Normal,
                         color = IconGrey
