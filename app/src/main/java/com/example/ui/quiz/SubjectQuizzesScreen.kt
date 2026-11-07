@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Quiz
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -94,8 +95,8 @@ fun SubjectQuizzesScreen(
                     .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp)
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
                         onClick = onNavigateBack,
@@ -112,8 +113,20 @@ fun SubjectQuizzesScreen(
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
-                        modifier = Modifier.testTag("subject_quizzes_title")
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("subject_quizzes_title")
                     )
+                    IconButton(
+                        onClick = { loadQuizzes() },
+                        modifier = Modifier.testTag("subject_quizzes_refresh_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Refresh,
+                            contentDescription = "Refresh quizzes",
+                            tint = Color.White
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 SubjectSearchBar(

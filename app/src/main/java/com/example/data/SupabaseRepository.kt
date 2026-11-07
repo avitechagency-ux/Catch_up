@@ -759,8 +759,14 @@ interface SupabasePostgrestApi {
     @GET("quizzes")
     suspend fun getQuizzesForSubject(
         @Query("subject") subjectFilter: String,
-        @Query("published") publishedFilter: String = "eq.true",
-        @Query("select") select: String = "*,quiz_questions(id)",
+        @Query("published") publishedFilter: String? = null,
+        @Query("select") select: String = "*,quiz_questions(count)",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<SupabaseQuizDto>>
+
+    @GET("quizzes")
+    suspend fun getAllQuizzes(
+        @Query("select") select: String = "*,quiz_questions(count)",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<SupabaseQuizDto>>
 
@@ -769,6 +775,11 @@ interface SupabasePostgrestApi {
         @Query("quiz_id") quizIdFilter: String,
         @Query("select") select: String = "*",
         @Query("order") order: String = "position.asc"
+    ): Response<List<SupabaseQuizQuestionDto>>
+
+    @GET("quiz_questions")
+    suspend fun getAllQuizQuestions(
+        @Query("select") select: String = "id,quiz_id"
     ): Response<List<SupabaseQuizQuestionDto>>
 
 }
@@ -3292,34 +3303,73 @@ object SupabaseRepository {
     }
 
     suspend fun fetchQuizzesForSubject(subjectName: String): List<Quiz> = withContext(Dispatchers.IO) {
-        val response = api.getQuizzesForSubject("eq.${subjectName.trim()}")
-        if (response.isSuccessful) {
-            val dtos = response.body().orEmpty()
-            dtos.map { dto ->
-                val colorList = listOf(
-                    com.example.ui.theme.IndigoPurple,
-                    com.example.ui.theme.TealTile,
-                    com.example.ui.theme.PurpleTile,
-                    com.example.ui.theme.NavyTile,
-                    com.example.ui.theme.AmberTile,
-                    com.example.ui.theme.CoralTile,
-                    com.example.ui.theme.BlueTile,
-                    com.example.ui.theme.DeepMaroon
-                )
-                val color = colorList[java.lang.Math.abs(dto.id.hashCode()) % colorList.size]
-                Quiz(
-                    id = dto.id,
-                    title = dto.title,
-                    subject = dto.subject,
-                    topic = dto.topic,
-                    isApproved = dto.published,
-                    timeLimitMinutes = dto.timeLimitMinutes,
-                    color = color,
-                    questions = emptyList()
-                )
-            }
+        val cleanSubject = subjectName.trim()
+        android.util.Log.d("SupabaseQuiz", "Fetching quizzes for subject: '$cleanSubject'")
+
+        // 1. Try querying with ilike for case-insensitive subject match
+        val primaryResponse = runCatching {
+            api.getQuizzesForSubject(
+                subjectFilter = "ilike.$cleanSubject",
+                publishedFilter = null // Allow published or defaults so non-published won't block debugging if flag omitted
+            )
+        }.getOrNull()
+
+        var dtos: List<SupabaseQuizDto> = emptyList()
+        if (primaryResponse != null && primaryResponse.isSuccessful && !primaryResponse.body().isNullOrEmpty()) {
+            dtos = primaryResponse.body().orEmpty()
+            android.util.Log.d("SupabaseQuiz", "Got ${dtos.size} quizzes via ilike filter")
         } else {
-            throw Exception("Failed to load quizzes: ${response.code()} ${response.message()}")
+            // 2. Fallback: Query all quizzes and filter client-side (handles aliases, whitespace, exact casing, published flag)
+            android.util.Log.d("SupabaseQuiz", "ilike query returned empty or code ${primaryResponse?.code()}, trying getAllQuizzes fallback")
+            val allResponse = runCatching { api.getAllQuizzes() }.getOrNull()
+            if (allResponse != null && allResponse.isSuccessful) {
+                val all = allResponse.body().orEmpty()
+                android.util.Log.d("SupabaseQuiz", "getAllQuizzes fetched ${all.size} total quizzes in DB: ${all.map { "${it.title} (${it.subject})" }}")
+                dtos = all.filter { dto ->
+                    dto.subject.trim().equals(cleanSubject, ignoreCase = true) ||
+                    dto.subject.trim().contains(cleanSubject, ignoreCase = true) ||
+                    cleanSubject.contains(dto.subject.trim(), ignoreCase = true)
+                }
+            } else {
+                android.util.Log.e("SupabaseQuiz", "getAllQuizzes failed: code=${allResponse?.code()} error=${allResponse?.errorBody()?.string()}")
+            }
+        }
+
+        // 3. Count questions per quiz if not populated
+        val questionCounts: Map<String, Int> = runCatching {
+            val qResp = api.getAllQuizQuestions()
+            if (qResp.isSuccessful) {
+                qResp.body().orEmpty().groupBy { it.quizId }.mapValues { it.value.size }
+            } else emptyMap()
+        }.getOrDefault(emptyMap())
+
+        val colorList = listOf(
+            com.example.ui.theme.IndigoPurple,
+            com.example.ui.theme.TealTile,
+            com.example.ui.theme.PurpleTile,
+            com.example.ui.theme.NavyTile,
+            com.example.ui.theme.AmberTile,
+            com.example.ui.theme.CoralTile,
+            com.example.ui.theme.BlueTile,
+            com.example.ui.theme.DeepMaroon
+        )
+
+        dtos.map { dto ->
+            val color = colorList[java.lang.Math.abs(dto.id.hashCode()) % colorList.size]
+            val totalQuestions = dto.quizQuestions?.firstOrNull()?.count
+                ?: questionCounts[dto.id]
+                ?: (dto.quizQuestions?.size ?: 0)
+            Quiz(
+                id = dto.id,
+                title = dto.title,
+                subject = dto.subject,
+                topic = dto.topic,
+                isApproved = dto.published,
+                timeLimitMinutes = dto.timeLimitMinutes,
+                color = color,
+                questions = emptyList(),
+                initialQuestionCount = totalQuestions
+            )
         }
     }
 
@@ -3375,11 +3425,12 @@ data class SupabaseQuizDto(
     @Json(name = "time_limit_minutes") val timeLimitMinutes: Int? = null,
     @Json(name = "published") val published: Boolean = true,
     @Json(name = "created_at") val createdAt: String? = null,
-    @Json(name = "quiz_questions") val quizQuestions: List<SupabaseQuizQuestionIdDto>? = null
+    @Json(name = "quiz_questions") val quizQuestions: List<SupabaseQuizQuestionCountDto>? = null
 )
 
-data class SupabaseQuizQuestionIdDto(
-    @Json(name = "id") val id: String
+data class SupabaseQuizQuestionCountDto(
+    @Json(name = "count") val count: Int? = null,
+    @Json(name = "id") val id: String? = null
 )
 
 data class SupabaseQuizQuestionDto(

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.HistoryEdu
 import androidx.compose.material.icons.outlined.LocalLibrary
 import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.OndemandVideo
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Search
@@ -128,7 +129,15 @@ fun LearningHubScreen(
     onNavigateToTips: () -> Unit = {},
     onOpenResource: (title: String, subject: String) -> Unit = { _, _ -> }
 ) {
-    BackHandler { onNavigateBack() }
+    var showMorePage by remember { mutableStateOf(false) }
+
+    BackHandler {
+        if (showMorePage) {
+            showMorePage = false
+        } else {
+            onNavigateBack()
+        }
+    }
 
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
@@ -177,6 +186,127 @@ fun LearningHubScreen(
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = IndigoPurple)
+            }
+        } else if (showMorePage) {
+            // ==========================================
+            // "MORE" SUB-PAGE: Contains Games and all cards below it
+            // ==========================================
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = innerPadding.calculateBottomPadding())
+            ) {
+                // More header with curved bottom
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            color = IndigoPurple,
+                            shape = RoundedCornerShape(
+                                topStart = 0.dp,
+                                topEnd = 0.dp,
+                                bottomStart = 28.dp,
+                                bottomEnd = 28.dp
+                            )
+                        )
+                        .statusBarsPadding()
+                        .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        IconButton(
+                            onClick = { showMorePage = false },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("learning_hub_more_back_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = "Back to Learning Hub",
+                                tint = Color.White
+                            )
+                        }
+
+                        Text(
+                            text = "More",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.testTag("learning_hub_more_title")
+                        )
+                    }
+                }
+
+                // Grid containing Games and cards below it
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 32.dp)
+                ) {
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // Row 1: Games & Classes
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            LearningHubCategoryCard(
+                                category = LearningHubCategory.GAMES,
+                                onClick = { selectedCategoryForSection = LearningHubCategory.GAMES },
+                                modifier = Modifier.weight(1f)
+                            )
+                            LearningHubCategoryCard(
+                                category = LearningHubCategory.CLASSES,
+                                onClick = onNavigateToClasses,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        // Row 2: Glossary & My Learning
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            LearningHubCategoryCard(
+                                category = LearningHubCategory.GLOSSARY,
+                                onClick = onNavigateToGlossary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            LearningHubCategoryCard(
+                                category = LearningHubCategory.MY_LEARNING,
+                                onClick = onNavigateToMyLearning,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        // Row 3: Tools & Tips
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            LearningHubCategoryCard(
+                                category = LearningHubCategory.TOOLS,
+                                onClick = onNavigateToTools,
+                                modifier = Modifier.weight(1f)
+                            )
+                            LearningHubCategoryCard(
+                                category = LearningHubCategory.TIPS,
+                                onClick = onNavigateToTips,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
             }
         } else {
             Column(
@@ -338,7 +468,7 @@ fun LearningHubScreen(
                                 )
                             }
 
-                            // Row 3
+                            // Row 3: Visual Learning & More
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -348,58 +478,13 @@ fun LearningHubScreen(
                                     onClick = onNavigateToVisualLearning,
                                     modifier = Modifier.weight(1f)
                                 )
-                                LearningHubCategoryCard(
-                                    category = LearningHubCategory.GAMES,
-                                    onClick = { selectedCategoryForSection = LearningHubCategory.GAMES },
+                                LearningHubCustomCategoryCard(
+                                    title = "More",
+                                    icon = Icons.Outlined.MoreHoriz,
+                                    color = CoralTile,
+                                    onClick = { showMorePage = true },
                                     modifier = Modifier.weight(1f)
                                 )
-                            }
-
-                            // Row 4: Classes & Glossary
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                LearningHubCategoryCard(
-                                    category = LearningHubCategory.CLASSES,
-                                    onClick = onNavigateToClasses,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                LearningHubCategoryCard(
-                                    category = LearningHubCategory.GLOSSARY,
-                                    onClick = onNavigateToGlossary,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            // Row 5: My Learning & Tools
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                LearningHubCategoryCard(
-                                    category = LearningHubCategory.MY_LEARNING,
-                                    onClick = onNavigateToMyLearning,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                LearningHubCategoryCard(
-                                    category = LearningHubCategory.TOOLS,
-                                    onClick = onNavigateToTools,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-
-                            // Row 6: Tips
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                LearningHubCategoryCard(
-                                    category = LearningHubCategory.TIPS,
-                                    onClick = onNavigateToTips,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -478,6 +563,68 @@ fun LearningHubCategoryCard(
             // Category Name Only (Bold, White)
             Text(
                 text = category.title,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.testTag("learning_hub_name_$tagKey")
+            )
+        }
+    }
+}
+
+/**
+ * Generic Category Card supporting custom title, icon and color (e.g. "More" with horizontal 3 dots).
+ */
+@Composable
+fun LearningHubCustomCategoryCard(
+    title: String,
+    icon: ImageVector,
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tagKey: String = title.lowercase().replace(" ", "_")
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 4.dp,
+                shape = RoundedCornerShape(18.dp),
+                ambientColor = color.copy(alpha = 0.35f),
+                spotColor = color.copy(alpha = 0.35f)
+            )
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.20f),
+                shape = RoundedCornerShape(18.dp)
+            )
+            .clickable(onClick = onClick)
+            .testTag("learning_hub_card_$tagKey"),
+        shape = RoundedCornerShape(18.dp),
+        color = color,
+        tonalElevation = 0.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 28.dp, horizontal = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = Color.White,
+                modifier = Modifier
+                    .size(44.dp)
+                    .testTag("learning_hub_icon_$tagKey")
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = title,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,

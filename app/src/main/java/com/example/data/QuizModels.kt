@@ -38,10 +38,11 @@ data class Quiz(
     val isApproved: Boolean = true,
     val timeLimitMinutes: Int? = null,
     val color: Color = IndigoPurple,
-    val questions: List<QuizQuestion>
+    val questions: List<QuizQuestion> = emptyList(),
+    val initialQuestionCount: Int = 0
 ) {
     val questionCount: Int
-        get() = questions.size
+        get() = if (questions.isNotEmpty()) questions.size else initialQuestionCount
 }
 
 /**
