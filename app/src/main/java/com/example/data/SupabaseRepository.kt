@@ -1,14 +1,8 @@
 package com.example.data
 
-import com.example.ui.AdminLogItem
-import com.example.ui.AdminPlanItem
-import com.example.ui.AdminPlatformTransaction
-import com.example.ui.AdminTransactionItem
 import com.example.ui.CachedNote
 import com.example.ui.ConnectedStudent
 import com.example.ui.PlanTier
-import com.example.ui.PlatformTransactionCategory
-import com.example.ui.PlatformTransactionStatus
 import com.example.ui.RecentNoteData
 import com.example.ui.StreakData
 import com.example.ui.SubjectUploadItem
@@ -17,7 +11,6 @@ import com.example.ui.TopicItem
 import com.example.ui.calculateNextMilestone
 import com.example.ui.doesNoteMatchLinkedTeacher
 import com.example.ui.doesNoteMatchStudentClass
-import com.example.ui.formatUgxPrice
 import com.example.ui.generateDocxBytes
 import com.example.ui.normalizeSecondaryClass
 import com.squareup.moshi.Json
@@ -43,6 +36,11 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
+
+fun formatUgxPrice(amount: Number): String {
+    val formatter = java.text.NumberFormat.getNumberInstance(java.util.Locale.US)
+    return "UGX ${formatter.format(amount.toLong())}"
+}
 
 // ============================================================================
 // SUPABASE POSTGREST DATA TRANSFER OBJECTS (DTOs)
@@ -782,6 +780,22 @@ interface SupabasePostgrestApi {
         @Query("select") select: String = "id,quiz_id"
     ): Response<List<SupabaseQuizQuestionDto>>
 
+    @GET("glossary_terms")
+    suspend fun getAllGlossaryTerms(
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "term.asc"
+    ): Response<List<SupabaseGlossaryTermDto>>
+
+    @Headers("Prefer: return=representation")
+    @POST("glossary_terms")
+    suspend fun insertGlossaryTerm(
+        @Body term: SupabaseGlossaryTermDto
+    ): Response<List<SupabaseGlossaryTermDto>>
+
+    @DELETE("glossary_terms")
+    suspend fun deleteGlossaryTerm(
+        @Query("id") idFilter: String
+    ): Response<Unit>
 }
 
 data class SupabasePlatformSettingDto(
@@ -2435,33 +2449,6 @@ object SupabaseRepository {
     // ========================================================================
 
     /**
-     * Fetches all active subscription plans from Supabase `public.subscription_plans`.
-     */
-    suspend fun fetchSubscriptionPlans(): List<AdminPlanItem> = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext emptyList()
-        try {
-            val response = api.getAllPlans()
-            if (response.isSuccessful) {
-                response.body().orEmpty().map { dto ->
-                    val resolvedPrice = dto.priceLabel.ifBlank {
-                        dto.priceFormatted.ifBlank { formatUgxPrice(dto.priceUgx) }
-                    }
-                    AdminPlanItem(
-                        id = dto.id,
-                        duration = dto.duration,
-                        price = resolvedPrice,
-                        priceUgx = dto.priceUgx
-                    )
-                }
-            } else {
-                emptyList()
-            }
-        } catch (_: Exception) {
-            emptyList()
-        }
-    }
-
-    /**
      * Fetches student-selectable `PlanTier` items from Supabase `public.subscription_plans`.
      */
     suspend fun fetchStudentPlanTiers(): List<PlanTier> = withContext(Dispatchers.IO) {
@@ -2486,39 +2473,6 @@ object SupabaseRepository {
             }
         } catch (_: Exception) {
             emptyList()
-        }
-    }
-
-    /**
-     * Inserts or updates a subscription plan in Supabase `public.subscription_plans` (Admin Plans Add/Edit).
-     */
-    suspend fun upsertSubscriptionPlan(plan: AdminPlanItem): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured()) return@withContext false
-        try {
-            val dto = SupabasePlanDto(
-                id = plan.id,
-                duration = plan.duration.trim(),
-                caption = "Billed per ${plan.duration.lowercase()}",
-                priceLabel = plan.price,
-                priceFormatted = plan.price,
-                priceUgx = plan.priceUgx,
-                isActive = true
-            )
-            api.upsertPlan(dto).isSuccessful
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    /**
-     * Deletes a subscription plan from Supabase `public.subscription_plans` (Admin Plans Delete).
-     */
-    suspend fun deleteSubscriptionPlan(planId: String): Boolean = withContext(Dispatchers.IO) {
-        if (!SupabaseConfig.isConfigured() || planId.isBlank()) return@withContext false
-        try {
-            api.deletePlan("eq.${planId.trim()}").isSuccessful
-        } catch (_: Exception) {
-            false
         }
     }
 
@@ -2645,90 +2599,7 @@ object SupabaseRepository {
         }
     }
 
-    /**
-     * Fetches all platform transactions from Supabase `public.payments_transactions` for the Admin panel.
-     */
-    suspend fun fetchAllPlatformTransactions(): List<AdminPlatformTransaction> =
-        withContext(Dispatchers.IO) {
-            if (!SupabaseConfig.isConfigured()) return@withContext emptyList()
-            try {
-                val response = api.getAllTransactions()
-                val dtoList = if (response.isSuccessful) {
-                    response.body().orEmpty()
-                } else {
-                    val fallback = api.getAllTransactions(order = "transaction_date.desc")
-                    if (fallback.isSuccessful) fallback.body().orEmpty() else emptyList()
-                }
-                val explicitTransactions = dtoList.mapIndexed { index, dto ->
-                    val cat = when (dto.category.uppercase()) {
-                        "SUBSCRIPTION" -> PlatformTransactionCategory.SUBSCRIPTION
-                        "TEACHER_ROYALTY" -> PlatformTransactionCategory.TEACHER_ROYALTY
-                        "TAX_OPS" -> PlatformTransactionCategory.TAX_OPS
-                        else -> PlatformTransactionCategory.SUBSCRIPTION
-                    }
-                    val status = when (dto.status.trim().uppercase()) {
-                        "COMPLETED", "SUCCESS", "PAID" -> PlatformTransactionStatus.COMPLETED
-                        "FAILED", "CANCELLED", "DECLINED", "REJECTED" -> PlatformTransactionStatus.FAILED
-                        else -> PlatformTransactionStatus.PENDING
-                    }
-                    AdminPlatformTransaction(
-                        id = dto.id ?: "TX-SUP-$index",
-                        referenceNumber = dto.referenceNumber.ifBlank { "UG-TX-${10000 + index}" },
-                        title = dto.title.ifBlank { "${dto.planDuration} Subscription" },
-                        category = cat,
-                        userName = dto.userName,
-                        userRole = dto.userRole,
-                        amountUgx = dto.amountUgx,
-                        paymentMethod = "${dto.provider} (${dto.phoneNumber})",
-                        date = dto.transactionDate,
-                        time = dto.transactionTime.ifBlank { "12:00 PM" },
-                        status = status,
-                        feeUgx = dto.feeUgx,
-                        netUgx = dto.netAmountUgx,
-                        notes = dto.description,
-                        studentClassOrSubject = dto.planDuration
-                    )
-                }
 
-                val students = fetchAllUsers().filter { it.role.equals("student", ignoreCase = true) }
-                val studentSignupTransactions = students.mapIndexedNotNull { idx, student ->
-                    val alreadyHasTx = dtoList.any {
-                        it.phoneNumber.equals(student.phoneNumber, ignoreCase = true) ||
-                            it.userName.equals(student.fullName, ignoreCase = true)
-                    }
-                    if (alreadyHasTx) {
-                        null
-                    } else {
-                        val provider = if (
-                            student.phoneNumber.startsWith("070") ||
-                            student.phoneNumber.startsWith("074") ||
-                            student.phoneNumber.startsWith("075")
-                        ) "Airtel Money" else "MTN MoMo"
-                        AdminPlatformTransaction(
-                            id = "TX-STU-${student.id ?: idx}",
-                            referenceNumber = "UG-SIGNUP-${1000 + idx}",
-                            title = "Student Signup Subscription",
-                            category = PlatformTransactionCategory.SUBSCRIPTION,
-                            userName = student.fullName.ifBlank { student.phoneNumber },
-                            userRole = "Student",
-                            amountUgx = 2000L,
-                            paymentMethod = "$provider (${student.phoneNumber})",
-                            date = student.createdAt?.take(10) ?: "Today",
-                            time = "12:00 PM",
-                            status = PlatformTransactionStatus.COMPLETED,
-                            feeUgx = 0L,
-                            netUgx = 2000L,
-                            notes = "1 Month Student Plan Subscription",
-                            studentClassOrSubject = student.academicClass.ifBlank { "1 Month" }
-                        )
-                    }
-                }
-
-                explicitTransactions + studentSignupTransactions
-            } catch (_: Exception) {
-                emptyList()
-            }
-        }
 
     /**
      * Fetches a student's own subscription payment history from `public.payments_transactions`
@@ -3076,137 +2947,7 @@ object SupabaseRepository {
      * Fetches real system & audit logs directly from live Supabase records (`notes_uploads`,
      * `payments_transactions`, `users`, `affiliates`, and database/storage health telemetry).
      */
-    suspend fun fetchSystemAuditLogs(): List<AdminLogItem> =
-        withContext(Dispatchers.IO) {
-            if (!SupabaseConfig.isConfigured()) return@withContext emptyList()
-            val logs = mutableListOf<AdminLogItem>()
-            try {
-                val (notes, txs, users, affiliates, plans) = coroutineScope {
-                    val nDef = async { runCatching { api.getAllNotes().body().orEmpty() }.getOrDefault(emptyList()) }
-                    val tDef = async { runCatching { api.getAllTransactions().body().orEmpty() }.getOrDefault(emptyList()) }
-                    val uDef = async { fetchAllUsers() }
-                    val aDef = async { runCatching { api.getAllAffiliates().body().orEmpty() }.getOrDefault(emptyList()) }
-                    val pDef = async { runCatching { api.getAllPlans().body().orEmpty() }.getOrDefault(emptyList()) }
-                    listOf(nDef.await(), tDef.await(), uDef.await(), aDef.await(), pDef.await())
-                }
-                @Suppress("UNCHECKED_CAST")
-                val notesList = mergeWithRecentUploadedNotes(notes as List<SupabaseNoteUploadDto>)
-                @Suppress("UNCHECKED_CAST")
-                val txsList = txs as List<SupabasePaymentTransactionDto>
-                @Suppress("UNCHECKED_CAST")
-                val usersList = users as List<SupabaseUserDto>
-                @Suppress("UNCHECKED_CAST")
-                val affiliatesList = affiliates as List<SupabaseAffiliateDto>
-                @Suppress("UNCHECKED_CAST")
-                val plansList = plans as List<SupabasePlanDto>
 
-                // 1. Storage & Content Upload Logs from `public.notes_uploads`
-                notesList.forEachIndexed { index, note ->
-                    val sizeMb = parseFileSizeToMb(note.fileSize.ifBlank { "2.4 MB" })
-                    val sizeLabel = formatStorageMb(sizeMb)
-                    logs.add(
-                        AdminLogItem(
-                            id = "log-upload-${note.id ?: index}",
-                            timestamp = note.dateUploaded.ifBlank { "Synced" },
-                            level = "INFO",
-                            title = "${note.contentType} Published: ${note.title}",
-                            description = "Teacher '${note.authorName}' uploaded '${note.title}' ($sizeLabel ${note.fileType}) for ${note.targetClass} ${note.subjectName}.",
-                            actor = "${note.authorName} (Teacher)",
-                            ipAddress = "Supabase Storage",
-                            category = "STORAGE",
-                            detailsJson = "{\n  \"event\": \"STORAGE_OBJECT_UPLOADED\",\n  \"bucket\": \"notes_files\",\n  \"title\": \"${note.title}\",\n  \"subject\": \"${note.subjectName}\",\n  \"target_class\": \"${note.targetClass}\",\n  \"content_type\": \"${note.contentType}\",\n  \"file_size\": \"$sizeLabel\",\n  \"status\": \"${note.status}\"\n}"
-                        )
-                    )
-                }
-
-                // 2. Payment & Disbursement Logs from `public.payments_transactions`
-                txsList.forEachIndexed { index, tx ->
-                    val isOutflow = tx.amountUgx < 0
-                    val absAmountFormatted = formatUgxPrice(kotlin.math.abs(tx.amountUgx).toInt())
-                    logs.add(
-                        AdminLogItem(
-                            id = "log-tx-${tx.id ?: index}",
-                            timestamp = "${tx.transactionDate} ${tx.transactionTime}".trim(),
-                            level = "PAYOUT",
-                            title = tx.title.ifBlank { if (isOutflow) "Admin Disbursement" else "Subscription Payment Verified" },
-                            description = if (isOutflow) {
-                                "Disbursement of $absAmountFormatted to ${tx.userName} via ${tx.provider}: ${tx.description}"
-                            } else {
-                                "${tx.userName} (${tx.userRole}) completed ${tx.planDuration} subscription payment of $absAmountFormatted via ${tx.provider}."
-                            },
-                            actor = "${tx.userName} (${tx.userRole})",
-                            ipAddress = tx.provider,
-                            category = "PAYMENT",
-                            detailsJson = "{\n  \"reference\": \"${tx.referenceNumber}\",\n  \"category\": \"${tx.category}\",\n  \"amount_ugx\": ${tx.amountUgx},\n  \"net_ugx\": ${tx.netAmountUgx},\n  \"provider\": \"${tx.provider}\",\n  \"phone\": \"${tx.phoneNumber}\",\n  \"status\": \"${tx.status}\"\n}"
-                        )
-                    )
-                }
-
-                // 3. User Registration & Auth Security Logs from `public.users`
-                usersList.forEachIndexed { index, user ->
-                    val roleDisplay = user.role.replaceFirstChar { it.uppercase() }
-                    val timeLabel = user.createdAt?.replace("T", " ")?.take(19) ?: "Verified in DB"
-                    val isStudent = user.role.equals("student", ignoreCase = true)
-                    val isAdmin = user.role.equals("admin", ignoreCase = true)
-                    logs.add(
-                        AdminLogItem(
-                            id = "log-user-${user.id ?: "${user.phoneNumber}_$index"}",
-                            timestamp = timeLabel,
-                            level = "SECURITY",
-                            title = if (isAdmin) "Admin Account Active (${user.fullName})" else "$roleDisplay Account Registered",
-                            description = when {
-                                isAdmin -> "Administrator '${user.fullName}' authenticated and active in public.users."
-                                isStudent -> "Student '${user.fullName}' (${user.phoneNumber}) registered${if (user.academicClass.isNotBlank()) " in ${user.academicClass} ${user.stream}".trimEnd() else ""}."
-                                else -> "Teacher '${user.fullName}' (${user.phoneNumber}) registered in public.users."
-                            },
-                            actor = "${user.fullName} ($roleDisplay)",
-                            ipAddress = user.phoneNumber,
-                            category = "SECURITY",
-                            detailsJson = "{\n  \"table\": \"public.users\",\n  \"full_name\": \"${user.fullName}\",\n  \"phone_number\": \"${user.phoneNumber}\",\n  \"role\": \"${user.role}\",\n  \"is_plan_active\": ${user.isPlanActive}\n}"
-                        )
-                    )
-                }
-
-                // 4. Affiliate Logs from `public.affiliates` (only when referrals or balance exist, or registered affiliate)
-                affiliatesList.filter { it.referralCount > 0 || it.totalEarnedUgx > 0 }.forEachIndexed { index, aff ->
-                    logs.add(
-                        AdminLogItem(
-                            id = "log-aff-${aff.id ?: index}",
-                            timestamp = aff.joinedDate,
-                            level = "INFO",
-                            title = "Affiliate Referral Activity (${aff.referralCode})",
-                            description = "${aff.userName} recorded ${aff.referralCount} referrals • Total earned: ${formatUgxPrice(aff.totalEarnedUgx)}.",
-                            actor = "${aff.userName} (${aff.role})",
-                            ipAddress = aff.userPhone,
-                            category = "AFFILIATE",
-                            detailsJson = "{\n  \"referral_code\": \"${aff.referralCode}\",\n  \"referral_count\": ${aff.referralCount},\n  \"total_earned_ugx\": ${aff.totalEarnedUgx},\n  \"current_balance_ugx\": ${aff.currentBalanceUgx},\n  \"status\": \"${aff.status}\"\n}"
-                        )
-                    )
-                }
-
-                // 5. Live Supabase Free Plan Storage & Database Sync Log
-                val usedMb = notesList.sumOf { parseFileSizeToMb(it.fileSize.ifBlank { "2.4 MB" }) }
-                val freeMb = (SUPABASE_FREE_PLAN_STORAGE_MB - usedMb).coerceAtLeast(0.0)
-                val totalRecords = usersList.size + notesList.size + txsList.size + affiliatesList.size + plansList.size
-                val nowStr = java.text.SimpleDateFormat("dd MMM yyyy, HH:mm:ss", java.util.Locale.US).format(java.util.Date())
-                logs.add(
-                    AdminLogItem(
-                        id = "log-db-sync-live",
-                        timestamp = nowStr,
-                        level = "DATABASE",
-                        title = "Supabase Free Plan Storage & DB Sync",
-                        description = "Synced $totalRecords database records • Storage used: ${formatStorageMb(usedMb)} of 1 GB (${formatStorageMb(freeMb)} available across ${notesList.size} uploads).",
-                        actor = "SUPABASE_POSTGREST",
-                        ipAddress = "xzutgxiwexxhmpqtybaf.supabase.co",
-                        category = "DATABASE",
-                        detailsJson = "{\n  \"plan\": \"SUPABASE_FREE_TIER\",\n  \"storage_quota_mb\": 1024,\n  \"storage_used_mb\": ${String.format(java.util.Locale.US, "%.2f", usedMb)},\n  \"storage_free_mb\": ${String.format(java.util.Locale.US, "%.2f", freeMb)},\n  \"uploads_count\": ${notesList.size},\n  \"users_count\": ${usersList.size},\n  \"transactions_count\": ${txsList.size},\n  \"total_records\": $totalRecords\n}"
-                    )
-                )
-            } catch (_: Exception) {
-                // Return any logs collected so far
-            }
-            logs
-        }
 
         suspend fun deleteUserAccount(
             phoneOrEmail: String,
@@ -3410,6 +3151,48 @@ object SupabaseRepository {
             throw Exception("Failed to load questions: ${response.code()} ${response.message()}")
         }
     }
+
+    suspend fun fetchAllGlossaryTerms(): List<GlossaryTerm> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = api.getAllGlossaryTerms()
+            if (response.isSuccessful) {
+                response.body()?.map { dto ->
+                    GlossaryTerm(
+                        id = dto.id ?: java.util.UUID.randomUUID().toString(),
+                        term = dto.term,
+                        subject = dto.subject,
+                        targetClass = dto.targetClass,
+                        definition = dto.definition,
+                        exampleUsage = dto.exampleUsage,
+                        isApproved = dto.isApproved
+                    )
+                } ?: emptyList()
+            } else emptyList()
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun saveGlossaryTermToSupabase(term: GlossaryTerm): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val dto = SupabaseGlossaryTermDto(
+                id = term.id,
+                term = term.term,
+                subject = term.subject,
+                targetClass = term.targetClass,
+                definition = term.definition,
+                exampleUsage = term.exampleUsage,
+                isApproved = term.isApproved
+            )
+            val response = api.insertGlossaryTerm(dto)
+            response.isSuccessful
+        }.getOrDefault(false)
+    }
+
+    suspend fun deleteGlossaryTermFromSupabase(id: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = api.deleteGlossaryTerm("eq.$id")
+            response.isSuccessful
+        }.getOrDefault(false)
+    }
 }
 
 // ============================================================================
@@ -3444,4 +3227,15 @@ data class SupabaseQuizQuestionDto(
     @Json(name = "answer_bool") val answerBool: Boolean? = null,
     @Json(name = "explanation") val explanation: String? = null
 )
+
+data class SupabaseGlossaryTermDto(
+    @Json(name = "id") val id: String? = null,
+    @Json(name = "term") val term: String,
+    @Json(name = "subject") val subject: String,
+    @Json(name = "target_class") val targetClass: String = "S.1-S.6",
+    @Json(name = "definition") val definition: String,
+    @Json(name = "example_usage") val exampleUsage: String? = null,
+    @Json(name = "is_approved") val isApproved: Boolean = true
+)
+
 

@@ -46,18 +46,6 @@ import com.example.data.SupabaseRepository
 import com.example.notifications.NotificationHelper
 import com.example.ui.AccountScreen
 import com.example.ui.AboutScreen
-import com.example.ui.AdminAccountScreen
-import com.example.ui.AdminAnalysisScreen
-import com.example.ui.AdminHealthScreen
-import com.example.ui.AdminHomeScreen
-import com.example.ui.AdminLearningHubPortalScreen
-import com.example.ui.AdminLogsScreen
-import com.example.ui.AdminMoreScreen
-import com.example.ui.AdminPlaceholderScreen
-import com.example.ui.AdminPlansScreen
-import com.example.ui.AdminSettingsScreen
-import com.example.ui.AdminTransactionsScreen
-import com.example.ui.AdminUsersScreen
 import com.example.ui.CachedNote
 import com.example.ui.DefaultTeacherSubjects
 import com.example.ui.DefaultPlanTiers
@@ -164,16 +152,6 @@ enum class AppScreen {
     CREATE_LIVE_CLASS,
     STUDENT_LIVE_SESSION,
     TEACHER_LIVE_SESSION,
-    ADMIN_HOME,
-    ADMIN_ANALYSIS,
-    ADMIN_USERS,
-    ADMIN_MORE,
-    ADMIN_ACCOUNT,
-    ADMIN_PLANS,
-    ADMIN_TRANSACTIONS,
-    ADMIN_SETTINGS,
-    ADMIN_HEALTH,
-    ADMIN_LOGS,
     LEARNING_HUB,
     VISUAL_LEARNING,
     LIBRARY,
@@ -189,7 +167,6 @@ enum class AppScreen {
     QUIZ_INSTRUCTIONS,
     QUIZ_TAKING,
     QUIZ_RESULTS,
-    ADMIN_LEARNING_HUB_PORTAL,
     CLASSES,
     GLOSSARY,
     MY_LEARNING,
@@ -639,7 +616,6 @@ class MainActivity : ComponentActivity() {
                             prefs.edit().putString("teacher_connected_students", serializeConnectedStudents(merged)).apply()
                         }
                     } else if (userRoleState == UserRole.STUDENT &&
-                        !currentScreen.name.startsWith("ADMIN_") &&
                         currentScreen !in setOf(AppScreen.WELCOME, AppScreen.LOGIN, AppScreen.SIGNUP, AppScreen.ONBOARDING)
                     ) {
                         val accountPhone = studentPhone.ifBlank { prefs.getString("user_email", null).orEmpty() }.trim()
@@ -702,26 +678,6 @@ class MainActivity : ComponentActivity() {
 
                 var privacyPreviousScreen by remember {
                     mutableStateOf(AppScreen.PROFILE)
-                }
-
-                var adminPreviousScreen by remember {
-                    mutableStateOf(AppScreen.HOME)
-                }
-
-                var adminAccountPreviousScreen by remember {
-                    mutableStateOf(AppScreen.ADMIN_MORE)
-                }
-
-                var adminTransactionsPreviousScreen by remember {
-                    mutableStateOf(AppScreen.ADMIN_MORE)
-                }
-
-                var adminHealthPreviousScreen by remember {
-                    mutableStateOf(AppScreen.ADMIN_MORE)
-                }
-
-                var adminLogsPreviousScreen by remember {
-                    mutableStateOf(AppScreen.ADMIN_MORE)
                 }
 
                 // Request POST_NOTIFICATIONS runtime permission on Android 13+ when entering Home screen
@@ -853,7 +809,6 @@ class MainActivity : ComponentActivity() {
                         AppScreen.PDF_VIEWER -> {
                             when (userRoleState) {
                                 UserRole.TEACHER -> if (previousScreen in AccountSecurityVault.TEACHER_EXCLUSIVE_SCREENS) previousScreen else AppScreen.TEACHER_HOME
-                                UserRole.ADMIN -> AppScreen.ADMIN_HOME
                                 else -> if (previousScreen in AccountSecurityVault.STUDENT_EXCLUSIVE_SCREENS) previousScreen else AppScreen.HOME
                             }
                         }
@@ -872,28 +827,24 @@ class MainActivity : ComponentActivity() {
                         AppScreen.SETTINGS -> {
                             when (userRoleState) {
                                 UserRole.TEACHER -> AppScreen.TEACHER_PROFILE
-                                UserRole.ADMIN -> AppScreen.ADMIN_MORE
                                 else -> settingsPreviousScreen
                             }
                         }
                         AppScreen.HELP_AND_SUPPORT -> {
                             when (userRoleState) {
                                 UserRole.TEACHER -> AppScreen.TEACHER_PROFILE
-                                UserRole.ADMIN -> AppScreen.ADMIN_MORE
                                 else -> helpPreviousScreen
                             }
                         }
                         AppScreen.ABOUT -> {
                             when (userRoleState) {
                                 UserRole.TEACHER -> AppScreen.TEACHER_PROFILE
-                                UserRole.ADMIN -> AppScreen.ADMIN_MORE
                                 else -> aboutPreviousScreen
                             }
                         }
                         AppScreen.PRIVACY_POLICY -> {
                             when (userRoleState) {
                                 UserRole.TEACHER -> AppScreen.TEACHER_PROFILE
-                                UserRole.ADMIN -> AppScreen.ADMIN_MORE
                                 else -> privacyPreviousScreen
                             }
                         }
@@ -916,21 +867,9 @@ class MainActivity : ComponentActivity() {
                         AppScreen.TEACHER_STUDENT_DETAIL -> AppScreen.TEACHER_STREAM_STUDENTS
                         AppScreen.TEACHER_HOME -> AppScreen.TEACHER_HOME
 
-                        // Admin Screens: strictly contained within Admin panel
-                        AppScreen.ADMIN_ANALYSIS -> AppScreen.ADMIN_HOME
-                        AppScreen.ADMIN_USERS -> AppScreen.ADMIN_HOME
-                        AppScreen.ADMIN_MORE -> AppScreen.ADMIN_HOME
-                        AppScreen.ADMIN_ACCOUNT -> adminAccountPreviousScreen
-                        AppScreen.ADMIN_PLANS -> AppScreen.ADMIN_HOME
-                        AppScreen.ADMIN_TRANSACTIONS -> adminTransactionsPreviousScreen
-                        AppScreen.ADMIN_SETTINGS -> AppScreen.ADMIN_MORE
-                        AppScreen.ADMIN_HEALTH -> adminHealthPreviousScreen
-                        AppScreen.ADMIN_LOGS -> adminLogsPreviousScreen
-
                         AppScreen.LEARNING_HUB -> {
                             when (userRoleState) {
                                 UserRole.TEACHER -> AppScreen.TEACHER_HOME
-                                UserRole.ADMIN -> AppScreen.ADMIN_HOME
                                 else -> AppScreen.HOME
                             }
                         }
@@ -1080,7 +1019,6 @@ class MainActivity : ComponentActivity() {
 
                                 currentScreen = when (role.lowercase()) {
                                     "teacher" -> AppScreen.TEACHER_HOME
-                                    "admin" -> AppScreen.ADMIN_HOME
                                     else -> AppScreen.HOME
                                 }
                             }
@@ -1140,7 +1078,6 @@ class MainActivity : ComponentActivity() {
 
                                 currentScreen = when (role.lowercase()) {
                                     "teacher" -> AppScreen.TEACHER_HOME
-                                    "admin" -> AppScreen.ADMIN_HOME
                                     else -> AppScreen.STUDENT_PAYMENT
                                 }
                             }
@@ -1226,10 +1163,6 @@ class MainActivity : ComponentActivity() {
                             },
                             onNavigateToTeacher = {
                                 currentScreen = AppScreen.TEACHER_HOME
-                            },
-                            onNavigateToAdmin = {
-                                adminPreviousScreen = AppScreen.HOME
-                                currentScreen = AppScreen.ADMIN_HOME
                             }
                         )
                         AppScreen.SUBJECTS -> SubjectsScreen(
@@ -1432,10 +1365,6 @@ class MainActivity : ComponentActivity() {
                                 privacyPreviousScreen = AppScreen.PROFILE
                                 currentScreen = AppScreen.PRIVACY_POLICY
                             },
-                            onNavigateToAdmin = {
-                                adminPreviousScreen = AppScreen.PROFILE
-                                currentScreen = AppScreen.ADMIN_HOME
-                            },
                             onUpdateProfile = onSaveProfile,
                             onLogout = {
                                 AccountSecurityVault.clearSessionOnLogout(prefs)
@@ -1475,7 +1404,6 @@ class MainActivity : ComponentActivity() {
                             onNavigateBack = {
                                 currentScreen = when (userRoleState) {
                                     UserRole.TEACHER -> AppScreen.TEACHER_HOME
-                                    UserRole.ADMIN -> AppScreen.ADMIN_HOME
                                     else -> AppScreen.HOME
                                 }
                             },
@@ -1989,10 +1917,6 @@ class MainActivity : ComponentActivity() {
                                 privacyPreviousScreen = AppScreen.TEACHER_PROFILE
                                 currentScreen = AppScreen.PRIVACY_POLICY
                             },
-                            onNavigateToAdmin = {
-                                adminPreviousScreen = AppScreen.TEACHER_PROFILE
-                                currentScreen = AppScreen.ADMIN_HOME
-                            },
                             onSwitchToStudentView = {
                                 // Security: Cross-role switching is strictly disabled without authenticating
                             },
@@ -2012,6 +1936,13 @@ class MainActivity : ComponentActivity() {
                             schoolName = teacherSchool,
                             onNavigateBack = { currentScreen = AppScreen.TEACHER_PROFILE },
                             onUpdateProfile = onSaveTeacherProfile,
+                            onUpdatePassword = { currentPass, newPass, onResult ->
+                                coroutineScope.launch {
+                                    val teacherAccountKey = (prefs.getString("user_email", null) ?: studentPhone).orEmpty().trim()
+                                    val success = SupabaseRepository.resetUserPassword(teacherAccountKey.ifBlank { teacherName }, newPass)
+                                    onResult(success, if (success) "Password updated successfully in database!" else "Failed to update password in database.")
+                                }
+                            },
                             onSwitchToStudentView = {
                                 // Security: Cross-role switching is strictly disabled without authenticating
                             },
@@ -2136,117 +2067,6 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.TEACHER_STREAM_STUDENTS
                             }
                         }
-                        AppScreen.ADMIN_HOME -> AdminHomeScreen(
-                            revenueBalance = "0",
-                            studentsCount = "0",
-                            teachersCount = "0",
-                            notesCount = "0",
-                            assignmentsCount = "0",
-                            onNavigateToPlans = {
-                                currentScreen = AppScreen.ADMIN_PLANS
-                            },
-                            onNavigateToAccount = {
-                                adminAccountPreviousScreen = AppScreen.ADMIN_HOME
-                                currentScreen = AppScreen.ADMIN_ACCOUNT
-                            },
-                            onNavigateToTransactions = {
-                                adminTransactionsPreviousScreen = AppScreen.ADMIN_HOME
-                                currentScreen = AppScreen.ADMIN_TRANSACTIONS
-                            },
-                            onNavigateToHome = { /* Already on Admin Home */ },
-                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
-                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
-                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE },
-                            onNavigateToLearningHubPortal = { currentScreen = AppScreen.ADMIN_LEARNING_HUB_PORTAL },
-                            onSwitchToStudentView = {
-                                // Security: Admin role isolation - direct switching disabled
-                            },
-                            onSwitchToTeacherView = {
-                                // Security: Admin role isolation - direct switching disabled
-                            }
-                        )
-                        AppScreen.ADMIN_LEARNING_HUB_PORTAL -> AdminLearningHubPortalScreen(
-                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
-                        )
-                        AppScreen.ADMIN_ANALYSIS -> AdminAnalysisScreen(
-                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME },
-                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
-                            onNavigateToAnalysis = { /* Already on Analysis */ },
-                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
-                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
-                        )
-                        AppScreen.ADMIN_USERS -> AdminUsersScreen(
-                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME },
-                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
-                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
-                            onNavigateToUsers = { /* Already on Users */ },
-                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
-                        )
-                        AppScreen.ADMIN_MORE -> AdminMoreScreen(
-                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME },
-                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
-                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
-                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
-                            onNavigateToMore = { /* Already on More */ },
-                            onNavigateToAccount = {
-                                adminAccountPreviousScreen = AppScreen.ADMIN_MORE
-                                currentScreen = AppScreen.ADMIN_ACCOUNT
-                            },
-                            onNavigateToTransactions = {
-                                adminTransactionsPreviousScreen = AppScreen.ADMIN_MORE
-                                currentScreen = AppScreen.ADMIN_TRANSACTIONS
-                            },
-                            onNavigateToSettings = { currentScreen = AppScreen.ADMIN_SETTINGS },
-                            onNavigateToHealth = {
-                                adminHealthPreviousScreen = AppScreen.ADMIN_MORE
-                                currentScreen = AppScreen.ADMIN_HEALTH
-                            },
-                            onNavigateToLogs = {
-                                adminLogsPreviousScreen = AppScreen.ADMIN_MORE
-                                currentScreen = AppScreen.ADMIN_LOGS
-                            },
-                            onLogout = {
-                                AccountSecurityVault.clearSessionOnLogout(prefs)
-                                userRoleState = UserRole.UNAUTHENTICATED
-                                isLoggedInState = false
-                                coroutineScope.launch { SupabaseRepository.revokeCurrentSession() }
-                                currentScreen = AppScreen.WELCOME
-                            }
-                        )
-                        AppScreen.ADMIN_SETTINGS -> AdminSettingsScreen(
-                            adminName = "Superadministrator",
-                            onNavigateBack = { currentScreen = AppScreen.ADMIN_MORE }
-                        )
-                        AppScreen.ADMIN_HEALTH -> AdminHealthScreen(
-                            onNavigateBack = { currentScreen = adminHealthPreviousScreen },
-                            onNavigateToLogs = {
-                                adminLogsPreviousScreen = AppScreen.ADMIN_HEALTH
-                                currentScreen = AppScreen.ADMIN_LOGS
-                            }
-                        )
-                        AppScreen.ADMIN_LOGS -> AdminLogsScreen(
-                            onNavigateBack = { currentScreen = adminLogsPreviousScreen }
-                        )
-                        AppScreen.ADMIN_ACCOUNT -> AdminAccountScreen(
-                            initialBalance = "0",
-                            initialTax = "0",
-                            initialDb = "0",
-                            onNavigateBack = { currentScreen = adminAccountPreviousScreen },
-                            onNavigateToTransactions = {
-                                adminTransactionsPreviousScreen = AppScreen.ADMIN_ACCOUNT
-                                currentScreen = AppScreen.ADMIN_TRANSACTIONS
-                            }
-                        )
-                        AppScreen.ADMIN_PLANS -> AdminPlansScreen(
-                            onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
-                        )
-                        AppScreen.ADMIN_TRANSACTIONS -> AdminTransactionsScreen(
-                            onNavigateBack = { currentScreen = adminTransactionsPreviousScreen },
-                            onNavigateToHome = { currentScreen = AppScreen.ADMIN_HOME },
-                            onNavigateToAnalysis = { currentScreen = AppScreen.ADMIN_ANALYSIS },
-                            onNavigateToUsers = { currentScreen = AppScreen.ADMIN_USERS },
-                            onNavigateToMore = { currentScreen = AppScreen.ADMIN_MORE }
-                        )
                         AppScreen.STUDENT_LIVE_CLASSES -> {
                             if (!com.example.data.AppFeatures.ONLINE_CLASSES_ENABLED) {
                                 currentScreen = AppScreen.HOME

@@ -266,13 +266,13 @@ fun LearningHubScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             LearningHubCategoryCard(
-                                category = LearningHubCategory.CLASSES,
+                                category = LearningHubCategory.LESSONS,
                                 onClick = onNavigateToClasses,
                                 modifier = Modifier.weight(1f)
                             )
                         }
 
-                        // Row 2: Glossary & My Learning
+                        // Row 2: Glossary & Tools
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -283,25 +283,8 @@ fun LearningHubScreen(
                                 modifier = Modifier.weight(1f)
                             )
                             LearningHubCategoryCard(
-                                category = LearningHubCategory.MY_LEARNING,
-                                onClick = onNavigateToMyLearning,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        // Row 3: Tools & Tips
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            LearningHubCategoryCard(
                                 category = LearningHubCategory.TOOLS,
                                 onClick = onNavigateToTools,
-                                modifier = Modifier.weight(1f)
-                            )
-                            LearningHubCategoryCard(
-                                category = LearningHubCategory.TIPS,
-                                onClick = onNavigateToTips,
                                 modifier = Modifier.weight(1f)
                             )
                         }

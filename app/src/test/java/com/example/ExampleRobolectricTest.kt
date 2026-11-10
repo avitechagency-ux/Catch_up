@@ -11,19 +11,9 @@ import com.example.ui.DefaultTeacherSubjects
 import com.example.ui.StudentNavItems
 import com.example.ui.TeacherNavItems
 import com.example.ui.ABOUT_STORY_TEXT
-import com.example.ui.AdminPlanItem
-import com.example.ui.DefaultAdminLogs
-import com.example.ui.DefaultAdminNavItems
-import com.example.ui.DefaultAdminPlans
-import com.example.ui.DefaultAdminTransactions
 import com.example.ui.formatUgxPrice
 import com.example.ui.parseUgxInput
 import com.example.ui.AnalysisTimeRange
-import com.example.ui.DefaultRevenueChartData
-import com.example.ui.DefaultStudentsList
-import com.example.ui.DefaultTeachersList
-import com.example.ui.mergeSignedUpAndDefaultUsers
-import com.example.ui.toAdminUserItem
 import com.example.ui.DefaultUsersChartData
 import com.example.ui.MonthUsersChartData
 import com.example.ui.WeekRevenueChartData
@@ -155,38 +145,6 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun `verify admin nav items match full set specification`() {
-    val labels = DefaultAdminNavItems.map { it.label }
-    assertEquals(listOf("Home", "Analysis", "Users", "More"), labels)
-  }
-
-  @Test
-  fun `verify admin screens are registered in app screens`() {
-    assertTrue(AppScreen.values().any { it.name == "ADMIN_HOME" })
-    assertTrue(AppScreen.values().any { it.name == "ADMIN_ANALYSIS" })
-    assertTrue(AppScreen.values().any { it.name == "ADMIN_USERS" })
-    assertTrue(AppScreen.values().any { it.name == "ADMIN_MORE" })
-  }
-
-  @Test
-  fun `verify navigation from student home to admin home exists`() {
-    var currentScreen = AppScreen.HOME
-    val navigateToAdmin = { currentScreen = AppScreen.ADMIN_HOME }
-    navigateToAdmin()
-    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
-  }
-
-  @Test
-  fun `verify admin analysis revenue chart data configuration`() {
-    val revenue = DefaultRevenueChartData
-    assertEquals("Total Revenue", revenue.title)
-    assertEquals(listOf("May", "Jun", "Jul", "Aug", "Sep"), revenue.points.map { it.label })
-    assertEquals(listOf("6M", "4.5M", "3M", "1.5M", "0"), revenue.yAxisLabels)
-    assertEquals("UGX 5,867,000", revenue.currentFormattedValue)
-    assertEquals("+24.5%", revenue.growthRate)
-  }
-
-  @Test
   fun `verify admin analysis users chart data configuration`() {
     val users = DefaultUsersChartData
     assertEquals("Active Users", users.title)
@@ -194,166 +152,6 @@ class ExampleRobolectricTest {
     assertEquals(listOf("1.2k", "900", "600", "300", "0"), users.yAxisLabels)
     assertEquals("1,050", users.currentFormattedValue)
     assertEquals("+32.8%", users.growthRate)
-  }
-
-  @Test
-  fun `verify admin analysis back navigation returns to admin home`() {
-    var currentScreen = AppScreen.ADMIN_ANALYSIS
-    val onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
-    onNavigateBack()
-    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
-  }
-
-  @Test
-  fun `verify admin users default students list starts empty for production`() {
-    assertTrue(DefaultStudentsList.isEmpty())
-  }
-
-  @Test
-  fun `verify admin users default teachers list starts empty for production`() {
-    assertTrue(DefaultTeachersList.isEmpty())
-  }
-
-  @Test
-  fun `verify admin users back navigation returns to admin home`() {
-    var currentScreen = AppScreen.ADMIN_USERS
-    val onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
-    onNavigateBack()
-    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
-  }
-
-  @Test
-  fun `verify admin more back navigation returns to admin home`() {
-    var currentScreen = AppScreen.ADMIN_MORE
-    val onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
-    onNavigateBack()
-    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
-  }
-
-  @Test
-  fun `verify admin more navigation callbacks work as expected`() {
-    var currentScreen = AppScreen.ADMIN_MORE
-    val onNavigateToAccount = { currentScreen = AppScreen.ACCOUNT }
-    val onNavigateToSettings = { currentScreen = AppScreen.SETTINGS }
-    val onLogout = { currentScreen = AppScreen.PROFILE }
-
-    onNavigateToAccount()
-    assertEquals(AppScreen.ACCOUNT, currentScreen)
-
-    onNavigateToSettings()
-    assertEquals(AppScreen.SETTINGS, currentScreen)
-
-    onLogout()
-    assertEquals(AppScreen.PROFILE, currentScreen)
-  }
-
-  @Test
-  fun `verify admin more menu items list order`() {
-    val expectedOrder = listOf(
-      "Account",
-      "Transactions",
-      "Settings",
-      "Health",
-      "Logs",
-      "LOG OUT"
-    )
-    assertEquals(6, expectedOrder.size)
-    assertTrue(expectedOrder.contains("Health"))
-    assertTrue(expectedOrder.contains("Logs"))
-    assertEquals("LOG OUT", expectedOrder.last())
-  }
-
-  @Test
-  fun `verify admin account navigation from home revenue card and back`() {
-    var currentScreen = AppScreen.ADMIN_HOME
-    var previousScreen = AppScreen.ADMIN_HOME
-
-    val onNavigateToAccountFromHome = {
-      previousScreen = AppScreen.ADMIN_HOME
-      currentScreen = AppScreen.ADMIN_ACCOUNT
-    }
-    onNavigateToAccountFromHome()
-    assertEquals(AppScreen.ADMIN_ACCOUNT, currentScreen)
-
-    val onNavigateBack = { currentScreen = previousScreen }
-    onNavigateBack()
-    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
-  }
-
-  @Test
-  fun `verify admin account navigation from more menu and back`() {
-    var currentScreen = AppScreen.ADMIN_MORE
-    var previousScreen = AppScreen.ADMIN_MORE
-
-    val onNavigateToAccountFromMore = {
-      previousScreen = AppScreen.ADMIN_MORE
-      currentScreen = AppScreen.ADMIN_ACCOUNT
-    }
-    onNavigateToAccountFromMore()
-    assertEquals(AppScreen.ADMIN_ACCOUNT, currentScreen)
-
-    val onNavigateBack = { currentScreen = previousScreen }
-    onNavigateBack()
-    assertEquals(AppScreen.ADMIN_MORE, currentScreen)
-  }
-
-  @Test
-  fun `verify admin default transactions list contains expected types and items`() {
-    assertTrue(DefaultAdminTransactions.isNotEmpty())
-    val types = DefaultAdminTransactions.map { it.type }
-    assertTrue(types.contains("Withdrew"))
-    assertTrue(types.contains("Sent"))
-    assertTrue(DefaultAdminTransactions.any { it.amount.contains("UGX") })
-    assertTrue(DefaultAdminTransactions.any { it.date.contains("/") })
-  }
-
-  @Test
-  fun `verify admin plans navigation from home plans button and back`() {
-    var currentScreen = AppScreen.ADMIN_HOME
-
-    val onNavigateToPlans = {
-      currentScreen = AppScreen.ADMIN_PLANS
-    }
-    onNavigateToPlans()
-    assertEquals(AppScreen.ADMIN_PLANS, currentScreen)
-
-    val onNavigateBack = { currentScreen = AppScreen.ADMIN_HOME }
-    onNavigateBack()
-    assertEquals(AppScreen.ADMIN_HOME, currentScreen)
-  }
-
-  @Test
-  fun `verify default admin plans list and pricing formatting`() {
-    assertEquals(1, DefaultAdminPlans.size)
-    assertEquals("1 Month", DefaultAdminPlans[0].duration)
-    assertEquals("UGX 2,000", DefaultAdminPlans[0].price)
-
-    assertEquals("UGX 5,000", formatUgxPrice(5000))
-    assertEquals("UGX 100,000", formatUgxPrice(100000))
-    assertEquals(5000, parseUgxInput("5000"))
-    assertEquals(5000, parseUgxInput("UGX 5,000"))
-  }
-
-  @Test
-  fun `verify admin plans edit add delete operations`() {
-    var plans = DefaultAdminPlans
-
-    // Add
-    val newPlan = AdminPlanItem("plan_custom", "6 Months", "UGX 6,000", 6000)
-    plans = plans + newPlan
-    assertEquals(2, plans.size)
-    assertTrue(plans.any { it.duration == "6 Months" })
-
-    // Edit
-    plans = plans.map {
-      if (it.id == "plan_1_month") it.copy(price = "UGX 1,500", priceUgx = 1500) else it
-    }
-    assertEquals("UGX 1,500", plans.first { it.id == "plan_1_month" }.price)
-
-    // Delete
-    plans = plans.filterNot { it.id == "plan_custom" }
-    assertEquals(1, plans.size)
-    assertFalse(plans.any { it.id == "plan_custom" })
   }
 
   @Test
@@ -439,70 +237,6 @@ class ExampleRobolectricTest {
     assertTrue(com.example.AppScreen.values().any { it.name == "TEACHER_PROFILE" })
     assertTrue(com.example.AppScreen.values().any { it.name == "ADMIN_SETTINGS" })
     assertTrue(com.example.AppScreen.values().any { it.name == "SETTINGS" })
-  }
-
-  @Test
-  fun `verify admin health and logs screens exist in AppScreen navigation`() {
-    assertTrue(com.example.AppScreen.values().any { it.name == "ADMIN_HEALTH" })
-    assertTrue(com.example.AppScreen.values().any { it.name == "ADMIN_LOGS" })
-  }
-
-  @Test
-  fun `verify admin health and logs navigation routing from more screen`() {
-    var currentScreen = AppScreen.ADMIN_MORE
-
-    val onNavigateToHealth = { currentScreen = AppScreen.ADMIN_HEALTH }
-    onNavigateToHealth()
-    assertEquals(AppScreen.ADMIN_HEALTH, currentScreen)
-
-    val onNavigateBackFromHealth = { currentScreen = AppScreen.ADMIN_MORE }
-    onNavigateBackFromHealth()
-    assertEquals(AppScreen.ADMIN_MORE, currentScreen)
-
-    val onNavigateToLogs = { currentScreen = AppScreen.ADMIN_LOGS }
-    onNavigateToLogs()
-    assertEquals(AppScreen.ADMIN_LOGS, currentScreen)
-
-    val onNavigateBackFromLogs = { currentScreen = AppScreen.ADMIN_MORE }
-    onNavigateBackFromLogs()
-    assertEquals(AppScreen.ADMIN_MORE, currentScreen)
-  }
-
-  @Test
-  fun `verify default admin audit logs dataset contains required categories`() {
-    assertTrue(DefaultAdminLogs.isNotEmpty())
-    assertEquals(7, DefaultAdminLogs.size)
-
-    val categories = DefaultAdminLogs.map { it.category }.toSet()
-    assertTrue(categories.contains("CONTENT"))
-    assertTrue(categories.contains("PAYMENT"))
-    assertTrue(categories.contains("SECURITY"))
-    assertTrue(categories.contains("DATABASE"))
-    assertTrue(categories.contains("AFFILIATE"))
-    assertTrue(categories.contains("STORAGE"))
-
-    val levels = DefaultAdminLogs.map { it.level }.toSet()
-    assertTrue(levels.contains("INFO"))
-    assertTrue(levels.contains("PAYOUT"))
-    assertTrue(levels.contains("SECURITY"))
-    assertTrue(levels.contains("DATABASE"))
-    assertTrue(levels.contains("WARN"))
-    assertTrue(levels.contains("ERROR"))
-  }
-
-  @Test
-  fun `verify admin audit logs filtering by level and query`() {
-    val databaseLogs = DefaultAdminLogs.filter { it.level == "DATABASE" || it.category == "DATABASE" }
-    assertEquals(1, databaseLogs.size)
-    assertTrue(databaseLogs.first().title.contains("SQLite VACUUM"))
-
-    val securityLogs = DefaultAdminLogs.filter { it.level == "SECURITY" || it.category == "SECURITY" }
-    assertEquals(1, securityLogs.size)
-    assertTrue(securityLogs.first().title.contains("2FA"))
-
-    val queryFiltered = DefaultAdminLogs.filter { it.description.contains("Okello", ignoreCase = true) }
-    assertEquals(1, queryFiltered.size)
-    assertEquals("log-101", queryFiltered.first().id)
   }
 
   @Test
@@ -1247,7 +981,7 @@ class ExampleRobolectricTest {
     assertTrue(com.example.data.AccountSecurityVault.isRootScreen(com.example.AppScreen.HOME, com.example.data.AccountSecurityVault.UserRole.STUDENT))
     assertFalse(com.example.data.AccountSecurityVault.isRootScreen(com.example.AppScreen.PROFILE, com.example.data.AccountSecurityVault.UserRole.STUDENT))
 
-    assertTrue(com.example.data.AccountSecurityVault.isRootScreen(com.example.AppScreen.ADMIN_HOME, com.example.data.AccountSecurityVault.UserRole.ADMIN))
+    assertTrue(com.example.data.AccountSecurityVault.isRootScreen(com.example.AppScreen.HOME, com.example.data.AccountSecurityVault.UserRole.ADMIN))
   }
 
   @Test

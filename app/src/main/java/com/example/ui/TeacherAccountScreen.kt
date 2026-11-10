@@ -87,6 +87,7 @@ import com.example.ui.theme.TextDark
 import com.example.ui.theme.TextMuted
 import kotlinx.coroutines.launch
 import com.example.ui.pencilSketchBorder
+import com.example.data.SupabaseRepository
 
 private val AccountGoldAccent = Color(0xFFFFB300)
 private val AccountBrightGold = Color(0xFFFFD54F)
@@ -108,6 +109,7 @@ fun TeacherAccountScreen(
     schoolName: String = "Secondary School",
     onNavigateBack: () -> Unit = {},
     onUpdateProfile: (name: String, school: String, subjects: String) -> Unit = { _, _, _ -> },
+    onUpdatePassword: ((currentPass: String, newPass: String, onResult: (Boolean, String?) -> Unit) -> Unit)? = null,
     onSwitchToStudentView: () -> Unit = {},
     onArchiveAndStartAfresh: ((newCode: String) -> Unit)? = null,
     onDeleteAccount: () -> Unit = {}
@@ -922,12 +924,27 @@ fun TeacherAccountScreen(
                                         }
                                         else -> {
                                             passwordError = null
-                                            passwordSuccess = "Password updated successfully!"
-                                            currentPassword = ""
-                                            newPassword = ""
-                                            confirmPassword = ""
-                                            coroutineScope.launch {
-                                                snackbarHostState.showSnackbar("Password updated successfully")
+                                            if (onUpdatePassword != null) {
+                                                coroutineScope.launch {
+                                                    onUpdatePassword(currentPassword, newPassword) { success, msg ->
+                                                        if (success) {
+                                                            passwordSuccess = msg ?: "Password updated successfully in database!"
+                                                            currentPassword = ""
+                                                            newPassword = ""
+                                                            confirmPassword = ""
+                                                        } else {
+                                                            passwordError = msg ?: "Failed to update password."
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                passwordSuccess = "Password updated successfully!"
+                                                currentPassword = ""
+                                                newPassword = ""
+                                                confirmPassword = ""
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar("Password updated successfully")
+                                                }
                                             }
                                         }
                                     }

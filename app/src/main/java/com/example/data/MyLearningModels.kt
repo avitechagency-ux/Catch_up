@@ -376,7 +376,7 @@ object MyLearningRepository {
             quizAttempts.map { it.percentage }.average().toInt()
         } else 0
 
-        val completedAudioCount = AudioLessonProgressManager.getTotalCompletedCount(context)
+        val completedAudioCount = VideoLessonProgressManager.getTotalCompletedCount(context)
         val goals = getGoals(context)
         val completedGoals = goals.count { it.isCompleted }
         val activeGoals = goals.count { !it.isCompleted }

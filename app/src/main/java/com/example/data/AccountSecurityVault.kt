@@ -64,19 +64,7 @@ object AccountSecurityVault {
         AppScreen.TEACHER_LIVE_SESSION
     )
 
-    val ADMIN_EXCLUSIVE_SCREENS: Set<AppScreen> = setOf(
-        AppScreen.ADMIN_HOME,
-        AppScreen.ADMIN_ANALYSIS,
-        AppScreen.ADMIN_USERS,
-        AppScreen.ADMIN_MORE,
-        AppScreen.ADMIN_ACCOUNT,
-        AppScreen.ADMIN_PLANS,
-        AppScreen.ADMIN_TRANSACTIONS,
-        AppScreen.ADMIN_SETTINGS,
-        AppScreen.ADMIN_HEALTH,
-        AppScreen.ADMIN_LOGS,
-        AppScreen.ADMIN_LEARNING_HUB_PORTAL
-    )
+    val ADMIN_EXCLUSIVE_SCREENS: Set<AppScreen> = emptySet()
 
     val COMMON_AUTHENTICATED_SCREENS: Set<AppScreen> = setOf(
         AppScreen.PDF_VIEWER,
@@ -119,7 +107,7 @@ object AccountSecurityVault {
     fun getDefaultScreenForRole(role: UserRole): AppScreen {
         return when (role) {
             UserRole.TEACHER -> AppScreen.TEACHER_HOME
-            UserRole.ADMIN -> AppScreen.ADMIN_HOME
+            UserRole.ADMIN -> AppScreen.HOME
             UserRole.STUDENT -> AppScreen.HOME
             UserRole.UNAUTHENTICATED -> AppScreen.WELCOME
         }
@@ -132,7 +120,7 @@ object AccountSecurityVault {
     fun isRootScreen(screen: AppScreen, role: UserRole): Boolean {
         return when (role) {
             UserRole.TEACHER -> screen == AppScreen.TEACHER_HOME
-            UserRole.ADMIN -> screen == AppScreen.ADMIN_HOME
+            UserRole.ADMIN -> screen == AppScreen.HOME
             UserRole.STUDENT -> screen == AppScreen.HOME
             UserRole.UNAUTHENTICATED -> screen == AppScreen.WELCOME || screen == AppScreen.ONBOARDING
         }
@@ -156,7 +144,7 @@ object AccountSecurityVault {
                 screen in TEACHER_EXCLUSIVE_SCREENS || screen in COMMON_AUTHENTICATED_SCREENS
             }
             UserRole.ADMIN -> {
-                screen in ADMIN_EXCLUSIVE_SCREENS || screen in COMMON_AUTHENTICATED_SCREENS
+                screen in STUDENT_EXCLUSIVE_SCREENS || screen in COMMON_AUTHENTICATED_SCREENS
             }
             UserRole.STUDENT -> {
                 screen in STUDENT_EXCLUSIVE_SCREENS || screen in COMMON_AUTHENTICATED_SCREENS

@@ -20,7 +20,7 @@ enum class LearningHubCategory(
     QUIZZES("Quizzes", Icons.Outlined.Quiz, PurpleTile),
     VISUAL_LEARNING("Visual Learning", Icons.Outlined.OndemandVideo, BlueTile),
     GAMES("Games", Icons.Outlined.SportsEsports, CoralTile),
-    CLASSES("Classes", Icons.Outlined.Headphones, IndigoPurple),
+    LESSONS("Lessons", Icons.Outlined.OndemandVideo, IndigoPurple),
     GLOSSARY("Glossary", Icons.Outlined.MenuBook, PurpleTile),
     MY_LEARNING("My Learning", Icons.Outlined.CalendarMonth, AmberTile),
     TOOLS("Tools", Icons.Outlined.Calculate, CoralTile),
