@@ -14,6 +14,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,18 +41,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.example.data.*
 import com.example.ui.theme.*
 
 private val AccountBrightGold = Color(0xFFFFD54F)
 private val AccountFieldBg = Color(0xFFF8F7FC)
+private val PlayerDarkBg = Color(0xFF0D0B18)
 
-enum class ClassesStep {
-    SELECT_CLASS,
-    SELECT_SUBJECT,
-    BROWSE_LESSONS
+enum class PlayerViewMode {
+    FIT_16_9,
+    FULL_FILL
 }
 
 @Composable
@@ -60,88 +58,175 @@ fun ClassesScreen(
     modifier: Modifier = Modifier,
     onNavigateBack: () -> Unit = {}
 ) {
-    val context = LocalContext.current
     val focusManager = LocalFocusManager.current
-    var currentStep by remember { mutableStateOf(ClassesStep.SELECT_CLASS) }
-    var selectedClass by remember { mutableStateOf<ClassLevel?>(null) }
-    var selectedSubject by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedSubject by remember { mutableStateOf("All") }
+    var selectedClass by remember { mutableStateOf("All") }
     var activePlayingLesson by remember { mutableStateOf<VideoLesson?>(null) }
 
-    var searchQuery by remember { mutableStateOf("") }
-    val allLessons = remember { DefaultVideoLessons }
+    var allLessons by remember { mutableStateOf<List<VideoLesson>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
 
-    BackHandler {
-        when {
-            searchQuery.isNotBlank() -> searchQuery = ""
-            currentStep == ClassesStep.BROWSE_LESSONS -> currentStep = ClassesStep.SELECT_SUBJECT
-            currentStep == ClassesStep.SELECT_SUBJECT -> currentStep = ClassesStep.SELECT_CLASS
-            currentStep == ClassesStep.SELECT_CLASS -> onNavigateBack()
-        }
+    val availableSubjects = remember {
+        listOf(
+            "All",
+            "Physics",
+            "Chemistry",
+            "Biology",
+            "Mathematics",
+            "English",
+            "History",
+            "Geography",
+            "Economics",
+            "Agriculture"
+        )
     }
 
-    val globalSearchResults = remember(searchQuery, allLessons) {
-        if (searchQuery.isBlank()) emptyList()
-        else {
-            val q = searchQuery.trim().lowercase()
-            allLessons.filter {
-                it.title.lowercase().contains(q) ||
-                    it.subject.lowercase().contains(q) ||
-                    it.topic.lowercase().contains(q) ||
-                    it.teacherName.lowercase().contains(q) ||
-                    it.targetClass.lowercase().contains(q)
+    val availableClasses = remember {
+        listOf("All", "S.1", "S.2", "S.3", "S.4", "S.5", "S.6")
+    }
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        val remoteLessons = SupabaseRepository.fetchAllVideoLessons()
+        if (remoteLessons.isNotEmpty()) {
+            allLessons = remoteLessons
+        } else {
+            allLessons = DefaultVideoLessons
+        }
+        isLoading = false
+    }
+
+    if (activePlayingLesson != null) {
+        VideoLessonPlayerScreen(
+            lesson = activePlayingLesson!!,
+            onNavigateBack = { activePlayingLesson = null }
+        )
+    } else {
+        BackHandler {
+            when {
+                searchQuery.isNotBlank() -> searchQuery = ""
+                selectedSubject != "All" -> selectedSubject = "All"
+                selectedClass != "All" -> selectedClass = "All"
+                else -> onNavigateBack()
             }
         }
-    }
 
-    Scaffold(
-        modifier = modifier
-            .fillMaxSize()
-            .background(SoftPastelBackground)
-            .testTag("classes_screen"),
-        containerColor = SoftPastelBackground,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0)
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding())
-        ) {
-            ClassesTopHeader(
-                currentStep = currentStep,
-                selectedClass = selectedClass,
-                selectedSubject = selectedSubject,
-                searchQuery = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onClearSearch = {
-                    searchQuery = ""
-                    focusManager.clearFocus()
-                },
-                onBack = {
-                    when {
-                        searchQuery.isNotBlank() -> searchQuery = ""
-                        currentStep == ClassesStep.BROWSE_LESSONS -> currentStep = ClassesStep.SELECT_SUBJECT
-                        currentStep == ClassesStep.SELECT_SUBJECT -> currentStep = ClassesStep.SELECT_CLASS
-                        currentStep == ClassesStep.SELECT_CLASS -> onNavigateBack()
-                    }
+        val filteredLessons = remember(searchQuery, selectedSubject, selectedClass, allLessons) {
+            allLessons.filter { lesson ->
+                val matchesSubject = selectedSubject.equals("All", ignoreCase = true) ||
+                    lesson.subject.equals(selectedSubject, ignoreCase = true)
+
+                val matchesClass = selectedClass.equals("All", ignoreCase = true) ||
+                    lesson.targetClass.equals(selectedClass, ignoreCase = true) ||
+                    lesson.targetClass.contains(selectedClass, ignoreCase = true)
+
+                val matchesQuery = if (searchQuery.isBlank()) true else {
+                    val q = searchQuery.trim().lowercase()
+                    lesson.title.lowercase().contains(q) ||
+                        lesson.subject.lowercase().contains(q) ||
+                        lesson.topic.lowercase().contains(q) ||
+                        lesson.teacherName.lowercase().contains(q) ||
+                        lesson.targetClass.lowercase().contains(q) ||
+                        lesson.description.lowercase().contains(q)
                 }
-            )
 
-            Box(modifier = Modifier.weight(1f)) {
-                if (searchQuery.isNotBlank()) {
-                    if (globalSearchResults.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(imageVector = Icons.Outlined.SearchOff, contentDescription = null, tint = TextMuted, modifier = Modifier.size(48.dp))
-                                Text(text = "No video lessons found for \"$searchQuery\"", color = TextMuted, fontSize = 14.sp)
+                matchesSubject && matchesClass && matchesQuery
+            }
+        }
+
+        Scaffold(
+            modifier = modifier
+                .fillMaxSize()
+                .background(SoftPastelBackground)
+                .testTag("classes_screen"),
+            containerColor = SoftPastelBackground,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = innerPadding.calculateBottomPadding())
+            ) {
+                ClassesTopHeader(
+                    searchQuery = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onClearSearch = {
+                        searchQuery = ""
+                        focusManager.clearFocus()
+                    },
+                    selectedSubject = selectedSubject,
+                    onSelectSubject = { selectedSubject = it },
+                    availableSubjects = availableSubjects,
+                    selectedClass = selectedClass,
+                    onSelectClass = { selectedClass = it },
+                    availableClasses = availableClasses,
+                    totalCount = filteredLessons.size,
+                    onBack = {
+                        when {
+                            searchQuery.isNotBlank() -> searchQuery = ""
+                            selectedSubject != "All" -> selectedSubject = "All"
+                            selectedClass != "All" -> selectedClass = "All"
+                            else -> onNavigateBack()
+                        }
+                    }
+                )
+
+                Box(modifier = Modifier.weight(1f)) {
+                    if (isLoading) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = IndigoPurple)
+                        }
+                    } else if (filteredLessons.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.OndemandVideo,
+                                    contentDescription = null,
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(54.dp)
+                                )
+                                Text(
+                                    text = if (searchQuery.isNotBlank()) {
+                                        "No video lessons found for \"$searchQuery\""
+                                    } else {
+                                        "No video lessons available for the selected filter."
+                                    },
+                                    textAlign = TextAlign.Center,
+                                    color = TextMuted,
+                                    fontSize = 15.sp
+                                )
+                                Button(
+                                    onClick = {
+                                        searchQuery = ""
+                                        selectedSubject = "All"
+                                        selectedClass = "All"
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Reset Filters", color = Color.White, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            items(globalSearchResults, key = { it.id }) { lesson ->
+                            items(filteredLessons, key = { it.id }) { lesson ->
                                 VideoLessonDropdownCard(
                                     lesson = lesson,
                                     onPlayClick = { activePlayingLesson = lesson }
@@ -149,73 +234,26 @@ fun ClassesScreen(
                             }
                         }
                     }
-                } else {
-                    when (currentStep) {
-                        ClassesStep.SELECT_CLASS -> {
-                            ClassesSelectClassView(
-                                onSelectClass = { level ->
-                                    selectedClass = level
-                                    currentStep = ClassesStep.SELECT_SUBJECT
-                                }
-                            )
-                        }
-
-                        ClassesStep.SELECT_SUBJECT -> {
-                            selectedClass?.let { cls ->
-                                ClassesSelectSubjectView(
-                                    classLevel = cls,
-                                    onSelectSubject = { subj ->
-                                        selectedSubject = subj
-                                        currentStep = ClassesStep.BROWSE_LESSONS
-                                    }
-                                )
-                            }
-                        }
-
-                        ClassesStep.BROWSE_LESSONS -> {
-                            selectedClass?.let { cls ->
-                                selectedSubject?.let { subj ->
-                                    ClassesBrowseLessonsView(
-                                        classLevel = cls,
-                                        subject = subj,
-                                        allLessons = allLessons,
-                                        onPlayLesson = { lesson ->
-                                            activePlayingLesson = lesson
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
-    }
-
-    activePlayingLesson?.let { lesson ->
-        VideoPlayerModalDialog(
-            lesson = lesson,
-            onDismiss = { activePlayingLesson = null }
-        )
     }
 }
 
 @Composable
 private fun ClassesTopHeader(
-    currentStep: ClassesStep,
-    selectedClass: ClassLevel?,
-    selectedSubject: String?,
     searchQuery: String,
     onQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
+    selectedSubject: String,
+    onSelectSubject: (String) -> Unit,
+    availableSubjects: List<String>,
+    selectedClass: String,
+    onSelectClass: (String) -> Unit,
+    availableClasses: List<String>,
+    totalCount: Int,
     onBack: () -> Unit
 ) {
-    val title = when (currentStep) {
-        ClassesStep.SELECT_CLASS -> "Lessons"
-        ClassesStep.SELECT_SUBJECT -> "${selectedClass?.code ?: "Lessons"} Subjects"
-        ClassesStep.BROWSE_LESSONS -> "${selectedSubject ?: "Lessons"} • ${selectedClass?.code ?: ""}"
-    }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -224,7 +262,7 @@ private fun ClassesTopHeader(
                 shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
             )
             .statusBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 18.dp)
+            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 18.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -249,12 +287,17 @@ private fun ClassesTopHeader(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = title,
+                    text = "Lessons",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "$totalCount video lesson${if (totalCount == 1) "" else "s"} available",
+                    fontSize = 12.sp,
+                    color = LightLavender
                 )
             }
         }
@@ -266,138 +309,72 @@ private fun ClassesTopHeader(
             onQueryChange = onQueryChange,
             modifier = Modifier.fillMaxWidth()
         )
-    }
-}
 
-@Composable
-fun ClassesSelectClassView(onSelectClass: (ClassLevel) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        ClassLevel.values().forEach { level ->
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(3.dp, RoundedCornerShape(18.dp))
-                    .clickable { onSelectClass(level) }
-                    .testTag("class_level_card_${level.code.lowercase().replace(".", "")}"),
-                shape = RoundedCornerShape(18.dp),
-                color = Color.White
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Horizontal Subject Filter Chips
+        val subjectScrollState = rememberScrollState()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(subjectScrollState),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            availableSubjects.forEach { subject ->
+                val isSelected = subject.equals(selectedSubject, ignoreCase = true)
+                Surface(
+                    onClick = { onSelectSubject(subject) },
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSelected) Color(0xFFFFB300) else Color(0xFFDC8CC0).copy(alpha = 0.35f),
+                    border = BorderStroke(1.dp, if (isSelected) Color(0xFFFFB300) else Color(0xFFDC8CC0)),
+                    modifier = Modifier.testTag("chip_subject_$subject")
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = IndigoPurple.copy(alpha = 0.12f),
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = level.code,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = IndigoPurple
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(14.dp))
-
-                        Text(
-                            text = level.title,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextDark
-                        )
-                    }
-
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
-                        contentDescription = "Select",
-                        tint = IndigoPurple,
-                        modifier = Modifier.size(20.dp)
+                    Text(
+                        text = subject,
+                        fontSize = 13.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) Color(0xFF1A1A1A) else Color.White,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
                     )
                 }
             }
         }
-    }
-}
 
-@Composable
-fun ClassesSelectSubjectView(
-    classLevel: ClassLevel,
-    onSelectSubject: (String) -> Unit
-) {
-    val subjects = DefaultCurriculumSubjects
+        Spacer(modifier = Modifier.height(8.dp))
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        subjects.forEach { subj ->
-            RevisionSubjectCard(
-                subject = subj,
-                onClick = { onSelectSubject(subj.name) }
+        // Horizontal Class Level Filter Chips
+        val classScrollState = rememberScrollState()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(classScrollState),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Class:",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.padding(end = 4.dp)
             )
-        }
-    }
-}
 
-@Composable
-fun ClassesBrowseLessonsView(
-    classLevel: ClassLevel,
-    subject: String,
-    allLessons: List<VideoLesson>,
-    onPlayLesson: (VideoLesson) -> Unit
-) {
-    val filteredLessons = remember(classLevel, subject, allLessons) {
-        allLessons.filter {
-            it.targetClass.equals(classLevel.code, ignoreCase = true) &&
-                it.subject.equals(subject, ignoreCase = true)
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        if (filteredLessons.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(imageVector = Icons.Outlined.OndemandVideo, contentDescription = null, tint = TextMuted, modifier = Modifier.size(48.dp))
-                    Text(text = "No video lessons available for $subject (${classLevel.code}).", textAlign = TextAlign.Center, color = TextMuted, fontSize = 14.sp)
+            availableClasses.forEach { cls ->
+                val isSelected = cls.equals(selectedClass, ignoreCase = true)
+                Surface(
+                    onClick = { onSelectClass(cls) },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.15f),
+                    modifier = Modifier.testTag("chip_class_$cls")
+                ) {
+                    Text(
+                        text = cls,
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                        color = if (isSelected) IndigoPurple else Color.White,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
                 }
-            }
-        } else {
-            filteredLessons.forEach { lesson ->
-                VideoLessonDropdownCard(
-                    lesson = lesson,
-                    onPlayClick = { onPlayLesson(lesson) }
-                )
             }
         }
     }
@@ -560,123 +537,412 @@ fun VideoLessonDropdownCard(
     }
 }
 
+/**
+ * Dedicated Full-Page Android Media Player Screen for Video Lessons.
+ */
 @Composable
-fun VideoPlayerModalDialog(
+fun VideoLessonPlayerScreen(
     lesson: VideoLesson,
-    onDismiss: () -> Unit
+    onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
     val embedUrl = getYouTubeEmbedUrl(lesson.youtubeVideoUrl)
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var currentSpeed by remember { mutableStateOf(1.0f) }
+    var viewMode by remember { mutableStateOf(PlayerViewMode.FIT_16_9) }
 
     LaunchedEffect(lesson.id) {
         VideoLessonProgressManager.markCompleted(context, lesson.id, lesson.title, lesson.subject)
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
+    BackHandler {
+        onNavigateBack()
+    }
+
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(PlayerDarkBg)
+            .testTag("video_lesson_player_screen"),
+        containerColor = PlayerDarkBg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { innerPadding ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .wrapContentHeight()
-                .testTag("video_player_dialog"),
-            shape = RoundedCornerShape(24.dp),
-            color = Color(0xFF1E1934),
-            border = BorderStroke(1.dp, AccountBrightGold),
-            tonalElevation = 16.dp
+                .fillMaxSize()
+                .padding(bottom = innerPadding.calculateBottomPadding())
+                .verticalScroll(rememberScrollState())
         ) {
+            // --- TOP NAVIGATION HEADER ---
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                    .background(Color(0xFF141026))
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.15f))
+                            .testTag("player_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            contentDescription = "Back to lessons",
+                            tint = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = lesson.subject,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = AccountBrightGold
-                        )
-                        Text(
                             text = lesson.title,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
                             color = Color.White,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                    }
-
-                    IconButton(onClick = onDismiss) {
-                        Icon(imageVector = Icons.Outlined.Close, contentDescription = "Close", tint = Color.White)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "${lesson.subject} (${lesson.targetClass})",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AccountBrightGold
+                            )
+                            Text(
+                                text = "•",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                            Text(
+                                text = lesson.teacherName,
+                                fontSize = 12.sp,
+                                color = LightLavender
+                            )
+                        }
                     }
                 }
+            }
 
-                Box(
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- VIDEO PLAYER DISPLAY AREA ---
+            val videoModifier = when (viewMode) {
+                PlayerViewMode.FIT_16_9 -> Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .padding(horizontal = 12.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.Black)
+                PlayerViewMode.FULL_FILL -> Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .padding(horizontal = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black)
+            }
+
+            Box(
+                modifier = videoModifier,
+                contentAlignment = Alignment.Center
+            ) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.mediaPlaybackRequiresUserGesture = false
+                            settings.allowFileAccess = false
+                            settings.allowContentAccess = false
+
+                            webChromeClient = WebChromeClient()
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                                    // Intercept external URLs/redirects
+                                    return true
+                                }
+                            }
+
+                            val html = """
+                                <!DOCTYPE html>
+                                <html>
+                                <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                                    <style>
+                                        body { margin: 0; padding: 0; background-color: #000000; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+                                        .video-container { position: relative; width: 100%; height: 100%; }
+                                        iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+                                    </style>
+                                </head>
+                                <body>
+                                    <div class="video-container">
+                                        <iframe id="player" src="$embedUrl?enablejsapi=1&autoplay=1&rel=0&controls=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                                    </div>
+                                    <script>
+                                        function setSpeed(rate) {
+                                            var iframe = document.getElementById('player');
+                                            if (iframe && iframe.contentWindow) {
+                                                iframe.contentWindow.postMessage(JSON.stringify({
+                                                    'event': 'command',
+                                                    'func': 'setPlaybackRate',
+                                                    'args': [rate]
+                                                }), '*');
+                                            }
+                                        }
+                                        function seekBy(seconds) {
+                                            var iframe = document.getElementById('player');
+                                            if (iframe && iframe.contentWindow) {
+                                                iframe.contentWindow.postMessage(JSON.stringify({
+                                                    'event': 'command',
+                                                    'func': 'seekTo',
+                                                    'args': [seconds, true]
+                                                }), '*');
+                                            }
+                                        }
+                                    </script>
+                                </body>
+                                </html>
+                            """.trimIndent()
+
+                            loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+                            webViewRef = this
+                        }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // --- MEDIA CONTROLS & TOOLS PANEL ---
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF19142E),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    AndroidView(
-                        modifier = Modifier.fillMaxSize(),
-                        factory = { ctx ->
-                            WebView(ctx).apply {
-                                layoutParams = ViewGroup.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
+                    // Quick Action Tools: Speed & View Mode
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(
+                                imageVector = Icons.Outlined.Speed,
+                                contentDescription = "Speed",
+                                tint = AccountBrightGold,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Speed:",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+
+                        // Viewing Mode Toggle
+                        Surface(
+                            onClick = {
+                                viewMode = if (viewMode == PlayerViewMode.FIT_16_9) PlayerViewMode.FULL_FILL else PlayerViewMode.FIT_16_9
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = IndigoPurple.copy(alpha = 0.3f),
+                            border = BorderStroke(1.dp, IndigoPurple)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (viewMode == PlayerViewMode.FIT_16_9) Icons.Outlined.CropFree else Icons.Outlined.AspectRatio,
+                                    contentDescription = "View Mode",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                webChromeClient = WebChromeClient()
-                                webViewClient = WebViewClient()
-                                val html = """
-                                    <!DOCTYPE html>
-                                    <html>
-                                    <body style="margin:0;padding:0;background-color:#000000;">
-                                        <iframe width="100%" height="100%" src="$embedUrl" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                                    </body>
-                                    </html>
-                                """.trimIndent()
-                                loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+                                Text(
+                                    text = if (viewMode == PlayerViewMode.FIT_16_9) "16:9 Fit" else "Wide Fill",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
                             }
                         }
-                    )
+                    }
+
+                    // Speed Selector Chips
+                    val speedOptions = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        speedOptions.forEach { speed ->
+                            val isSelected = currentSpeed == speed
+                            val label = if (speed == 1.0f) "1.0x (Normal)" else "${speed}x"
+                            Surface(
+                                onClick = {
+                                    currentSpeed = speed
+                                    webViewRef?.evaluateJavascript(
+                                        "if(typeof setSpeed==='function'){ setSpeed($speed); }",
+                                        null
+                                    )
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) AccountBrightGold else Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier.testTag("speed_chip_$speed")
+                            ) {
+                                Text(
+                                    text = if (speed == 1.0f) "1.0x" else label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                    color = if (isSelected) Color(0xFF141026) else Color.White,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                    // Player Control Buttons (Rewind / Forward 10s & Completion Status)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                webViewRef?.evaluateJavascript("if(typeof seekBy==='function'){ seekBy(-10); }", null)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        ) {
+                            Icon(imageVector = Icons.Outlined.Replay10, contentDescription = "Rewind 10s", modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("10s Back", fontSize = 12.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                webViewRef?.evaluateJavascript("if(typeof seekBy==='function'){ seekBy(10); }", null)
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                        ) {
+                            Text("10s Forward", fontSize = 12.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Icon(imageVector = Icons.Outlined.Forward10, contentDescription = "Forward 10s", modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // --- MINIMAL LESSON METADATA (No wordy over-explanation) ---
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = IndigoPurple.copy(alpha = 0.3f)
+                    ) {
+                        Text(
+                            text = "Topic: ${lesson.topic}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AccountBrightGold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = TealTile.copy(alpha = 0.2f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, tint = TealTile, modifier = Modifier.size(14.dp))
+                            Text(
+                                text = "Completed",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TealTile
+                            )
+                        }
+                    }
                 }
 
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Topic: ${lesson.topic} • By ${lesson.teacherName}",
-                        fontSize = 12.sp,
-                        color = LightLavender
-                    )
+                if (lesson.description.isNotBlank()) {
                     Text(
                         text = lesson.description,
                         fontSize = 13.sp,
-                        color = Color.White.copy(alpha = 0.9f),
-                        lineHeight = 18.sp
+                        color = Color.White.copy(alpha = 0.85f),
+                        lineHeight = 18.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Button(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = AccountBrightGold),
+                    onClick = onNavigateBack,
+                    colors = ButtonDefaults.buttonColors(containerColor = IndigoPurple),
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp)
+                        .testTag("done_watching_button")
                 ) {
-                    Text(text = "Done Watching", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF1A1A1A))
+                    Text(
+                        text = "Back to Video Lessons",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

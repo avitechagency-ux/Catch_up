@@ -796,6 +796,12 @@ interface SupabasePostgrestApi {
     suspend fun deleteGlossaryTerm(
         @Query("id") idFilter: String
     ): Response<Unit>
+
+    @GET("video_lessons")
+    suspend fun getAllVideoLessons(
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<SupabaseVideoLessonDto>>
 }
 
 data class SupabasePlatformSettingDto(
@@ -3193,6 +3199,30 @@ object SupabaseRepository {
             response.isSuccessful
         }.getOrDefault(false)
     }
+
+    suspend fun fetchAllVideoLessons(): List<VideoLesson> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = api.getAllVideoLessons()
+            if (response.isSuccessful) {
+                response.body()?.map { dto ->
+                    VideoLesson(
+                        id = dto.id ?: java.util.UUID.randomUUID().toString(),
+                        title = dto.title,
+                        targetClass = dto.targetClass,
+                        subject = dto.subject,
+                        topic = dto.topic,
+                        teacherName = dto.teacherName,
+                        description = dto.description,
+                        durationFormatted = dto.durationFormatted,
+                        youtubeVideoUrl = dto.youtubeVideoUrl,
+                        thumbnailUrl = dto.thumbnailUrl,
+                        isApproved = dto.isApproved,
+                        isFeatured = dto.isFeatured
+                    )
+                } ?: emptyList()
+            } else emptyList()
+        }.getOrDefault(emptyList())
+    }
 }
 
 // ============================================================================
@@ -3236,6 +3266,22 @@ data class SupabaseGlossaryTermDto(
     @Json(name = "definition") val definition: String,
     @Json(name = "example_usage") val exampleUsage: String? = null,
     @Json(name = "is_approved") val isApproved: Boolean = true
+)
+
+data class SupabaseVideoLessonDto(
+    @Json(name = "id") val id: String? = null,
+    @Json(name = "title") val title: String,
+    @Json(name = "target_class") val targetClass: String,
+    @Json(name = "subject") val subject: String,
+    @Json(name = "topic") val topic: String,
+    @Json(name = "teacher_name") val teacherName: String,
+    @Json(name = "description") val description: String,
+    @Json(name = "duration_formatted") val durationFormatted: String,
+    @Json(name = "youtube_video_url") val youtubeVideoUrl: String,
+    @Json(name = "thumbnail_url") val thumbnailUrl: String,
+    @Json(name = "is_approved") val isApproved: Boolean = true,
+    @Json(name = "is_featured") val isFeatured: Boolean = false,
+    @Json(name = "created_at") val createdAt: String? = null
 )
 
 

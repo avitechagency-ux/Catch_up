@@ -160,8 +160,6 @@ fun LibraryScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text("No library books yet.", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Upload books from your Admin panel to see them here.", fontSize = 13.sp, color = TextMuted, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         } else {
