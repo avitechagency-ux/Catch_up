@@ -121,13 +121,13 @@ fun LearningHubScreen(
     onNavigateToLibrary: () -> Unit = {},
     onNavigateToStudyMaterial: () -> Unit = {},
     onNavigateToRevision: () -> Unit = {},
-    onNavigateToFlashcards: () -> Unit = {},
     onNavigateToQuizzes: () -> Unit = {},
     onNavigateToVisualLearning: () -> Unit = {},
     onNavigateToClasses: () -> Unit = {},
     onNavigateToGlossary: () -> Unit = {},
     onNavigateToMyLearning: () -> Unit = {},
     onNavigateToTools: () -> Unit = {},
+    onNavigateToGames: () -> Unit = {},
     onNavigateToTips: () -> Unit = {},
     onOpenResource: (title: String, subject: String) -> Unit = { _, _ -> }
 ) {
@@ -264,7 +264,7 @@ fun LearningHubScreen(
                         ) {
                             LearningHubCategoryCard(
                                 category = LearningHubCategory.GAMES,
-                                onClick = { selectedCategoryForSection = LearningHubCategory.GAMES },
+                                onClick = onNavigateToGames,
                                 modifier = Modifier.weight(1f)
                             )
                             LearningHubCategoryCard(
@@ -453,20 +453,6 @@ fun LearningHubScreen(
                                 )
                             }
 
-                            // Row 2.5: Flashcards
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                LearningHubCustomCategoryCard(
-                                    title = "Flashcards",
-                                    icon = Icons.Outlined.Style,
-                                    color = TealTile,
-                                    onClick = onNavigateToFlashcards,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
 
                             // Row 3: Visual Learning & More
                             Row(

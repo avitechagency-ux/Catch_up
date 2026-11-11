@@ -71,7 +71,6 @@ import com.example.ui.StudyMaterialScreen
 import com.example.ui.StudyMaterialListScreen
 import com.example.ui.StudyMaterialCategory
 import com.example.ui.RevisionSubjectsScreen
-import com.example.ui.FlashcardsHomeScreen
 import com.example.ui.FlashcardPlayerScreen
 import com.example.ui.SubjectRevisionScreen
 import com.example.data.Book
@@ -106,6 +105,7 @@ import com.example.ui.ClassesScreen
 import com.example.ui.GlossaryScreen
 import com.example.ui.MyLearningScreen
 import com.example.ui.ToolsScreen
+import com.example.ui.GamesScreen
 import com.example.ui.TipsScreen
 import com.example.data.LiveClassRepository
 import com.example.ui.live.StudentLiveClassesScreen
@@ -165,8 +165,7 @@ enum class AppScreen {
     TOPIC_GUIDES,
     LEARNING_RESOURCES,
     REVISION,
-    FLASHCARDS,
-    FLASHCARD_PLAYER,
+    REVISION_PLAYER,
     SUBJECT_REVISION,
     QUIZZES_HOME,
     SUBJECT_QUIZZES,
@@ -177,6 +176,7 @@ enum class AppScreen {
     GLOSSARY,
     MY_LEARNING,
     STUDY_TOOLS,
+    STUDY_GAMES,
     STUDY_TIPS
 }
 
@@ -1417,13 +1417,13 @@ class MainActivity : ComponentActivity() {
                             onNavigateToLibrary = { currentScreen = AppScreen.LIBRARY },
                             onNavigateToStudyMaterial = { currentScreen = AppScreen.STUDY_MATERIAL },
                             onNavigateToRevision = { currentScreen = AppScreen.REVISION },
-                            onNavigateToFlashcards = { currentScreen = AppScreen.FLASHCARDS },
                             onNavigateToQuizzes = { currentScreen = AppScreen.QUIZZES_HOME },
                             onNavigateToVisualLearning = { currentScreen = AppScreen.VISUAL_LEARNING },
                             onNavigateToClasses = { currentScreen = AppScreen.CLASSES },
                             onNavigateToGlossary = { currentScreen = AppScreen.GLOSSARY },
                             onNavigateToMyLearning = { currentScreen = AppScreen.MY_LEARNING },
                             onNavigateToTools = { currentScreen = AppScreen.STUDY_TOOLS },
+                            onNavigateToGames = { currentScreen = AppScreen.STUDY_GAMES },
                             onNavigateToTips = { currentScreen = AppScreen.STUDY_TIPS },
                             onOpenResource = { title, subject ->
                                 selectedPdfTitle = title
@@ -1506,21 +1506,17 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = AppScreen.SUBJECT_REVISION
                             }
                         )
-                        AppScreen.FLASHCARDS -> FlashcardsHomeScreen(
-                            userRole = userRoleState,
-                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB },
-                            onDeckClick = { deck ->
-                                selectedFlashcardDeck = deck
-                                currentScreen = AppScreen.FLASHCARD_PLAYER
-                            }
-                        )
-                        AppScreen.FLASHCARD_PLAYER -> FlashcardPlayerScreen(
-                            deck = selectedFlashcardDeck ?: com.example.data.FlashcardDeck("", "", "", emptyList()),
-                            onNavigateBack = { currentScreen = AppScreen.FLASHCARDS }
-                        )
                         AppScreen.SUBJECT_REVISION -> SubjectRevisionScreen(
                             subjectName = selectedSubjectName,
-                            onNavigateBack = { currentScreen = AppScreen.REVISION }
+                            onNavigateBack = { currentScreen = AppScreen.REVISION },
+                            onDeckClick = { deck ->
+                                selectedFlashcardDeck = deck
+                                currentScreen = AppScreen.REVISION_PLAYER
+                            }
+                        )
+                        AppScreen.REVISION_PLAYER -> FlashcardPlayerScreen(
+                            deck = selectedFlashcardDeck ?: com.example.data.FlashcardDeck("", "", "", emptyList()),
+                            onNavigateBack = { currentScreen = AppScreen.SUBJECT_REVISION }
                         )
                         AppScreen.QUIZZES_HOME -> com.example.ui.quiz.QuizzesHomeScreen(
                             onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB },
@@ -2191,6 +2187,9 @@ class MainActivity : ComponentActivity() {
                             onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB }
                         )
                         AppScreen.STUDY_TOOLS -> ToolsScreen(
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB }
+                        )
+                        AppScreen.STUDY_GAMES -> GamesScreen(
                             onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB }
                         )
                         AppScreen.STUDY_TIPS -> TipsScreen(
