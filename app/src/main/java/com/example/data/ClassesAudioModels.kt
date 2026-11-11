@@ -29,26 +29,55 @@ enum class ClassLevel(val code: String, val title: String, val description: Stri
     S6("S.6", "Senior Six", "UACE candidate revision, in-depth analysis & mock prep")
 }
 
-fun getYouTubeEmbedUrl(url: String): String {
-    if (url.contains("embed/")) return url
-    val videoId = when {
-        url.contains("youtu.be/") -> url.substringAfter("youtu.be/").substringBefore("?")
-        url.contains("watch?v=") -> url.substringAfter("watch?v=").substringBefore("&")
-        url.length == 11 -> url
-        else -> "dQw4w9WgXcQ"
+fun extractYouTubeVideoId(url: String): String {
+    if (url.isBlank()) return "5Q1A76bO80M"
+    val clean = url.trim()
+    val regex = Regex("(?:youtube(?:-nocookie)?\\.com/(?:[^/]+/.+/|(?:v|e(?:mbed)?)|shorts/|.*[?&]v=)|youtu\\.be/)([^\"&?/\\s]{11})")
+    val match = regex.find(clean)
+    if (match != null) return match.groupValues[1]
+    if (clean.length == 11 && !clean.contains("/")) return clean
+    return "5Q1A76bO80M"
+}
+
+fun getYouTubeEmbedUrl(url: String, quality: String = "low_240p"): String {
+    val videoId = extractYouTubeVideoId(url)
+    val vq = when (quality) {
+        "low_240p" -> "&vq=small"
+        "balanced_360p" -> "&vq=medium"
+        else -> "&vq=large"
     }
-    return "https://www.youtube.com/embed/$videoId?autoplay=1&rel=0"
+    return "https://www.youtube-nocookie.com/embed/$videoId?autoplay=1&rel=0&enablejsapi=1$vq&origin=https://www.youtube-nocookie.com&widget_referrer=https://www.youtube-nocookie.com"
 }
 
 fun getYouTubeThumbnailUrl(url: String): String {
-    val videoId = when {
-        url.contains("embed/") -> url.substringAfter("embed/").substringBefore("?")
-        url.contains("youtu.be/") -> url.substringAfter("youtu.be/").substringBefore("?")
-        url.contains("watch?v=") -> url.substringAfter("watch?v=").substringBefore("&")
-        url.length == 11 -> url
-        else -> "dQw4w9WgXcQ"
-    }
+    val videoId = extractYouTubeVideoId(url)
     return "https://img.youtube.com/vi/$videoId/hqdefault.jpg"
+}
+
+object DataSaverManager {
+    private const val PREFS_NAME = "cachap_data_saver_prefs"
+    private const val KEY_DATA_SAVER = "is_data_saver_enabled"
+    private const val KEY_DEFAULT_QUALITY = "video_quality_mode" // "low_240p", "balanced_360p", "standard_480p"
+
+    fun isDataSaverEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_DATA_SAVER, true) // Enabled by default for Ugandan students with small data bundles
+    }
+
+    fun setDataSaverEnabled(context: Context, enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_DATA_SAVER, enabled).apply()
+    }
+
+    fun getVideoQuality(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_DEFAULT_QUALITY, "low_240p") ?: "low_240p"
+    }
+
+    fun setVideoQuality(context: Context, quality: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_DEFAULT_QUALITY, quality).apply()
+    }
 }
 
 object VideoLessonProgressManager {
@@ -96,8 +125,8 @@ val DefaultVideoLessons: List<VideoLesson> = listOf(
         teacherName = "Mr. Okello David",
         description = "Comprehensive video masterclass on transverse and longitudinal waves, refractive index, and Snell's Law applications for UNEB candidates.",
         durationFormatted = "14:34",
-        youtubeVideoUrl = "https://www.youtube.com/watch?v=kJQP7kiw5Fk",
-        thumbnailUrl = "https://img.youtube.com/vi/kJQP7kiw5Fk/hqdefault.jpg",
+        youtubeVideoUrl = "https://www.youtube.com/watch?v=5Q1A76bO80M",
+        thumbnailUrl = "https://img.youtube.com/vi/5Q1A76bO80M/hqdefault.jpg",
         isFeatured = true
     ),
     VideoLesson(
@@ -109,8 +138,8 @@ val DefaultVideoLessons: List<VideoLesson> = listOf(
         teacherName = "Ms. Nalubega Sarah",
         description = "Detailed visual walkthrough of prophase, metaphase, anaphase, and telophase with animated chromosome behavior.",
         durationFormatted = "12:00",
-        youtubeVideoUrl = "https://www.youtube.com/watch?v=rgLqgN3y7tE",
-        thumbnailUrl = "https://img.youtube.com/vi/rgLqgN3y7tE/hqdefault.jpg",
+        youtubeVideoUrl = "https://www.youtube.com/watch?v=8m6hHRL77wU",
+        thumbnailUrl = "https://img.youtube.com/vi/8m6hHRL77wU/hqdefault.jpg",
         isFeatured = true
     ),
     VideoLesson(
@@ -122,8 +151,8 @@ val DefaultVideoLessons: List<VideoLesson> = listOf(
         teacherName = "Tr. Kato Emmanuel",
         description = "Learn how to find dy/dx using delta limits, gradient curves, and tangents with step-by-step whiteboard breakdowns.",
         durationFormatted = "17:20",
-        youtubeVideoUrl = "https://www.youtube.com/watch?v=ANv9qTtT9X4",
-        thumbnailUrl = "https://img.youtube.com/vi/ANv9qTtT9X4/hqdefault.jpg",
+        youtubeVideoUrl = "https://www.youtube.com/watch?v=WS3Lkc6GzLk",
+        thumbnailUrl = "https://img.youtube.com/vi/WS3Lkc6GzLk/hqdefault.jpg",
         isFeatured = true
     ),
     VideoLesson(
@@ -135,8 +164,8 @@ val DefaultVideoLessons: List<VideoLesson> = listOf(
         teacherName = "Dr. Mugisha Patrick",
         description = "Step-by-step video breakdown of molarity, stoichiometry, end points, and indicator selection for UNEB practical paper 3.",
         durationFormatted = "15:15",
-        youtubeVideoUrl = "https://www.youtube.com/watch?v=34iA_Wz0NLE",
-        thumbnailUrl = "https://img.youtube.com/vi/34iA_Wz0NLE/hqdefault.jpg",
+        youtubeVideoUrl = "https://www.youtube.com/watch?v=ANv9qTtT9X4",
+        thumbnailUrl = "https://img.youtube.com/vi/ANv9qTtT9X4/hqdefault.jpg",
         isFeatured = false
     ),
     VideoLesson(
@@ -148,8 +177,8 @@ val DefaultVideoLessons: List<VideoLesson> = listOf(
         teacherName = "Senior Master Akena",
         description = "How trade routes shaped kingdoms like Buganda, Bunyoro, and Mirambo's Nyamwezi empire with historical map overlays.",
         durationFormatted = "13:30",
-        youtubeVideoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        thumbnailUrl = "https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+        youtubeVideoUrl = "https://www.youtube.com/watch?v=LwRRR11S7E4",
+        thumbnailUrl = "https://img.youtube.com/vi/LwRRR11S7E4/hqdefault.jpg",
         isFeatured = false
     ),
     VideoLesson(
@@ -161,8 +190,8 @@ val DefaultVideoLessons: List<VideoLesson> = listOf(
         teacherName = "Ms. Tumusiime Grace",
         description = "Tensional theory vs compressional theory of rifting, block faulting (horst mountains like Rwenzori), and 3D volcanic landforms.",
         durationFormatted = "11:30",
-        youtubeVideoUrl = "https://www.youtube.com/watch?v=kJQP7kiw5Fk",
-        thumbnailUrl = "https://img.youtube.com/vi/kJQP7kiw5Fk/hqdefault.jpg",
+        youtubeVideoUrl = "https://www.youtube.com/watch?v=1gZ0tF_8jM4",
+        thumbnailUrl = "https://img.youtube.com/vi/1gZ0tF_8jM4/hqdefault.jpg",
         isFeatured = false
     ),
     VideoLesson(
@@ -174,8 +203,8 @@ val DefaultVideoLessons: List<VideoLesson> = listOf(
         teacherName = "Mrs. Babirye Joy",
         description = "Techniques for extracting main points within the 100-word limit without losing sentence coherence or punctuation marks.",
         durationFormatted = "12:30",
-        youtubeVideoUrl = "https://www.youtube.com/watch?v=rgLqgN3y7tE",
-        thumbnailUrl = "https://img.youtube.com/vi/rgLqgN3y7tE/hqdefault.jpg",
+        youtubeVideoUrl = "https://www.youtube.com/watch?v=y19vS0Z5kZ8",
+        thumbnailUrl = "https://img.youtube.com/vi/y19vS0Z5kZ8/hqdefault.jpg",
         isFeatured = true
     ),
     VideoLesson(
@@ -187,8 +216,8 @@ val DefaultVideoLessons: List<VideoLesson> = listOf(
         teacherName = "Mr. Mukasa Ronald",
         description = "Understanding equilibrium price, shifts in supply and demand curves, and government price ceiling and floor policies.",
         durationFormatted = "16:00",
-        youtubeVideoUrl = "https://www.youtube.com/watch?v=ANv9qTtT9X4",
-        thumbnailUrl = "https://img.youtube.com/vi/ANv9qTtT9X4/hqdefault.jpg",
+        youtubeVideoUrl = "https://www.youtube.com/watch?v=g9aDIZJej_k",
+        thumbnailUrl = "https://img.youtube.com/vi/g9aDIZJej_k/hqdefault.jpg",
         isFeatured = false
     )
 )

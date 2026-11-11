@@ -124,7 +124,7 @@ fun TeacherAccountScreen(
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(subjectsTaught) {
-        if (subjectsTaught.isNotBlank()) {
+        if (subjectsTaught.isNotBlank() && !subjectsTaught.equals("Secondary Curriculum", ignoreCase = true)) {
             editSubjects = subjectsTaught
         }
     }

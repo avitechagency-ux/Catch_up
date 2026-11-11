@@ -258,6 +258,22 @@ data class SupabaseLearningHubResourceDto(
     @Json(name = "document_url") val documentUrl: String? = null
 )
 
+data class SupabaseFlashcardDeckDto(
+    @Json(name = "id") val id: String? = null,
+    @Json(name = "title") val title: String,
+    @Json(name = "subject") val subject: String,
+    @Json(name = "created_at") val createdAt: String? = null,
+    @Json(name = "flashcards") val cards: List<SupabaseFlashcardDto>? = null
+)
+
+data class SupabaseFlashcardDto(
+    @Json(name = "id") val id: String? = null,
+    @Json(name = "deck_id") val deckId: String,
+    @Json(name = "question") val question: String,
+    @Json(name = "answer") val answer: String,
+    @Json(name = "created_at") val createdAt: String? = null
+)
+
 /**
  * Upgraded Storage Provider Quota: Cloudflare R2 (10 GB = 10,240 MB) + Supabase (500 MB Database).
  */
@@ -802,6 +818,32 @@ interface SupabasePostgrestApi {
         @Query("select") select: String = "*",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<SupabaseVideoLessonDto>>
+
+    // --- 11. Flashcards (`flashcard_decks`, `flashcards`) ---
+    @GET("flashcard_decks")
+    suspend fun getAllFlashcardDecks(
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<SupabaseFlashcardDeckDto>>
+
+    @GET("flashcards")
+    suspend fun getFlashcardsForDeck(
+        @Query("deck_id") deckIdFilter: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.asc"
+    ): Response<List<SupabaseFlashcardDto>>
+
+    @Headers("Prefer: return=representation")
+    @POST("flashcard_decks")
+    suspend fun insertFlashcardDeck(
+        @Body deck: SupabaseFlashcardDeckDto
+    ): Response<List<SupabaseFlashcardDeckDto>>
+
+    @Headers("Prefer: return=representation")
+    @POST("flashcards")
+    suspend fun insertFlashcards(
+        @Body cards: List<SupabaseFlashcardDto>
+    ): Response<List<SupabaseFlashcardDto>>
 }
 
 data class SupabasePlatformSettingDto(
@@ -3222,6 +3264,54 @@ object SupabaseRepository {
                 } ?: emptyList()
             } else emptyList()
         }.getOrDefault(emptyList())
+    }
+
+    suspend fun fetchAllFlashcardDecks(): List<FlashcardDeck> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = api.getAllFlashcardDecks(select = "*,flashcards(*)")
+            if (response.isSuccessful) {
+                response.body()?.map { deckDto ->
+                    FlashcardDeck(
+                        id = deckDto.id ?: java.util.UUID.randomUUID().toString(),
+                        title = deckDto.title,
+                        subject = deckDto.subject,
+                        cards = deckDto.cards?.map { cardDto ->
+                            Flashcard(
+                                id = cardDto.id ?: java.util.UUID.randomUUID().toString(),
+                                question = cardDto.question,
+                                answer = cardDto.answer
+                            )
+                        } ?: emptyList()
+                    )
+                } ?: emptyList()
+            } else emptyList()
+        }.getOrDefault(emptyList())
+    }
+
+    suspend fun saveFlashcardDeck(deck: FlashcardDeck): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val deckDto = SupabaseFlashcardDeckDto(
+                title = deck.title,
+                subject = deck.subject
+            )
+            val deckResponse = api.insertFlashcardDeck(deckDto)
+            if (deckResponse.isSuccessful) {
+                val createdDeck = deckResponse.body()?.firstOrNull()
+                if (createdDeck != null && deck.cards.isNotEmpty()) {
+                    val cardDtos = deck.cards.map { card ->
+                        SupabaseFlashcardDto(
+                            deckId = createdDeck.id!!,
+                            question = card.question,
+                            answer = card.answer
+                        )
+                    }
+                    val cardsResponse = api.insertFlashcards(cardDtos)
+                    cardsResponse.isSuccessful
+                } else {
+                    true
+                }
+            } else false
+        }.getOrDefault(false)
     }
 }
 

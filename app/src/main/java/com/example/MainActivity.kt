@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import com.example.data.AccountSecurityVault
 import com.example.data.AccountSecurityVault.UserRole
+import com.example.data.FlashcardDeck
+import com.example.data.Flashcard
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +71,8 @@ import com.example.ui.StudyMaterialScreen
 import com.example.ui.StudyMaterialListScreen
 import com.example.ui.StudyMaterialCategory
 import com.example.ui.RevisionSubjectsScreen
+import com.example.ui.FlashcardsHomeScreen
+import com.example.ui.FlashcardPlayerScreen
 import com.example.ui.SubjectRevisionScreen
 import com.example.data.Book
 import com.example.ui.OnboardingScreen
@@ -161,6 +165,8 @@ enum class AppScreen {
     TOPIC_GUIDES,
     LEARNING_RESOURCES,
     REVISION,
+    FLASHCARDS,
+    FLASHCARD_PLAYER,
     SUBJECT_REVISION,
     QUIZZES_HOME,
     SUBJECT_QUIZZES,
@@ -362,6 +368,7 @@ class MainActivity : ComponentActivity() {
 
                 var selectedQuizSubject by remember { mutableStateOf("Math") }
                 var selectedQuiz by remember { mutableStateOf<com.example.data.Quiz?>(null) }
+                var selectedFlashcardDeck by remember { mutableStateOf<com.example.data.FlashcardDeck?>(null) }
                 var activeQuizScore by remember { mutableStateOf(0) }
                 var activeQuizTotal by remember { mutableStateOf(0) }
                 var activeQuizUserAnswers by remember { mutableStateOf<List<com.example.data.UserQuestionAnswer>>(emptyList()) }
@@ -1410,6 +1417,7 @@ class MainActivity : ComponentActivity() {
                             onNavigateToLibrary = { currentScreen = AppScreen.LIBRARY },
                             onNavigateToStudyMaterial = { currentScreen = AppScreen.STUDY_MATERIAL },
                             onNavigateToRevision = { currentScreen = AppScreen.REVISION },
+                            onNavigateToFlashcards = { currentScreen = AppScreen.FLASHCARDS },
                             onNavigateToQuizzes = { currentScreen = AppScreen.QUIZZES_HOME },
                             onNavigateToVisualLearning = { currentScreen = AppScreen.VISUAL_LEARNING },
                             onNavigateToClasses = { currentScreen = AppScreen.CLASSES },
@@ -1497,6 +1505,18 @@ class MainActivity : ComponentActivity() {
                                 previousScreen = AppScreen.REVISION
                                 currentScreen = AppScreen.SUBJECT_REVISION
                             }
+                        )
+                        AppScreen.FLASHCARDS -> FlashcardsHomeScreen(
+                            userRole = userRoleState,
+                            onNavigateBack = { currentScreen = AppScreen.LEARNING_HUB },
+                            onDeckClick = { deck ->
+                                selectedFlashcardDeck = deck
+                                currentScreen = AppScreen.FLASHCARD_PLAYER
+                            }
+                        )
+                        AppScreen.FLASHCARD_PLAYER -> FlashcardPlayerScreen(
+                            deck = selectedFlashcardDeck ?: com.example.data.FlashcardDeck("", "", "", emptyList()),
+                            onNavigateBack = { currentScreen = AppScreen.FLASHCARDS }
                         )
                         AppScreen.SUBJECT_REVISION -> SubjectRevisionScreen(
                             subjectName = selectedSubjectName,
@@ -2192,11 +2212,15 @@ class MainActivity : ComponentActivity() {
                                 studentEmail = prefs.getString("user_email", "") ?: "",
                                 selectedPlan = DefaultPlanTiers.first(),
                                 onNavigateBack = {
-                                    Toast.makeText(context, "Please complete payment to renew your plan.", Toast.LENGTH_SHORT).show()
+                                    AccountSecurityVault.clearSessionOnLogout(prefs)
+                                    isLoggedInState = false
+                                    userRoleState = UserRole.UNAUTHENTICATED
+                                    // isStudentPlanExpired = false
+                                    currentScreen = AppScreen.WELCOME
+                                    Toast.makeText(context, "Redirected to sign up.", Toast.LENGTH_SHORT).show()
                                 },
                                 onPaymentSuccess = { paidPlan, paidPhone ->
                                     val accountIdentifier = (prefs.getString("user_email", "") ?: "").ifBlank { paidPhone }
-                                    studentPhone = accountIdentifier
                                     activePlanDuration = paidPlan.duration
                                     activePlanExpiry = "Valid for 30 days"
                                     prefs.edit()

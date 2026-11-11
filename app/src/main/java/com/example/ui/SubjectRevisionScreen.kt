@@ -35,8 +35,8 @@ fun SubjectRevisionScreen(
     // Placeholder flashcard data
     val allCards = remember {
         listOf(
-            Flashcard("1", subjectName, "Question 1 for $subjectName", "Answer 1"),
-            Flashcard("2", subjectName, "Question 2 for $subjectName", "Answer 2")
+            Flashcard("1", "Question 1 for $subjectName", "Answer 1"),
+            Flashcard("2", "Question 2 for $subjectName", "Answer 2")
         )
     }
     

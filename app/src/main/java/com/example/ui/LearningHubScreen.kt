@@ -46,6 +46,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -120,6 +121,7 @@ fun LearningHubScreen(
     onNavigateToLibrary: () -> Unit = {},
     onNavigateToStudyMaterial: () -> Unit = {},
     onNavigateToRevision: () -> Unit = {},
+    onNavigateToFlashcards: () -> Unit = {},
     onNavigateToQuizzes: () -> Unit = {},
     onNavigateToVisualLearning: () -> Unit = {},
     onNavigateToClasses: () -> Unit = {},
@@ -449,6 +451,21 @@ fun LearningHubScreen(
                                     onClick = onNavigateToQuizzes,
                                     modifier = Modifier.weight(1f)
                                 )
+                            }
+
+                            // Row 2.5: Flashcards
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                LearningHubCustomCategoryCard(
+                                    title = "Flashcards",
+                                    icon = Icons.Outlined.Style,
+                                    color = TealTile,
+                                    onClick = onNavigateToFlashcards,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
                             }
 
                             // Row 3: Visual Learning & More

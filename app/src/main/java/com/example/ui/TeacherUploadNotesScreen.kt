@@ -423,9 +423,9 @@ fun TeacherUploadNotesScreen(
 
                             Text(
                                 text = if (selectedFileName != null) {
-                                    "Tap to change selected Word document"
+                                    "Tap to change selected document (.docx or .pdf)"
                                 } else {
-                                    "Select a Word (.docx) file"
+                                    "Select a Word (.docx) or PDF (.pdf) file"
                                 },
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
@@ -439,7 +439,7 @@ fun TeacherUploadNotesScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
-                                        filePickerLauncher.launch(arrayOf(DOCX_MIME_TYPE))
+                                        filePickerLauncher.launch(arrayOf(DOCX_MIME_TYPE, PDF_MIME_TYPE, "*/*"))
                                     }
                                     .testTag("browse_files_button"),
                                 shape = RoundedCornerShape(12.dp),
@@ -458,7 +458,7 @@ fun TeacherUploadNotesScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Browse .docx File",
+                                        text = "Browse DOCX / PDF File",
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
