@@ -258,6 +258,21 @@ data class SupabaseLearningHubResourceDto(
     @Json(name = "document_url") val documentUrl: String? = null
 )
 
+data class SupabaseVisualLearningItemDto(
+    @Json(name = "id") val id: String? = null,
+    @Json(name = "title") val title: String,
+    @Json(name = "subject") val subject: String,
+    @Json(name = "target_class") val targetClass: String = "S.4",
+    @Json(name = "author") val author: String = "Cachap Specialist",
+    @Json(name = "date") val date: String,
+    @Json(name = "image_url") val imageUrl: String,
+    @Json(name = "aspect_ratio") val aspectRatio: String = "RATIO_3_4",
+    @Json(name = "source_type") val sourceType: String = "LEARNING_HUB",
+    @Json(name = "status") val status: String = "Approved",
+    @Json(name = "is_approved") val isApproved: Boolean = true,
+    @Json(name = "article") val article: Map<String, @JvmSuppressWildcards Any>
+)
+
 data class SupabaseFlashcardDeckDto(
     @Json(name = "id") val id: String? = null,
     @Json(name = "title") val title: String,
@@ -818,6 +833,13 @@ interface SupabasePostgrestApi {
         @Query("select") select: String = "*",
         @Query("order") order: String = "created_at.desc"
     ): Response<List<SupabaseVideoLessonDto>>
+
+    // --- 12. Visual Learning (`visual_learning_items`) ---
+    @GET("visual_learning_items")
+    suspend fun getAllVisualLearningItems(
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.desc"
+    ): Response<List<SupabaseVisualLearningItemDto>>
 
     // --- 11. Flashcards (`flashcard_decks`, `flashcards`) ---
     @GET("flashcard_decks")
@@ -3312,6 +3334,45 @@ object SupabaseRepository {
                 }
             } else false
         }.getOrDefault(false)
+    }
+
+    suspend fun fetchAllVisualLearningItems(): List<VisualLearningItem> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = api.getAllVisualLearningItems()
+            if (response.isSuccessful) {
+                response.body()?.map { dto ->
+                    val articleMap = dto.article
+                    val article = VisualLearningArticle(
+                        title = articleMap["title"] as? String ?: dto.title,
+                        introduction = articleMap["introduction"] as? String ?: "",
+                        sections = (articleMap["sections"] as? List<Map<String, Any>>)?.map { s ->
+                            ArticleSection(
+                                heading = s["heading"] as? String ?: "",
+                                body = s["body"] as? String ?: "",
+                                keyPoints = (s["keyPoints"] as? List<String>) ?: emptyList()
+                            )
+                        } ?: emptyList(),
+                        keyFacts = (articleMap["keyFacts"] as? List<String>) ?: emptyList(),
+                        curriculumTip = articleMap["curriculumTip"] as? String
+                    )
+
+                    VisualLearningItem(
+                        id = dto.id ?: java.util.UUID.randomUUID().toString(),
+                        title = dto.title,
+                        subject = dto.subject,
+                        targetClass = dto.targetClass,
+                        author = dto.author,
+                        date = dto.date,
+                        imageUrl = dto.imageUrl,
+                        aspectRatio = runCatching { VisualAspectRatio.valueOf(dto.aspectRatio) }.getOrDefault(VisualAspectRatio.RATIO_3_4),
+                        sourceType = runCatching { VisualSourceType.valueOf(dto.sourceType) }.getOrDefault(VisualSourceType.LEARNING_HUB),
+                        status = dto.status,
+                        isApproved = dto.isApproved,
+                        article = article
+                    )
+                } ?: emptyList()
+            } else emptyList()
+        }.getOrDefault(emptyList())
     }
 }
 

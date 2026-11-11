@@ -42,6 +42,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ImageNotSupported
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -57,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -82,60 +85,81 @@ import com.example.data.VisualAspectRatio
 import com.example.data.VisualLearningItem
 import com.example.data.VisualLearningRepository
 import com.example.ui.theme.IndigoPurple
+import com.example.ui.theme.TextMuted
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
  * Redesigned Cachap Visual Learning Screen.
- * Implements an immersive educational image discovery platform with top hero header,
- * category chips, sticky floating search bar, perfectly balanced aspect-ratio grid arrangements,
- * and a beautifully designed immersive viewer with topic search and title overlay.
+ * Connected to Supabase for dynamic image discovery.
  */
 @Composable
 fun VisualLearningScreen(
     onNavigateBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) {
-        VisualLearningRepository.initialize(context)
-    }
-
     var searchQuery by remember { mutableStateOf("") }
     var selectedSubject by remember { mutableStateOf("All") }
-    var isSearchActive by remember { mutableStateOf(false) }
     var selectedItemIndex by remember { mutableIntStateOf(-1) }
     
-    val availableSubjects = remember { VisualLearningRepository.getAvailableSubjects() }
+    var isLoading by remember { mutableStateOf(true) }
+    var approvedVisuals by remember { mutableStateOf<List<VisualLearningItem>>(emptyList()) }
+    var availableSubjects by remember { mutableStateOf<List<String>>(listOf("All")) }
 
-    val approvedVisuals = remember(searchQuery, selectedSubject) {
-        val results = if (searchQuery.isBlank()) {
+    LaunchedEffect(searchQuery, selectedSubject) {
+        isLoading = true
+        availableSubjects = VisualLearningRepository.getAvailableSubjects()
+        approvedVisuals = if (searchQuery.isBlank()) {
             VisualLearningRepository.getApprovedVisuals(selectedSubject)
         } else {
             VisualLearningRepository.searchApprovedVisuals(searchQuery).filter {
                 selectedSubject.equals("All", ignoreCase = true) || it.subject.equals(selectedSubject, ignoreCase = true)
             }
         }
-        results
+        isLoading = false
     }
 
     val galleryState = rememberLazyListState()
 
     Box(modifier = Modifier.fillMaxSize().background(IndigoPurple)) {
         if (selectedItemIndex == -1) {
-            VisualLearningGalleryWithStickyHeader(
-                items = approvedVisuals,
-                listState = galleryState,
-                searchQuery = searchQuery,
-                onSearchQueryChange = { searchQuery = it },
-                selectedSubject = selectedSubject,
-                onSelectSubject = { selectedSubject = it },
-                availableSubjects = availableSubjects,
-                onBackClick = onNavigateBack,
-                onItemClick = { item ->
-                    selectedItemIndex = approvedVisuals.indexOf(item)
+            Column(modifier = Modifier.fillMaxSize()) {
+                VisualLearningHeroSection(
+                    selectedSubject = selectedSubject,
+                    onSelectSubject = { selectedSubject = it },
+                    availableSubjects = availableSubjects,
+                    onBackClick = onNavigateBack
+                )
+                
+                VisualLearningStickySearchBar(
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = { searchQuery = it }
+                )
+
+                if (isLoading) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                } else if (approvedVisuals.isEmpty()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Outlined.ImageNotSupported, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(64.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("No visual materials found.", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("Check back soon for new uploads 😎", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                        }
+                    }
+                } else {
+                    VisualLearningGalleryContent(
+                        items = approvedVisuals,
+                        listState = galleryState,
+                        onItemClick = { item ->
+                            selectedItemIndex = approvedVisuals.indexOf(item)
+                        }
+                    )
                 }
-            )
+            }
             
             BackHandler {
                 if (!selectedSubject.equals("All", ignoreCase = true)) {
@@ -156,17 +180,10 @@ fun VisualLearningScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun VisualLearningGalleryWithStickyHeader(
+fun VisualLearningGalleryContent(
     items: List<VisualLearningItem>,
     listState: LazyListState,
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
-    selectedSubject: String,
-    onSelectSubject: (String) -> Unit,
-    availableSubjects: List<String>,
-    onBackClick: () -> Unit,
     onItemClick: (VisualLearningItem) -> Unit
 ) {
     val groupedItems = remember(items) {
@@ -202,25 +219,9 @@ fun VisualLearningGalleryWithStickyHeader(
         contentPadding = PaddingValues(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        item(key = "hero") {
-            VisualLearningHeroSection(
-                selectedSubject = selectedSubject,
-                onSelectSubject = onSelectSubject,
-                availableSubjects = availableSubjects,
-                onBackClick = onBackClick
-            )
-        }
-
-        stickyHeader(key = "sticky_search_bar") {
-            VisualLearningStickySearchBar(
-                searchQuery = searchQuery,
-                onSearchQueryChange = onSearchQueryChange
-            )
-        }
-
         item(key = "feed_subtitle_header") {
             Text(
-                text = "Explore",
+                text = "Explore Discovery",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -289,7 +290,7 @@ fun VisualLearningHeroSection(
                 )
             )
             .statusBarsPadding()
-            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 20.dp)
+            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp)
     ) {
         Box(
             modifier = Modifier.fillMaxWidth(),
@@ -309,7 +310,7 @@ fun VisualLearningHeroSection(
             }
 
             Text(
-                text = "Cachap",
+                text = "Discovery",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
@@ -317,7 +318,7 @@ fun VisualLearningHeroSection(
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         val scrollState = rememberScrollState()
         Row(
@@ -331,8 +332,8 @@ fun VisualLearningHeroSection(
                 Surface(
                     onClick = { onSelectSubject(subject) },
                     shape = RoundedCornerShape(16.dp),
-                    color = if (isSelected) Color(0xFFFFB300) else Color(0xFFDC8CC0).copy(alpha = 0.35f),
-                    border = BorderStroke(1.dp, if (isSelected) Color(0xFFFFB300) else Color(0xFFDC8CC0)),
+                    color = if (isSelected) Color(0xFFFFB300) else Color.White.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, if (isSelected) Color(0xFFFFB300) else Color.White.copy(alpha = 0.2f)),
                     modifier = Modifier.testTag("chip_$subject")
                 ) {
                     Text(
@@ -357,7 +358,7 @@ fun VisualLearningStickySearchBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Transparent)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -365,7 +366,7 @@ fun VisualLearningStickySearchBar(
                 .fillMaxWidth(0.95f)
                 .height(44.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(Color.White) // White search bar pill
+                .background(Color.White)
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -387,7 +388,7 @@ fun VisualLearningStickySearchBar(
                 singleLine = true,
                 decorationBox = { innerTextField ->
                     if (searchQuery.isEmpty()) {
-                        Text("Search by topic, subject or concept...", color = Color.Gray, fontSize = 13.sp, fontWeight = FontWeight.Normal)
+                        Text("Search concepts...", color = Color.Gray, fontSize = 13.sp, fontWeight = FontWeight.Normal)
                     }
                     innerTextField()
                 }
@@ -430,19 +431,19 @@ fun GalleryItem(
             .testTag("gallery_item_${item.id}")
     ) {
         val context = LocalContext.current
-        if (item.drawableResId != null) {
-            Image(
-                painter = painterResource(id = item.drawableResId),
-                contentDescription = item.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else if (!item.imageUrl.isNullOrBlank()) {
+        if (!item.imageUrl.isNullOrBlank()) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(item.imageUrl)
                     .crossfade(true)
                     .build(),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (item.drawableResId != null) {
+            Image(
+                painter = painterResource(id = item.drawableResId),
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -494,7 +495,6 @@ fun VisualLearningImmersiveViewer(
     onClose: () -> Unit
 ) {
     val pagerState = rememberPagerState(initialPage = initialIndex, pageCount = { items.size })
-    val coroutineScope = rememberCoroutineScope()
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         VerticalPager(
@@ -574,14 +574,7 @@ fun ImmersiveViewItem(
             contentAlignment = Alignment.Center
         ) {
             val context = LocalContext.current
-            if (item.drawableResId != null) {
-                Image(
-                    painter = painterResource(id = item.drawableResId),
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else if (!item.imageUrl.isNullOrBlank()) {
+            if (!item.imageUrl.isNullOrBlank()) {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
                         .data(item.imageUrl)
@@ -591,10 +584,17 @@ fun ImmersiveViewItem(
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize()
                 )
+            } else if (item.drawableResId != null) {
+                Image(
+                    painter = painterResource(id = item.drawableResId),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
 
-        // Top Overlay (Topic Search Bar & Title)
+        // Top Overlay
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -613,7 +613,6 @@ fun ImmersiveViewItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Topic Search Bar
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -641,7 +640,6 @@ fun ImmersiveViewItem(
 
                 Spacer(modifier = Modifier.width(10.dp))
 
-                // Close Button
                 IconButton(
                     onClick = onClose,
                     modifier = Modifier
@@ -659,7 +657,6 @@ fun ImmersiveViewItem(
                 }
             }
 
-            // Title below search bar
             Text(
                 text = item.title,
                 fontSize = 16.sp,
@@ -671,7 +668,7 @@ fun ImmersiveViewItem(
             )
         }
 
-        // Information Card (1:1 White Square)
+        // Information Card
         Box(
             modifier = Modifier
                 .fillMaxSize()
